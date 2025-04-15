@@ -1,11 +1,11 @@
-import { Status } from "../../types"; // Import shared Status type
+import { Status } from "@types";
 
 export interface Article {
   id: string;
-  date: string; // Consider using Date object after fetching
+  date: string;
   url: string;
   title: string;
-  content: string; // Keep as string for now
+  content: string;
   created_at: string;
   updated_at: string;
 }
@@ -14,4 +14,6 @@ export interface ArticlesState {
   items: Article[];
   status: Status;
   error: string | null;
+  lastFetched: number | null;
 }
+
