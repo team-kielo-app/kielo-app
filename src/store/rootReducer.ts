@@ -1,11 +1,11 @@
 import { combineReducers } from "@reduxjs/toolkit";
-import authReducer from "../features/auth/authSlice";
-import articlesReducer from "../features/articles/articlesSlice";
+import authReducer from "@features/auth/authReducer";
+import articlesReducer from "@features/articles/articlesReducer";
 
 const rootReducer = combineReducers({
   auth: authReducer,
   articles: articlesReducer,
-  // Add other reducers here as your app grows
 });
 
 export default rootReducer;
+
