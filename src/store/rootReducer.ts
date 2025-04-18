@@ -1,10 +1,16 @@
 import { combineReducers } from "@reduxjs/toolkit";
 import authReducer from "@features/auth/authReducer";
-import articlesReducer from "@features/articles/articlesReducer";
+import articlePaginationReducer from "@features/articles/articlesReducer";
+import entitiesReducer from "@entities/reducer";
+
+const pagination = combineReducers({
+  articlePagination: articlePaginationReducer,
+});
 
 const rootReducer = combineReducers({
   auth: authReducer,
-  articles: articlesReducer,
+  entities: entitiesReducer,
+  pagination,
 });
 
 export default rootReducer;

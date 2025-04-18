@@ -1,87 +1,87 @@
-import { ThunkAction } from "redux-thunk";
-import { AnyAction } from "redux";
+// --- Specific Article Actions ---
+// src/features/articles/articlesActions.ts
+import { ARTICLE_ARRAY } from "@entities/schemas"; // Assuming schemas are defined
+import { mapArticles } from "@entities/transforms"; // Assuming schemas are defined
 import * as actionTypes from "./articlesActionTypes";
-import { Article } from "./types";
-import { apiClient } from "@lib/api";
-import { RootState, AppDispatch } from "@store/store";
+import { withPaginationList } from "@pagination/actions";
+import { createApiRequestThunk } from "@pagination/apiRequestThunkFactory";
+import { selectArticlePagination } from "./articlesSelectors"; // Need selectors
+import { ThunkAction } from "redux-thunk"; // Or use RTK types
 
-type ArticlesThunk<ReturnType = void> = ThunkAction<
-  ReturnType,
-  RootState,
-  unknown,
-  AnyAction
->;
-
-// --- Sync Action Creators ---
-export const fetchArticlesRequest =
-  (): actionTypes.FetchArticlesRequestAction => ({
-    type: actionTypes.FETCH_ARTICLES_REQUEST,
+// --- Action Creator for fetching Article LIST ---
+export const fetchArticles = (
+  ownerId: string,
+  options?: { reset?: boolean; fetchNext?: boolean }
+) => {
+  // Create the specific API request thunk for articles
+  const apiRequestThunk = createApiRequestThunk({
+    types: [
+      actionTypes.FETCH_ARTICLES_REQUEST,
+      actionTypes.FETCH_ARTICLES_SUCCESS,
+      actionTypes.FETCH_ARTICLES_FAILURE,
+    ],
+    // Adapt endpoint based on ownerId (e.g., /users/{ownerId}/articles or /articles?ownerId=...)
+    endpoint: `/news/articles`, // Adjust as needed
+    verb: "GET",
+    schema: ARTICLE_ARRAY, // Use your defined normalizr schema
+    transform: [(res) => res.articles, mapArticles], // Extract data if nested
   });
-export const fetchArticlesSuccess = (
-  articles: Article[]
-): actionTypes.FetchArticlesSuccessAction => ({
-  type: actionTypes.FETCH_ARTICLES_SUCCESS,
-  payload: articles,
-});
-export const fetchArticlesFailure = (
-  error: actionTypes.FetchArticlesFailureAction["payload"]
-): actionTypes.FetchArticlesFailureAction => ({
-  type: actionTypes.FETCH_ARTICLES_FAILURE,
-  payload: error,
-});
 
-export const fetchArticleByIdRequest =
-  (): actionTypes.FetchArticleByIdRequestAction => ({
-    type: actionTypes.FETCH_ARTICLE_BY_ID_REQUEST,
+  // Use the HOC
+  return withPaginationList<RootState>({
+    apiRequestFunction: apiRequestThunk,
+    getStatePaginationData: selectArticlePagination, // Selector for state.pagination
+    paginationKey: ownerId,
+    pageSize: 25, // Specific page size for articles
+  })(options); // Pass options like { reset: true } or { fetchNext: true }
+};
+
+// --- Action Creator for fetching a SINGLE Article ---
+export const fetchSingleArticle = (
+  articleId: string,
+  cb?: (err: Error | null, res?: any) => void
+): ThunkAction<Promise<any>, RootState, unknown, any> => {
+  const apiRequestThunk = createApiRequestThunk({
+    types: [
+      actionTypes.FETCH_SINGLE_ARTICLE_REQUEST,
+      actionTypes.FETCH_SINGLE_ARTICLE_SUCCESS,
+      actionTypes.FETCH_SINGLE_ARTICLE_FAILURE,
+    ],
+    endpoint: `/news/articles/${articleId}`,
+    verb: "GET",
+
+    schema: ARTICLE_ARRAY, // Use your defined normalizr schema
+    transform: [(res) => [res], mapArticles], // Extract data if nested
+    cb,
   });
-export const fetchArticleByIdSuccess = (
-  article: Article
-): actionTypes.FetchArticleByIdSuccessAction => ({
-  type: actionTypes.FETCH_ARTICLE_BY_ID_SUCCESS,
-  payload: article,
-});
-export const fetchArticleByIdFailure = (
-  error: actionTypes.FetchArticleByIdFailureAction["payload"]
-): actionTypes.FetchArticleByIdFailureAction => ({
-  type: actionTypes.FETCH_ARTICLE_BY_ID_FAILURE,
-  payload: error,
-});
+  // No pagination HOC needed, just dispatch the API request thunk directly
+  // Pass an empty meta object or define specific meta if needed for the single fetch reducer logic
+  return apiRequestThunk({
+    meta: { entityName: "articles", itemId: articleId },
+  });
+};
 
-export const clearArticlesError = (): actionTypes.ClearArticlesErrorAction => ({
-  type: actionTypes.CLEAR_ARTICLES_ERROR,
-});
+// --- Action Creator for DELETING an Article ---
+// export const deleteArticle = (articleId: string, ownerId?: string, cb?: (err: Error | null, res?: any) => void) => {
+//     const entityName = 'articles';
+//     // Optional: Determine which pagination list(s) this might affect
+//     const paginationKey = ownerId ? `articles_by_owner_${ownerId}` : undefined;
 
-// --- Async Thunk Action Creators ---
-export const fetchArticlesThunk =
-  (): ArticlesThunk<Promise<void>> => async (dispatch: AppDispatch) => {
-    dispatch(fetchArticlesRequest());
-    try {
-      const data = await apiClient.get<Article[]>("/news/articles", dispatch);
-      dispatch(fetchArticlesSuccess(data));
-    } catch (error: any) {
-      const message =
-        error?.data?.error || error.message || "Failed to fetch articles";
-      const status = error?.status;
-      dispatch(fetchArticlesFailure({ message, status }));
-    }
-  };
+//     const apiRequestThunk = createApiRequestThunk({
+//         types: [actionTypes.DELETE_ARTICLE_REQUEST, actionTypes.DELETE_ARTICLE_SUCCESS, actionTypes.DELETE_ARTICLE_FAILURE], // Define these types
+//         endpoint: `/articles/${articleId}`,
+//         verb: 'DELETE',
+//         cb,
+//         // No schema needed usually for delete, response might be empty or just { success: true }
+//     });
 
-export const fetchArticleByIdThunk =
-  (articleId: string): ArticlesThunk<Promise<void>> =>
-  async (dispatch: AppDispatch) => {
-    dispatch(fetchArticleByIdRequest());
-    try {
-      const data = await apiClient.get<Article>(
-        `/news/articles/${articleId}`,
-        dispatch
-      );
-      dispatch(fetchArticleByIdSuccess(data));
-    } catch (error: any) {
-      const message =
-        error?.data?.error ||
-        error.message ||
-        `Failed to fetch article ${articleId}`;
-      const status = error?.status;
-      dispatch(fetchArticleByIdFailure({ message, status }));
-    }
-  };
+//     // Use the entity action HOC
+//     return withPaginationEntityAction<RootState>({
+//         apiRequestFunction: apiRequestThunk,
+//         entityName,
+//         itemId: articleId,
+//         verb: 'DELETE',
+//         paginationKey, // Pass the key so the pagination reducer can remove the ID
+//     })(); // No body needed for DELETE
+// }
+
