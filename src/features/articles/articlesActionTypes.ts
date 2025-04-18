@@ -1,17 +1,17 @@
-// Action type constants for articles
+export const FETCH_ARTICLES_REQUEST = "articles/FETCH_LIST_REQUEST";
+export const FETCH_ARTICLES_SUCCESS = "articles/FETCH_LIST_SUCCESS";
+export const FETCH_ARTICLES_FAILURE = "articles/FETCH_LIST_FAILURE";
 
-export const FETCH_ARTICLES_REQUEST = "articles/FETCH_ARTICLES_REQUEST";
-export const FETCH_ARTICLES_SUCCESS = "articles/FETCH_ARTICLES_SUCCESS";
-export const FETCH_ARTICLES_FAILURE = "articles/FETCH_ARTICLES_FAILURE";
+// --- Action Types for Adding/Removing from Lists (Optional, can reuse FETCH_SUCCESS with meta) ---
+// Let's stick to FETCH_SUCCESS and handle removal logic in the reducer based on meta/options for now.
+// If adding/removing involved *separate* API calls resulting in a single item, we'd add types like:
+// export const ADD_ARTICLE_SUCCESS = 'articles/ADD_SINGLE_SUCCESS';
+// export const REMOVE_ARTICLE_SUCCESS = 'articles/REMOVE_SINGLE_SUCCESS'; // This signals removal *after* API success
 
-export const FETCH_ARTICLE_BY_ID_REQUEST =
-  "articles/FETCH_ARTICLE_BY_ID_REQUEST";
-export const FETCH_ARTICLE_BY_ID_SUCCESS =
-  "articles/FETCH_ARTICLE_BY_ID_SUCCESS";
-export const FETCH_ARTICLE_BY_ID_FAILURE =
-  "articles/FETCH_ARTICLE_BY_ID_FAILURE";
-
-export const CLEAR_ARTICLES_ERROR = "articles/CLEAR_ARTICLES_ERROR";
+// --- Action Types for SINGLE Article Retrieval ---
+export const FETCH_SINGLE_ARTICLE_REQUEST = "articles/FETCH_SINGLE_REQUEST";
+export const FETCH_SINGLE_ARTICLE_SUCCESS = "articles/FETCH_SINGLE_SUCCESS";
+export const FETCH_SINGLE_ARTICLE_FAILURE = "articles/FETCH_SINGLE_FAILURE";
 
 // --- Action Shape Interfaces ---
 import { Article } from "./types";
@@ -62,3 +62,4 @@ export type ArticlesAction =
   | FetchArticleByIdSuccessAction
   | FetchArticleByIdFailureAction
   | ClearArticlesErrorAction;
+

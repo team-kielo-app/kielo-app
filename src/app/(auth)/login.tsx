@@ -60,6 +60,7 @@ const LoginView: React.FC<LoginViewProps> = ({ status, error, actions }) => {
       console.log(googleResponse);
       if (authentication?.accessToken) {
         console.log("Google Login Success, dispatching action...");
+        console.log(authentication);
         actions.loginWithSocialThunk({
           provider: "google",
           access_token: authentication.accessToken,
