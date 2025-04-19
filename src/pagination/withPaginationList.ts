@@ -3,11 +3,8 @@
 import { AppDispatch, RootState } from "@store/store";
 import { makeQueryString } from "@utils/url";
 import { assertInvariant } from "@utils/assert";
-import {
-  PaginationMeta,
-  DEFAULT_PAGINATION_STATE,
-  PaginationState,
-} from "./constants";
+import { DEFAULT_PAGINATION_STATE } from "./constants";
+import type { PaginationMeta, PaginationState } from "./types";
 import { ThunkAction } from "redux-thunk";
 
 // Type for the API request function expected by this HOC

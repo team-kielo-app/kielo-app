@@ -1,16 +1,18 @@
 // src/pagination/reducers.js
-import { DEFAULT_PAGINATION_STATE, PaginationState } from "./constants"; // Use the defined type
-import { uniqueStringsConcatOrder, uniqueObjectsConcatOrder } from "./utils"; // Assume utils exist
+import { DEFAULT_PAGINATION_STATE } from "./constants";
+import type { PaginationState } from "./types";
+import { uniqueStringsConcatOrder, uniqueObjectsConcatOrder } from "./utils";
+
 function updateSinglePaginationState(
-  state: PaginationState = DEFAULT_PAGINATION_STATE, // Type the state
+  state: PaginationState = DEFAULT_PAGINATION_STATE,
   action: any, // Use a more specific Action type if possible
   config: {
     // Pass config down
-    requestTypes: string[],
-    successTypes: string[],
-    failureTypes: string[],
-    idField: string,
-    resultField: string,
+    requestTypes: string[];
+    successTypes: string[];
+    failureTypes: string[];
+    idField: string;
+    resultField: string;
   }
 ): PaginationState {
   // Return type annotation
@@ -175,12 +177,12 @@ function updateSinglePaginationState(
 }
 
 export function paginate(config: {
-  requestTypes: string[],
-  successTypes: string[],
-  failureTypes: string[],
-  idField?: string,
-  mapActionToKey: (action: any) => string | null,
-  resultField?: string,
+  requestTypes: string[];
+  successTypes: string[];
+  failureTypes: string[];
+  idField?: string;
+  mapActionToKey: (action: any) => string | null;
+  resultField?: string;
 }) {
   // Validate config at the start
   const {
@@ -266,3 +268,4 @@ export function paginate(config: {
     };
   };
 }
+
