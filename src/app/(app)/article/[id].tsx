@@ -40,8 +40,6 @@ export default function ArticleScreen() {
     selectEntityById("articles", id)(state)
   );
 
-  console.log(article);
-
   useEffect(() => {
     if (article?.content) return;
     dispatch(fetchSingleArticle(id));

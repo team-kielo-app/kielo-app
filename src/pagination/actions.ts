@@ -2,7 +2,7 @@ import { AppDispatch, RootState } from "@store/store";
 import { makeQueryString } from "@utils/url";
 import { assertInvariant } from "@utils/assert";
 import { DEFAULT_PAGINATION_STATE } from "./constants";
-import type { PaginationMeta, EntityMeta, PaginationState } from "./types";
+import type { PaginationMeta, EntityMeta, PaginationStateType } from "./types";
 
 type ApiRequestFunction<T = any> = (params: {
   queryString?: string;
@@ -25,7 +25,7 @@ export function withPaginationList<S extends RootState>({
   additionalQueryParams = {},
 }: {
   apiRequestFunction: ApiRequestFunction;
-  getStatePaginationData: (state: S) => Record<string, PaginationState>;
+  getStatePaginationData: (state: S) => Record<string, PaginationStateType>;
   paginationKey: string;
   pageSize?: number;
   fetchPolicy?: "fetchIfNeeded" | "forceFetch";
@@ -129,7 +129,7 @@ export function withPaginationEntityAction<S extends RootState>({
   verb,
 }: {
   apiRequestFunction: ApiRequestFunction;
-  getStatePaginationData?: (state: S) => Record<string, PaginationState>;
+  getStatePaginationData?: (state: S) => Record<string, PaginationStateType>;
   paginationKey?: string;
   entityName: string;
   itemId: string | string[];

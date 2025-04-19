@@ -1,5 +1,3 @@
-// app/(auth)/login.tsx
-
 import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
@@ -7,71 +5,56 @@ import {
   TextInput,
   StyleSheet,
   ActivityIndicator,
-  Platform,
   Pressable,
   Alert,
 } from "react-native";
-import { connect } from "react-redux";
-import { bindActionCreators } from "redux";
+import { useSelector, useDispatch } from "react-redux";
 import { FontAwesome } from "@expo/vector-icons";
-import * as WebBrowser from "expo-web-browser";
-import * as Google from "expo-auth-session/providers/google";
+import { maybeCompleteAuthSession } from "expo-web-browser";
+import { useAuthRequest } from "expo-auth-session/providers/google";
 
-// Import actions, selectors, types from the refactored structure
-import * as authActions from "@features/auth/authActions";
-import * as authSelectors from "@features/auth/authSelectors";
-import { AuthState } from "@features/auth/types"; // Assuming Status is part of AuthState now
-import { AppDispatch, RootState } from "@store/store";
+import {
+  loginUserThunk,
+  loginWithSocialThunk,
+  clearAuthError,
+} from "@features/auth/authActions";
+import {
+  selectAuthStatus,
+  selectAuthError,
+} from "@features/auth/authSelectors";
+import { AppDispatch } from "@store/store";
 import { Colors } from "@constants/Colors";
 
-// Required if using expo-auth-session for web redirects
-WebBrowser.maybeCompleteAuthSession();
+// Required for expo-auth-session web redirects
+maybeCompleteAuthSession();
 
-// --- Presentational Component (LoginView) ---
-interface LoginViewProps {
-  status: AuthState["status"];
-  error: string | null;
-  actions: {
-    // Bound actions
-    loginUserThunk: typeof authActions.loginUserThunk;
-    loginWithSocialThunk: typeof authActions.loginWithSocialThunk;
-    clearAuthError: typeof authActions.clearAuthError;
-  };
-  // Add any other props needed from container or router
-}
+const LoginView = () => {
+  const dispatch = useDispatch<AppDispatch>();
 
-const LoginView: React.FC<LoginViewProps> = ({ status, error, actions }) => {
-  const [email, setEmail] = useState("test@kielo.app"); // Local state for form
-  const [password, setPassword] = useState("password"); // Local state for form
+  const status = useSelector(selectAuthStatus);
+  const error = useSelector(selectAuthError);
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const isLoading = status === "loading";
 
-  // --- Google Sign-In Hook ---
-  const [googleRequest, googleResponse, promptAsyncGoogle] =
-    Google.useAuthRequest({
-      iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-      androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-      webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-    });
+  const [googleRequest, googleResponse, promptAsyncGoogle] = useAuthRequest({
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+  });
 
-  // Effect to handle Google sign-in response
   useEffect(() => {
-    if (googleResponse?.type === "success") {
-      const { authentication } = googleResponse;
-      console.log(googleResponse);
-      if (authentication?.accessToken) {
-        console.log("Google Login Success, dispatching action...");
-        console.log(authentication);
-        actions.loginWithSocialThunk({
+    if (
+      googleResponse?.type === "success" &&
+      googleResponse.authentication?.accessToken
+    ) {
+      dispatch(
+        loginWithSocialThunk({
           provider: "google",
-          access_token: authentication.accessToken,
-        });
-      } else {
-        console.error("Google Auth Success but no accessToken", googleResponse);
-        Alert.alert(
-          "Login Error",
-          "Could not get authentication details from Google."
-        );
-      }
+          access_token: googleResponse.authentication.accessToken,
+        })
+      );
     } else if (googleResponse?.type === "error") {
       console.error("Google Auth Error:", googleResponse.error);
       Alert.alert(
@@ -79,51 +62,90 @@ const LoginView: React.FC<LoginViewProps> = ({ status, error, actions }) => {
         "Google authentication failed. Please try again."
       );
     }
-  }, [googleResponse, actions]); // Depend on actions object
+  }, [googleResponse, dispatch]);
 
-  // Effect to clear error on mount or when inputs change
   useEffect(() => {
-    actions.clearAuthError();
-  }, [actions, email, password]); // Depend on actions object
+    if (!error) return;
+    dispatch(clearAuthError());
+  }, [email, password, dispatch]);
 
-  // --- Event Handlers ---
-  const handleLoginSubmit = () => {
+  const handleLoginSubmit = useCallback(() => {
     if (!email || !password) {
       Alert.alert("Validation Error", "Please enter both email and password.");
       return;
     }
-    // Call bound action directly
-    actions.loginUserThunk({ email, password });
-  };
+    dispatch(loginUserThunk({ email, password }));
+  }, [email, password, dispatch]);
 
-  const handleGoogleLoginPress = () => {
-    if (!isLoading && googleRequest) {
+  const handleGoogleLoginPress = useCallback(() => {
+    if (googleRequest) {
       promptAsyncGoogle();
     }
-  };
+  }, [googleRequest, promptAsyncGoogle]);
 
-  const handleAppleLoginPress = () => {
+  const handleAppleLoginPress = useCallback(() => {
     Alert.alert("Not Implemented", "Apple login needs implementation.");
-    // Add native Apple login logic here if needed, calling actions.loginWithSocialThunk
-  };
+  }, []);
 
-  const handleTwitterLoginPress = () => {
+  const handleTwitterLoginPress = useCallback(() => {
     Alert.alert("Not Implemented", "X/Twitter login needs implementation.");
-    // Add Twitter login logic here if needed, calling actions.loginWithSocialThunk
-  };
+  }, []);
 
-  // --- Render ---
+  const handleEmailChange = useCallback((text: string) => {
+    setEmail(text);
+  }, []);
+
+  const handlePasswordChange = useCallback((text: string) => {
+    setPassword(text);
+  }, []);
+
+  const renderSocialButton = useCallback(
+    (
+      provider: "google" | "apple" | "twitter",
+      label: string,
+      onPress: () => void,
+      disabled: boolean = false
+    ) => {
+      const iconName = provider === "twitter" ? "twitter" : provider;
+      const buttonStyle = styles[`${provider}Button` as keyof typeof styles];
+      const pressedStyle =
+        provider === "google" ? styles.buttonPressedGoogle : undefined;
+
+      return (
+        <Pressable
+          style={({ pressed }) => [
+            styles.socialButton,
+            buttonStyle,
+            disabled && styles.buttonDisabled,
+            pressed && !disabled && pressedStyle,
+          ]}
+          onPress={onPress}
+          disabled={disabled}
+        >
+          <FontAwesome
+            name={iconName as any}
+            size={20}
+            color="white"
+            style={styles.socialIcon}
+          />
+          <Text style={styles.socialButtonText}>{label}</Text>
+        </Pressable>
+      );
+    },
+    []
+  );
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Kielo Login</Text>
+      <Text style={styles.title}>Welcome to Kielo!</Text>
 
       {error && <Text style={styles.errorText}>{error}</Text>}
 
       <TextInput
         style={[styles.input, isLoading && styles.inputDisabled]}
-        placeholder="Email (use test@kielo.app)"
+        placeholder="Email"
         value={email}
-        onChangeText={setEmail}
+        onChangeText={handleEmailChange}
         keyboardType="email-address"
         autoCapitalize="none"
         placeholderTextColor="#888"
@@ -131,9 +153,9 @@ const LoginView: React.FC<LoginViewProps> = ({ status, error, actions }) => {
       />
       <TextInput
         style={[styles.input, isLoading && styles.inputDisabled]}
-        placeholder="Password (any for mock)"
+        placeholder="Password"
         value={password}
-        onChangeText={setPassword}
+        onChangeText={handlePasswordChange}
         secureTextEntry
         placeholderTextColor="#888"
         editable={!isLoading}
@@ -157,92 +179,33 @@ const LoginView: React.FC<LoginViewProps> = ({ status, error, actions }) => {
 
       <Text style={styles.orText}>OR</Text>
 
-      {/* Social Buttons */}
-      <Pressable
-        style={({ pressed }) => [
-          styles.socialButton,
-          styles.googleButton,
-          (!googleRequest || isLoading) && styles.buttonDisabled,
-          pressed && !isLoading && styles.buttonPressedGoogle,
-        ]}
-        onPress={handleGoogleLoginPress}
-        disabled={!googleRequest || isLoading}
-      >
-        <FontAwesome
-          name="google"
-          size={20}
-          color="white"
-          style={styles.socialIcon}
-        />
-        <Text style={styles.socialButtonText}>Sign in with Google</Text>
-      </Pressable>
+      {renderSocialButton(
+        "google",
+        "Sign in with Google",
+        handleGoogleLoginPress,
+        !googleRequest || isLoading
+      )}
 
-      <Pressable
-        style={[
-          styles.socialButton,
-          styles.appleButton,
-          isLoading && styles.buttonDisabled,
-        ]}
-        onPress={handleAppleLoginPress}
-        disabled={isLoading}
-      >
-        <FontAwesome
-          name="apple"
-          size={20}
-          color="white"
-          style={styles.socialIcon}
-        />
-        <Text style={styles.socialButtonText}>Sign in with Apple</Text>
-      </Pressable>
+      {renderSocialButton(
+        "apple",
+        "Sign in with Apple",
+        handleAppleLoginPress,
+        isLoading
+      )}
 
-      <Pressable
-        style={[
-          styles.socialButton,
-          styles.twitterButton,
-          isLoading && styles.buttonDisabled,
-        ]}
-        onPress={handleTwitterLoginPress}
-        disabled={isLoading}
-      >
-        <FontAwesome
-          name="twitter"
-          size={20}
-          color="white"
-          style={styles.socialIcon}
-        />
-        <Text style={styles.socialButtonText}>Sign in with X</Text>
-      </Pressable>
-
-      {/* Register Link Placeholder */}
+      {renderSocialButton(
+        "twitter",
+        "Sign in with X",
+        handleTwitterLoginPress,
+        isLoading
+      )}
     </View>
   );
 };
 
-// --- Container Component (LoginScreen - Default Export) ---
+export default LoginView;
 
-const mapStateToProps = (state: RootState) => ({
-  status: authSelectors.selectAuthStatus(state),
-  error: authSelectors.selectAuthError(state),
-});
-
-const mapDispatchToProps = (dispatch: AppDispatch) => ({
-  actions: bindActionCreators(
-    {
-      // Actions needed by LoginView
-      loginUserThunk: authActions.loginUserThunk,
-      loginWithSocialThunk: authActions.loginWithSocialThunk,
-      clearAuthError: authActions.clearAuthError,
-    },
-    dispatch
-  ),
-});
-
-// Connect the LoginView component
-export default connect(mapStateToProps, mapDispatchToProps)(LoginView);
-
-// Styles remain the same...
 const styles = StyleSheet.create({
-  // ... Paste existing styles from previous LoginScreen here ...
   container: {
     flex: 1,
     justifyContent: "center",

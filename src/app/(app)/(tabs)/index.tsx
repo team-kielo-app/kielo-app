@@ -40,21 +40,18 @@ export default function HomeScreen() {
 
   const userState = useSelector((state: RootState) => selectUser(state));
 
-  const {
-    data: articles,
-    pagination: { isLoading, error },
-  } = useSelector((state: RootState) =>
+  const { data: articles, pagination } = useSelector((state: RootState) =>
     selectPaginatedData(
       "articles",
       "articlePagination",
-      userState.id,
+      userState?.id,
       true
     )(state)
   );
 
   useEffect(() => {
-    if (articles.length > 5 || isLoading || error) return;
-    dispatch(fetchArticles(userState.id, { reset: true }));
+    if (articles.length > 5 || pagination.isLoading || pagination.error) return;
+    dispatch(fetchArticles(userState?.id, { reset: true }));
   }, []);
 
   return (
@@ -79,7 +76,7 @@ export default function HomeScreen() {
           >
             <Image
               source={{
-                uri: `https://picsum.photos/seed/${userState.id}/200/200`,
+                uri: `https://picsum.photos/seed/${userState?.id}/200/200`,
               }}
               style={styles.profileImage}
             />

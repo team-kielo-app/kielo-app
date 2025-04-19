@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   useWindowDimensions,
 } from "react-native";
-import { router } from "expo-router";
+import { useRouter } from "expo-router";
 import { ArticleType } from "types/article";
 import { Colors } from "@constants/Colors";
 import { Bookmark, BookmarkCheck } from "lucide-react-native";
@@ -21,6 +21,7 @@ export const ArticleThumbnail: React.FC<ArticleThumbnailProps> = ({
   article,
   size = "small",
 }) => {
+  const router = useRouter();
   const { width } = useWindowDimensions();
   const isWideScreen = width > 768;
   const [isSaved, setIsSaved] = React.useState(false);

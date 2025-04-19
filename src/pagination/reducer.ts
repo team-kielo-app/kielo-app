@@ -1,10 +1,10 @@
 // src/pagination/reducers.js
 import { DEFAULT_PAGINATION_STATE } from "./constants";
-import type { PaginationState } from "./types";
+import type { PaginationStateType } from "./types";
 import { uniqueStringsConcatOrder, uniqueObjectsConcatOrder } from "./utils";
 
 function updateSinglePaginationState(
-  state: PaginationState = DEFAULT_PAGINATION_STATE,
+  state: PaginationStateType = DEFAULT_PAGINATION_STATE,
   action: any, // Use a more specific Action type if possible
   config: {
     // Pass config down
@@ -14,7 +14,7 @@ function updateSinglePaginationState(
     idField: string;
     resultField: string;
   }
-): PaginationState {
+): PaginationStateType {
   // Return type annotation
   const { requestTypes, successTypes, failureTypes, idField, resultField } =
     config;

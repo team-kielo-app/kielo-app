@@ -20,7 +20,7 @@ import {
 } from "lucide-react-native";
 import { Colors } from "@constants/Colors";
 import { ArticleCard } from "@/components/reader/ArticleCard";
-import { router } from "expo-router";
+import { useRouter } from "expo-router";
 import { useResponsiveDimensions } from "@hooks/useResponsiveDimensions";
 import { useSelector, useDispatch } from "react-redux";
 import { fetchArticles } from "@features/articles/articlesActions";
@@ -37,6 +37,7 @@ const CATEGORIES = [
 ];
 
 export default function ReaderScreen() {
+  const router = useRouter();
   const { isDesktop } = useResponsiveDimensions();
   const dispatch = useDispatch<AppDispatch>();
 
@@ -49,14 +50,14 @@ export default function ReaderScreen() {
     selectPaginatedData(
       "articles",
       "articlePagination",
-      userState.id,
+      userState?.id,
       true
     )(state)
   );
 
   useEffect(() => {
     if (articles.length > 5 || isLoading || error) return;
-    dispatch(fetchArticles(userState.id, { reset: true }));
+    dispatch(fetchArticles(userState?.id, { reset: true }));
   }, []);
 
   const [searchQuery, setSearchQuery] = useState("");

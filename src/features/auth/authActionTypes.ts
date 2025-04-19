@@ -66,11 +66,11 @@ export interface InitializeAuthRequestAction {
 }
 export interface InitializeAuthSuccessAction {
   type: typeof INITIALIZE_AUTH_SUCCESS;
-  payload: LoginSuccessPayload | null;
+  payload?: LoginSuccessPayload | null;
 }
 export interface InitializeAuthFailureAction {
   type: typeof INITIALIZE_AUTH_FAILURE;
-  payload: string;
+  payload?: string | null;
 }
 
 export interface SetRefreshedTokensAction {

@@ -4,7 +4,7 @@ import { AppDispatch, RootState } from "@store/store";
 import { makeQueryString } from "@utils/url";
 import { assertInvariant } from "@utils/assert";
 import { DEFAULT_PAGINATION_STATE } from "./constants";
-import type { PaginationMeta, PaginationState } from "./types";
+import type { PaginationMeta, PaginationStateType } from "./types";
 import { ThunkAction } from "redux-thunk";
 
 // Type for the API request function expected by this HOC
@@ -16,7 +16,7 @@ type ListApiRequestFunction = (params: {
 
 interface WithPaginationListConfig<S extends RootState> {
   apiRequestFunction: ListApiRequestFunction;
-  getStatePaginationData: (state: S) => Record<string, PaginationState>;
+  getStatePaginationData: (state: S) => Record<string, PaginationStateType>;
   paginationKey: string;
   pageSize?: number;
   fetchPolicy?: "fetchIfNeeded" | "forceFetch";

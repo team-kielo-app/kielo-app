@@ -1,22 +1,21 @@
 {
   "expo": {
-    "name": "kielo-app",
-    "slug": "kielo-app",
+    "name": "Kielo.app",
+    "slug": "kieloapp",
     "version": "1.0.0",
     "orientation": "default",
-    "icon": "./assets/images/icon.png",
+    "icon": "./src/assets/ic-launcher/icon.png",
     "scheme": "kieloapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true, // Ensure tablet support is enabled
-      "bundleIdentifier": "com.yourcompany.kieloapp",
-      // IMPORTANT for iPad orientation changes, especially with multitasking
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kielo.app",
       "requireFullScreen": true
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./src/assets/ic-launcher/icon.png",
         "backgroundColor": "#ffffff"
       },
       "package": "com.kielo.app"
@@ -24,23 +23,31 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/favicon.png"
+      "favicon": "./src/assets/ic-launcher/web/favicon-96x96.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./src/assets/ic-launcher/web/favicon-96x96.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "da03360b-ad32-484c-ab92-ea26277e74d8"
+      }
     }
   }
 }
-

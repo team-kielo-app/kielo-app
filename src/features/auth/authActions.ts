@@ -1,20 +1,14 @@
-import { ThunkAction } from "redux-thunk";
-import { AnyAction } from "redux";
 import * as actionTypes from "./authActionTypes";
-import { AuthState, User, LoginResponse, SocialLoginPayload } from "./types"; // Ensure LoginResponse has user if backend updated
-import { apiClient } from "@lib/api"; // Use alias
-import * as CookieLib from "@lib/cookie"; // Use alias
-import { RootState, AppDispatch } from "@store/store"; // Use alias
+import type {
+  AuthState,
+  User,
+  LoginResponse,
+  SocialLoginPayload,
+} from "./types";
+import { apiClient } from "@lib/api";
+import { RootState, AppDispatch, AppThunk } from "@store/store";
+import * as tokenStorage from "@lib/tokenStorage";
 
-type AuthThunk<ReturnType = void> = ThunkAction<
-  ReturnType,
-  RootState,
-  unknown,
-  AnyAction
->;
-
-// --- Sync Action Creators (No change needed) ---
-// ... loginRequest, loginSuccess, loginFailure etc. ...
 export const loginRequest = (): actionTypes.LoginRequestAction => ({
   type: actionTypes.LOGIN_REQUEST,
 });
@@ -51,13 +45,13 @@ export const initializeAuthRequest =
     type: actionTypes.INITIALIZE_AUTH_REQUEST,
   });
 export const initializeAuthSuccess = (
-  payload: actionTypes.InitializeAuthSuccessAction["payload"]
+  payload?: actionTypes.InitializeAuthSuccessAction["payload"]
 ): actionTypes.InitializeAuthSuccessAction => ({
   type: actionTypes.INITIALIZE_AUTH_SUCCESS,
   payload,
 });
 export const initializeAuthFailure = (
-  error: string
+  error?: string | null
 ): actionTypes.InitializeAuthFailureAction => ({
   type: actionTypes.INITIALIZE_AUTH_FAILURE,
   payload: error,
@@ -68,36 +62,31 @@ export const setRefreshedTokens = (
   type: actionTypes.SET_REFRESHED_TOKENS,
   payload,
 });
-export const logoutUser = (): actionTypes.LogoutUserAction => {
-  CookieLib.removeTokensCookie();
+export const logoutUser = (): AppThunk => async (dispatch) => {
+  await tokenStorage.removeStoredTokens();
+
+  dispatch(logoutUserSuccess());
+};
+export const logoutUserSuccess = (): actionTypes.LogoutUserAction => {
   return { type: actionTypes.LOGOUT_USER };
 };
 export const clearAuthError = (): actionTypes.ClearAuthErrorAction => ({
   type: actionTypes.CLEAR_AUTH_ERROR,
 });
 
-// --- Async Thunk Action Creators (Updated) ---
-
 export const loginUserThunk =
-  (credentials: {
-    email: string;
-    password: string;
-  }): AuthThunk<Promise<void>> =>
+  (credentials: { email: string; password: string }): AppThunk<Promise<void>> =>
   async (dispatch: AppDispatch) => {
     dispatch(loginRequest());
     try {
-      // Assume loginData now contains the user object from the backend
       const loginData = await apiClient.post<LoginResponse>(
         "/auth/login/email",
         credentials,
         dispatch
       );
 
-      // REMOVED: No need to call /auth/me here
-      // const user = await apiClient.get<User>('/auth/me', dispatch);
-
       const expiresAt = Date.now() + loginData.expires_in * 1000;
-      CookieLib.setTokensCookie(
+      await tokenStorage.setStoredTokens(
         loginData.access_token,
         loginData.refresh_token,
         expiresAt
@@ -107,13 +96,9 @@ export const loginUserThunk =
         loginSuccess({
           token: loginData.access_token,
           refreshToken: loginData.refresh_token,
-          user: loginData.user, // Use user data directly from login response
+          user: loginData.user,
           expiresAt: expiresAt,
         })
-      );
-      console.log(
-        "Login successful, user data received directly:",
-        loginData.user?.email
       );
     } catch (error: any) {
       const message = error?.data?.error || error.message || "Login failed";
@@ -122,22 +107,18 @@ export const loginUserThunk =
   };
 
 export const loginWithSocialThunk =
-  (payload: SocialLoginPayload): AuthThunk<Promise<void>> =>
+  (payload: SocialLoginPayload): AppThunk<Promise<void>> =>
   async (dispatch: AppDispatch) => {
     dispatch(socialLoginRequest());
     try {
-      // Assume loginData now contains the user object from the backend
       const loginData = await apiClient.post<LoginResponse>(
         "/auth/login/social",
         payload,
         dispatch
       );
 
-      // REMOVED: No need to call /auth/me here
-      // const user = await apiClient.get<User>('/auth/me', dispatch);
-
       const expiresAt = Date.now() + loginData.expires_in * 1000;
-      CookieLib.setTokensCookie(
+      await tokenStorage.setStoredTokens(
         loginData.access_token,
         loginData.refresh_token,
         expiresAt
@@ -147,13 +128,9 @@ export const loginWithSocialThunk =
         socialLoginSuccess({
           token: loginData.access_token,
           refreshToken: loginData.refresh_token,
-          user: loginData.user, // Use user data directly from login response
+          user: loginData.user,
           expiresAt: expiresAt,
         })
-      );
-      console.log(
-        "Social login successful, user data received directly:",
-        loginData.user?.email
       );
     } catch (error: any) {
       const message =
@@ -162,37 +139,28 @@ export const loginWithSocialThunk =
     }
   };
 
-// --- initializeAuthThunk (Remains the same, still needs /auth/me) ---
 export const initializeAuthThunk =
-  (): AuthThunk<Promise<void>> =>
+  (): AppThunk<Promise<void>> =>
   async (dispatch: AppDispatch, getState: () => RootState) => {
-    dispatch(initializeAuthRequest()); // Sets status to 'loading'
+    dispatch(initializeAuthRequest());
 
-    const token = CookieLib.getTokenCookie();
-    const refreshToken = CookieLib.getRefreshTokenCookie();
-    const expiresAt = CookieLib.getExpiryCookie();
+    const storedData = await tokenStorage.getStoredTokens();
+    const { token, refreshToken, expiresAt } = storedData;
 
-    if (token && refreshToken && expiresAt) {
-      console.log("InitializeAuth: Tokens found in storage.");
-      // --- PRE-POPULATE STATE ---
-      // Dispatch synchronous action to load tokens into state *before* API call
+    if (token && refreshToken && expiresAt && expiresAt > Date.now()) {
+      console.log("InitializeAuth: Tokens found in storage and not expired.");
+
       dispatch(setInitialTokens({ token, refreshToken, expiresAt }));
-      // Now apiClient will read these from the state when called below
 
       try {
-        // --- VALIDATE VIA API ---
-        console.log(
-          "InitializeAuth: Attempting to fetch /auth/me to validate session..."
-        );
-        // apiClient.get reads from state (now populated) and handles refresh if needed
+        console.log("InitializeAuth: Attempting to fetch /auth/me...");
         const user = await apiClient.get<User>("/auth/me", dispatch);
         console.log("InitializeAuth: /auth/me fetch successful.");
 
-        // After successful fetch/refresh, get the *potentially updated* token info from state
         const currentState = getState().auth;
         dispatch(
           initializeAuthSuccess({
-            token: currentState.token!, // Use validated/refreshed token
+            token: currentState.token!,
             refreshToken: currentState.refreshToken!,
             user: user,
             expiresAt: currentState.expiresAt!,
@@ -200,26 +168,26 @@ export const initializeAuthThunk =
         );
         console.log("InitializeAuth: Auth initialized successfully.");
       } catch (error: any) {
-        // This catch block handles failures in apiClient.get('/auth/me')
-        // including cases where the initial token was invalid AND refresh failed.
         console.error(
-          "InitializeAuth: /auth/me fetch or subsequent refresh failed.",
+          "InitializeAuth: /auth/me fetch or refresh failed.",
           error
         );
         const message =
           error?.data?.error || error.message || "Session invalid or expired.";
         dispatch(initializeAuthFailure(message));
-        // Ensure logout action is dispatched to clean up potentially bad state/cookies
+
         dispatch(logoutUser());
-        console.log("InitializeAuth: Failure, user logged out.");
+        console.log("InitializeAuth: Failure, ensuring user is logged out.");
       }
     } else {
-      // --- NO TOKENS FOUND ---
-      console.log("InitializeAuth: No tokens found in storage.");
-      // Dispatch success with null payload to signify no session
-      // This also implicitly sets status away from 'loading' (reducer handles this)
-      dispatch(initializeAuthFailure("no session found"));
-      console.log("InitializeAuth: Finished (no session).");
+      if (!token || !refreshToken || !expiresAt) {
+        console.log("InitializeAuth: No tokens found in storage.");
+      } else {
+        console.log("InitializeAuth: Tokens found but expired.");
+        await tokenStorage.removeStoredTokens();
+      }
+      dispatch(initializeAuthFailure());
+      console.log("InitializeAuth: Finished (no valid session).");
     }
   };
 

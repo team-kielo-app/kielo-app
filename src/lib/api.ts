@@ -9,12 +9,7 @@ import * as authSelectors from "@features/auth/authSelectors";
 
 import * as Device from "expo-device";
 import { Platform } from "react-native";
-import {
-  getRefreshTokenCookie,
-  getTokenCookie,
-  setTokensCookie,
-  removeTokensCookie,
-} from "./cookie";
+import * as tokenStorage from "@lib/tokenStorage";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
 
@@ -69,7 +64,7 @@ const handleRefreshToken = async (
     // Use the new selectors via store.getState()
     const currentRefreshToken =
       authSelectors.selectRefreshToken(store.getState()) ||
-      getRefreshTokenCookie();
+      (await tokenStorage.getStoredTokens());
 
     if (!currentRefreshToken) {
       console.log("No refresh token available, logging out.");
@@ -111,7 +106,7 @@ const handleRefreshToken = async (
             expiresAt: newExpiresAt,
           })
         );
-        setTokensCookie(
+        await tokenStorage.setStoredTokens(
           newAccessToken,
           newRefreshToken || currentRefreshToken,
           newExpiresAt

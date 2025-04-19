@@ -8,6 +8,6 @@ export default function StartPage() {
 
   // Redirecting to a screen within the (app) group. The root layout will
   // handle checking auth and redirecting to (auth) if needed.
-  return <Redirect href="/(app)" />;
+  return <Redirect href="/(app)/(tabs)" />;
 }
 

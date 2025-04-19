@@ -25,5 +25,5 @@ export interface EntityMeta {
 }
 
 import { DEFAULT_PAGINATION_STATE } from "./constants";
-export type PaginationState = typeof DEFAULT_PAGINATION_STATE;
+export type PaginationStateType = typeof DEFAULT_PAGINATION_STATE;
 

@@ -1,6 +1,6 @@
 import { Tabs } from "expo-router";
 import { StyleSheet, Platform } from "react-native";
-import { Home, Book, User, BicepsFlexed, Settings } from "lucide-react-native";
+import { Home, Book, User, BicepsFlexed } from "lucide-react-native";
 import { Colors } from "@constants/Colors";
 
 export default function TabLayout() {
@@ -42,15 +42,6 @@ export default function TabLayout() {
         options={{
           title: "Profile",
           tabBarIcon: ({ color, size }) => <User size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: "Settings",
-          tabBarIcon: ({ color, size }) => (
-            <Settings size={size} color={color} />
-          ),
         }}
       />
     </Tabs>

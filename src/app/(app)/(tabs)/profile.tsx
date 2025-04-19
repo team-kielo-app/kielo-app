@@ -106,14 +106,14 @@ export default function ProfileScreen() {
     selectPaginatedData(
       "articles",
       "articlePagination",
-      userState.id,
+      userState?.id,
       true
     )(state)
   );
 
   useEffect(() => {
     if (articles.length > 5 || isLoading || error) return;
-    dispatch(fetchArticles(userState.id, { reset: true }));
+    dispatch(fetchArticles(userState?.id, { reset: true }));
   }, []);
 
   return (
@@ -139,7 +139,7 @@ export default function ProfileScreen() {
         <View style={styles.profileSection}>
           <Image
             source={{
-              uri: `https://picsum.photos/seed/${userState.id}/200/200`,
+              uri: `https://picsum.photos/seed/${userState?.id}/200/200`,
             }}
             style={styles.profileImage}
           />

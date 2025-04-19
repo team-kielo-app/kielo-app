@@ -2,8 +2,8 @@
 import { createSelector } from "@reduxjs/toolkit"; // Or import from 'reselect'
 import type { RootState } from "@store/store"; // Your root state type
 import { DEFAULT_PAGINATION_STATE } from "./constants"; // Import default state
-import type { PaginationState, PaginatedData } from "./types";
-import type { Entities } from "@entities/types"; // Import the core Article type
+import type { PaginationStateType, PaginatedData } from "./types";
+import type { EntitiesType } from "@entities/types"; // Import the core Article type
 
 // Base selectors
 const selectEntitiesSlice = (state: RootState) => state.entities;
@@ -15,7 +15,7 @@ const selectPaginationSlice = (state: RootState) => state.pagination;
 export const selectEntityCollection = (entityName: string) =>
   createSelector(
     [selectEntitiesSlice],
-    (entities: { [entityName]: Entities }) => entities[entityName] || {}
+    (entities: { [entityName]: EntitiesType }) => entities[entityName] || {}
   );
 
 /**
@@ -56,7 +56,7 @@ export const hasMorePages = (
  * Creates a paginated data object from pagination state and entities
  */
 export const createPaginatedData = <T>(
-  paginationState: Partial<PaginationState>,
+  paginationState: Partial<PaginationStateType>,
   entities: Record<string, T>,
   isAccumulated: boolean
 ): PaginatedData => {
@@ -140,10 +140,8 @@ export const selectPaginatedData = <T>(
         return createErrorResponse("Missing required parameters");
       }
 
-      console.log(entityCollection, paginationByType[paginationKey]);
-
       // Get pagination state for the requested key
-      const paginationState: PaginationState =
+      const paginationState: PaginationStateType =
         paginationByType[paginationKey] || DEFAULT_PAGINATION_STATE;
 
       return createPaginatedData<T>(
