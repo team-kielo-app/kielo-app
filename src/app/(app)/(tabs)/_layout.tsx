@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { StyleSheet } from "react-native";
+import { StyleSheet, Platform } from "react-native";
 import { Home, Book, User, BicepsFlexed, Settings } from "lucide-react-native";
 import { Colors } from "@constants/Colors";
 
@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.light.border,
     paddingTop: 7,
     paddingBottom: 8,
-    height: 65,
+    height: Platform.OS === "ios" ? 78 : 65,
   },
   tabBarLabel: {
     fontFamily: "Inter-Medium",

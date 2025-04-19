@@ -3,13 +3,16 @@
     "name": "kielo-app",
     "slug": "kielo-app",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "kieloapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true, // Ensure tablet support is enabled
+      "bundleIdentifier": "com.yourcompany.kieloapp",
+      // IMPORTANT for iPad orientation changes, especially with multitasking
+      "requireFullScreen": true
     },
     "android": {
       "adaptiveIcon": {
@@ -20,7 +23,8 @@
     },
     "web": {
       "bundler": "metro",
-      "output": "static"
+      "output": "static",
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-router",

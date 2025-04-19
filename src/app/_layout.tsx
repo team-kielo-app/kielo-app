@@ -4,7 +4,13 @@ import React, { useEffect } from "react";
 import { Slot, useRouter, useSegments } from "expo-router";
 import { Provider, connect } from "react-redux"; // Import connect
 import { bindActionCreators } from "redux";
-import { ActivityIndicator, View, StyleSheet, Text } from "react-native";
+import {
+  ActivityIndicator,
+  View,
+  StyleSheet,
+  Text,
+  Platform,
+} from "react-native";
 
 // Import store, actions, selectors
 import { store, AppDispatch, RootState } from "@store/store";
@@ -13,6 +19,9 @@ import * as authSelectors from "@features/auth/authSelectors";
 import { AuthState } from "@features/auth/types";
 import { initializeDeviceToken } from "@lib/api";
 import { Colors } from "@constants/Colors";
+
+import * as Device from "expo-device";
+import * as ScreenOrientation from "expo-screen-orientation";
 
 const SplashScreen = () => (
   <View style={styles.splashContainer}>
@@ -45,6 +54,49 @@ const RootLayoutView: React.FC<RootLayoutViewProps> = ({
     initializeDeviceToken();
     actions.initializeAuthThunk();
   }, [actions]);
+
+  useEffect(() => {
+    const lockOrientationForTablet = async () => {
+      // Only apply this logic on native platforms (iOS/Android)
+      if (Platform.OS === "ios" || Platform.OS === "android") {
+        try {
+          const deviceType = await Device.getDeviceTypeAsync();
+
+          if (deviceType === Device.DeviceType.TABLET) {
+            console.log("Device is a Tablet, locking to landscape.");
+            // Lock to landscape (allows both left and right)
+            await ScreenOrientation.lockAsync(
+              ScreenOrientation.OrientationLock.LANDSCAPE
+            );
+            // Or lock to ALL landscape modes including upside-down if desired:
+            // await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.ALL_BUT_UPSIDE_DOWN);
+            // Or specific landscape:
+            // await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE_LEFT);
+          } else {
+            console.log(
+              "Device is not a Tablet, allowing default orientation (likely portrait)."
+            );
+            // Optional: Explicitly lock phones to portrait if "default" isn't reliable enough
+            // await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+
+            // Or just ensure it's unlocked if previously locked (less likely needed here)
+            // await ScreenOrientation.unlockAsync();
+          }
+        } catch (error) {
+          console.error("Failed to set screen orientation:", error);
+        }
+      }
+    };
+
+    lockOrientationForTablet();
+
+    // Optional: Cleanup function if needed (not strictly necessary for a one-time lock)
+    // return () => {
+    //   if (Platform.OS === 'ios' || Platform.OS === 'android') {
+    //      ScreenOrientation.unlockAsync().catch(e => console.error("Failed to unlock orientation", e));
+    //   }
+    // };
+  }, []);
 
   // Effect for redirection logic (UPDATED)
   useEffect(() => {

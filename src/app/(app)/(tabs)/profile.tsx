@@ -144,7 +144,7 @@ export default function ProfileScreen() {
             style={styles.profileImage}
           />
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>Alex Johnson</Text>
+            <Text style={styles.profileName}>Duy Khanh Le</Text>
             <Text style={styles.profileSubtitle}>
               Learning Finnish • Beginner
             </Text>
