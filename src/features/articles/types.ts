@@ -1,14 +1,7 @@
-import { Status } from "@types";
+import type { ArticleType } from "types/article";
+import type { Status } from "types";
 
-export interface Article {
-  id: string;
-  date: string;
-  url: string;
-  title: string;
-  content: string;
-  created_at: string;
-  updated_at: string;
-}
+export interface Article extends ArticleType {}
 
 export interface ArticlesState {
   items: Article[];

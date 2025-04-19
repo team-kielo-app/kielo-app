@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
   input: {
     width: "100%",
     height: 50,
-    borderColor: Colors.light.tabIconDefault,
+    borderColor: Colors.light.border,
     borderWidth: 1,
     marginBottom: 15,
     paddingHorizontal: 15,
@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 50,
     paddingVertical: 15,
-    backgroundColor: Colors.light.tint,
+    backgroundColor: Colors.light.textTertiary,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
@@ -284,10 +284,14 @@ const styles = StyleSheet.create({
   },
   buttonPressed: { backgroundColor: "#0056b3" },
   buttonDisabled: {
-    backgroundColor: Colors.light.tabIconDefault,
+    backgroundColor: Colors.light.border,
     opacity: 0.7,
   },
-  buttonText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
+  buttonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
   errorText: {
     color: Colors.light.error,
     marginBottom: 15,
