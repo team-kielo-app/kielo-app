@@ -44,25 +44,25 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
         <View style={styles.textContainer}>
           <View style={styles.metadataContainer}>
             <Text style={styles.category}>
-              {article.category.toUpperCase()}
+              {article?.category?.toUpperCase()}
             </Text>
-            <Text style={styles.date}>{article.date}</Text>
+            <Text style={styles.date}>{article?.date}</Text>
           </View>
 
           <Text style={styles.title} numberOfLines={isWideScreen ? 2 : 3}>
-            {article.title}
+            {article?.title}
           </Text>
 
           {isWideScreen && (
             <Text style={styles.subtitle} numberOfLines={2}>
-              {article.subtitle}
+              {article?.subtitle}
             </Text>
           )}
         </View>
 
         <View style={styles.imageContainer}>
           <Image
-            source={{ uri: article.imageUrl }}
+            source={{ uri: article?.imageUrl }}
             style={styles.image}
             resizeMode="cover"
           />

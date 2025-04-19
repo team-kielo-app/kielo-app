@@ -63,22 +63,37 @@ const SettingItem: React.FC<SettingItemProps> = ({
     style={styles.settingItem}
     onPress={onPress}
     disabled={!onPress}
+    activeOpacity={onPress ? 0.7 : 1} // Provide feedback only if pressable
   >
+    {/* Left Side: Icon and Text */}
     <View style={styles.settingItemLeft}>
       <View style={styles.iconContainer}>{icon}</View>
       <View style={styles.settingTextContainer}>
-        <Text style={styles.settingTitle}>{title}</Text>
+        <Text style={styles.settingTitle} numberOfLines={1}>
+          {title}
+        </Text>
         {description && (
-          <Text style={styles.settingDescription}>{description}</Text>
+          <Text style={styles.settingDescription} numberOfLines={2}>
+            {description}
+          </Text>
         )}
       </View>
     </View>
-    <View style={styles.settingItemRight}>
-      {rightElement}
-      {showChevron && (
-        <ChevronRight size={18} color={Colors.light.textSecondary} />
-      )}
-    </View>
+
+    {/* Right Side: Custom Element and/or Chevron */}
+    {/* Conditionally render right container only if there's content */}
+    {(rightElement || showChevron) && (
+      <View style={styles.settingItemRight}>
+        {rightElement}
+        {/* Render chevron only if needed and give it consistent spacing */}
+        {showChevron && (
+          // Add marginLeft here if 'gap' isn't sufficient or for fallback
+          // <View style={{ marginLeft: rightElement ? 8 : 0 }}>
+          <ChevronRight size={18} color={Colors.light.textSecondary} />
+          // </View>
+        )}
+      </View>
+    )}
   </TouchableOpacity>
 );
 
@@ -166,6 +181,11 @@ export default function SettingsScreen() {
                   true: Colors.light.primary,
                 }}
                 thumbColor={Colors.light.white}
+                {...Platform.select({
+                  web: {
+                    activeThumbColor: Colors.light.white,
+                  },
+                })}
               />
             }
           />
@@ -182,6 +202,11 @@ export default function SettingsScreen() {
                   true: Colors.light.primary,
                 }}
                 thumbColor={Colors.light.white}
+                {...Platform.select({
+                  web: {
+                    activeThumbColor: Colors.light.white,
+                  },
+                })}
               />
             }
           />
@@ -198,6 +223,11 @@ export default function SettingsScreen() {
                   true: Colors.light.primary,
                 }}
                 thumbColor={Colors.light.white}
+                {...Platform.select({
+                  web: {
+                    activeThumbColor: Colors.light.white,
+                  },
+                })}
               />
             }
           />
@@ -318,43 +348,47 @@ const styles = StyleSheet.create({
   },
   settingItem: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 16,
+    alignItems: "center", // Keep items vertically centered
+    paddingVertical: 14, // Slightly adjusted padding
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: Colors.light.border,
+    width: "100%", // Ensure it takes full width
   },
   settingItemLeft: {
     flexDirection: "row",
     alignItems: "center",
-  },
-  settingItemRight: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexShrink: 1, // Allow left side to shrink if needed
+    marginRight: 8, // Add small margin to separate from the right side
   },
   iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: Colors.light.backgroundLight,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginRight: 14,
   },
   settingTextContainer: {
     flex: 1,
   },
   settingTitle: {
     fontFamily: "Inter-SemiBold",
-    fontSize: 16,
+    fontSize: 15,
     color: Colors.light.text,
   },
   settingDescription: {
     fontFamily: "Inter-Regular",
-    fontSize: 14,
+    fontSize: 13,
     color: Colors.light.textSecondary,
-    marginTop: 2,
+    marginTop: 3,
+  },
+  settingItemRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: "auto",
+    gap: 8,
   },
   fontSizeSelector: {
     flexDirection: "row",

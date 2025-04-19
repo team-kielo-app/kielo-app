@@ -165,7 +165,9 @@ export default function HomeScreen() {
                 </Text>
               </View>
             </View>
-            <ChevronRight size={20} color={Colors.light.textSecondary} />
+            <View style={styles.challengeContentRight}>
+              <ChevronRight size={20} color={Colors.light.textSecondary} />
+            </View>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -276,16 +278,24 @@ const styles = StyleSheet.create({
     marginTop: 12,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     shadowColor: Colors.light.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 2,
+    width: "100%", // Ensure it takes full width
   },
   challengeContent: {
     flexDirection: "row",
     alignItems: "center",
+    flexShrink: 1, // Allow left side to shrink if needed
+    marginRight: 8,
+  },
+  challengeContentRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: "auto",
+    gap: 8,
   },
   challengeIconContainer: {
     width: 44,
