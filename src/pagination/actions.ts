@@ -1,17 +1,16 @@
-import { AppDispatch, RootState } from "@store/store";
-import { makeQueryString } from "@utils/url";
-import { assertInvariant } from "@utils/assert";
-import { DEFAULT_PAGINATION_STATE } from "./constants";
-import type { PaginationMeta, EntityMeta, PaginationStateType } from "./types";
+import { AppDispatch, RootState } from '@store/store'
+import { makeQueryString } from '@utils/url'
+import { assertInvariant } from '@utils/assert'
+import { DEFAULT_PAGINATION_STATE } from './constants'
+import type { PaginationMeta, EntityMeta, PaginationStateType } from './types'
 
 type ApiRequestFunction<T = any> = (params: {
-  queryString?: string;
-  body?: any;
-  meta: PaginationMeta | EntityMeta;
-  credentials?: any;
-  endpoint: string;
-  verb: "GET" | "POST" | "PUT" | "DELETE";
-}) => T;
+  queryString?: string
+  body?: any
+  meta: PaginationMeta | EntityMeta
+  endpoint: string
+  verb: 'GET' | 'POST' | 'PUT' | 'DELETE'
+}) => T
 
 /**
  * Higher-order function to wrap API calls with pagination logic for LISTING data.
@@ -21,99 +20,97 @@ export function withPaginationList<S extends RootState>({
   getStatePaginationData,
   paginationKey,
   pageSize = 20,
-  fetchPolicy = "fetchIfNeeded",
-  additionalQueryParams = {},
+  fetchPolicy = 'fetchIfNeeded',
+  additionalQueryParams = {}
 }: {
-  apiRequestFunction: ApiRequestFunction;
-  getStatePaginationData: (state: S) => Record<string, PaginationStateType>;
-  paginationKey: string;
-  pageSize?: number;
-  fetchPolicy?: "fetchIfNeeded" | "forceFetch";
-  additionalQueryParams?: Record<string, any>;
+  apiRequestFunction: ApiRequestFunction
+  getStatePaginationData: (state: S) => Record<string, PaginationStateType>
+  paginationKey: string
+  pageSize?: number
+  fetchPolicy?: 'fetchIfNeeded' | 'forceFetch'
+  additionalQueryParams?: Record<string, any>
 }) {
   return (
       options: {
-        reset?: boolean;
-        fetchNext?: boolean;
-        fetchPrevious?: boolean;
+        reset?: boolean
+        fetchNext?: boolean
+        fetchPrevious?: boolean
       } = {}
     ) =>
     (dispatch: AppDispatch, getState: () => S) => {
       const {
         reset = false,
         fetchNext = false,
-        fetchPrevious = false,
-      } = options;
+        fetchPrevious = false
+      } = options
 
-      const state = getState();
-      const paginationStateMap = getStatePaginationData(state);
+      const state = getState()
+      const paginationStateMap = getStatePaginationData(state)
       const currentPagination =
-        paginationStateMap[paginationKey] || DEFAULT_PAGINATION_STATE;
+        paginationStateMap[paginationKey] || DEFAULT_PAGINATION_STATE
 
       const { isLoading, nextPageKey, prevPageKey, ids, currentPage } =
-        currentPagination;
+        currentPagination
 
-      let pageToFetch: "first" | "next" | "prev" = "first";
-      let cursor: string | null = null;
+      let pageToFetch: 'first' | 'next' | 'prev' = 'first'
+      let cursor: string | null = null
 
       if (!reset) {
         if (fetchNext && nextPageKey) {
-          pageToFetch = "next";
-          cursor = nextPageKey;
+          pageToFetch = 'next'
+          cursor = nextPageKey
         } else if (fetchPrevious && prevPageKey) {
-          pageToFetch = "prev";
-          cursor = prevPageKey;
+          pageToFetch = 'prev'
+          cursor = prevPageKey
         } else if (fetchNext && !nextPageKey && !isLoading) {
           console.log(
             `Pagination [${paginationKey}]: Already at end or fetching.`
-          );
-          return Promise.resolve();
+          )
+          return Promise.resolve()
         } else if (
           !fetchNext &&
           !fetchPrevious &&
           currentPage > 0 &&
-          fetchPolicy === "fetchIfNeeded"
+          fetchPolicy === 'fetchIfNeeded'
         ) {
           console.log(
             `Pagination [${paginationKey}]: Already fetched, use fetchPolicy='forceFetch' or reset=true to refetch.`
-          );
-          return Promise.resolve();
+          )
+          return Promise.resolve()
         }
       }
 
-      if (isLoading && !(reset && fetchPolicy === "forceFetch")) {
-        console.log(
-          `Pagination [${paginationKey}]: Fetch already in progress.`
-        );
-        return Promise.resolve();
+      if (isLoading && !(reset && fetchPolicy === 'forceFetch')) {
+        console.log(`Pagination [${paginationKey}]: Fetch already in progress.`)
+        return Promise.resolve()
       }
 
       const queryParams: Record<string, any> = {
         page_size: pageSize,
-        ...additionalQueryParams,
-      };
-      if (cursor) {
-        if (pageToFetch === "next") queryParams.next = cursor;
-        if (pageToFetch === "prev") queryParams.prev = cursor;
+        ...additionalQueryParams
       }
-      const queryString = makeQueryString(queryParams);
+      if (cursor) {
+        if (pageToFetch === 'next') queryParams.next = cursor
+        if (pageToFetch === 'prev') queryParams.prev = cursor
+      }
+      const queryString = makeQueryString(queryParams)
 
       const meta: PaginationMeta = {
         paginationKey,
-        pageFetched: reset ? "first" : pageToFetch,
+        pageFetched: reset ? 'first' : pageToFetch,
         pageSize,
-        reset,
-      };
+        reset
+      }
 
       return dispatch(
         apiRequestFunction({
-          endpoint: "",
-          verb: "GET",
+          endpoint: '',
+          verb: 'GET',
           queryString,
-          meta,
+          meta
         })
-      );
-    };
+      )
+    }
 }
 
 /**
@@ -126,34 +123,33 @@ export function withPaginationEntityAction<S extends RootState>({
   paginationKey,
   entityName,
   itemId,
-  verb,
+  verb
 }: {
-  apiRequestFunction: ApiRequestFunction;
-  getStatePaginationData?: (state: S) => Record<string, PaginationStateType>;
-  paginationKey?: string;
-  entityName: string;
-  itemId: string | string[];
-  verb: "DELETE" | "PUT" | "PATCH";
+  apiRequestFunction: ApiRequestFunction
+  getStatePaginationData?: (state: S) => Record<string, PaginationStateType>
+  paginationKey?: string
+  entityName: string
+  itemId: string | string[]
+  verb: 'DELETE' | 'PUT' | 'PATCH'
 }) {
-  assertInvariant(apiRequestFunction, "apiRequestFunction is required");
-  assertInvariant(entityName, "entityName is required");
-  assertInvariant(itemId, "itemId is required");
+  assertInvariant(apiRequestFunction, 'apiRequestFunction is required')
+  assertInvariant(entityName, 'entityName is required')
+  assertInvariant(itemId, 'itemId is required')
 
   return (body?: any) => (dispatch: AppDispatch, getState: () => S) => {
     const meta: EntityMeta = {
       entityName,
       itemId,
-      ...(paginationKey && { paginationKey }),
-    };
+      ...(paginationKey && { paginationKey })
+    }
 
     return dispatch(
       apiRequestFunction({
-        endpoint: "",
+        endpoint: '',
         verb,
         body,
-        meta,
+        meta
       })
-    );
-  };
+    )
+  }
 }
-

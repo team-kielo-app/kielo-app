@@ -1,13 +1,13 @@
 // src/features/articles/articles.selectors.ts
-import { createSelector } from "@reduxjs/toolkit"; // Or import from 'reselect'
-import type { RootState } from "@store/store"; // Your root state type
-import { DEFAULT_PAGINATION_STATE } from "./constants"; // Import default state
-import type { PaginationStateType, PaginatedData } from "./types";
-import type { EntitiesType } from "@entities/types"; // Import the core Article type
+import { createSelector } from '@reduxjs/toolkit' // Or import from 'reselect'
+import type { RootState } from '@store/store' // Your root state type
+import { DEFAULT_PAGINATION_STATE } from './constants' // Import default state
+import type { PaginationStateType, PaginatedData } from './types'
+import type { EntitiesType } from '@entities/types' // Import the core Article type
 
 // Base selectors
-const selectEntitiesSlice = (state: RootState) => state.entities;
-const selectPaginationSlice = (state: RootState) => state.pagination;
+const selectEntitiesSlice = (state: RootState) => state.entities
+const selectPaginationSlice = (state: RootState) => state.pagination
 
 /**
  * Selects a specific entity type from the entities state
@@ -16,7 +16,7 @@ export const selectEntityCollection = (entityName: string) =>
   createSelector(
     [selectEntitiesSlice],
     (entities: { [entityName]: EntitiesType }) => entities[entityName] || {}
-  );
+  )
 
 /**
  * Selects a specific pagination type from the pagination state
@@ -26,7 +26,7 @@ export const selectPaginationType = (paginationType: string) =>
     [selectPaginationSlice],
     (pagination: { [paginationType]: object }) =>
       pagination[paginationType] || {}
-  );
+  )
 
 /**
  * Converts an array of entity IDs to their corresponding entity objects
@@ -35,8 +35,8 @@ export const mapIdsToEntities = <T>(
   ids: string[],
   entities: Record<string, T>
 ): T[] => {
-  return ids.map((id) => entities[id]).filter(Boolean);
-};
+  return ids.map(id => entities[id]).filter(Boolean)
+}
 
 /**
  * Determines if there are more pages based on page tokens
@@ -47,10 +47,10 @@ export const hasMorePages = (
   prevPageToken?: string | null
 ): boolean => {
   if (isAccumulated) {
-    return Boolean(nextPageToken);
+    return Boolean(nextPageToken)
   }
-  return Boolean(nextPageToken) || Boolean(prevPageToken);
-};
+  return Boolean(nextPageToken) || Boolean(prevPageToken)
+}
 
 /**
  * Creates a paginated data object from pagination state and entities
@@ -71,25 +71,25 @@ export const createPaginatedData = <T>(
     hasFetched = false,
     nextPageToken = null,
     prevPageToken = null,
-    error = null,
-  } = paginationState;
+    error = null
+  } = paginationState
 
-  let data: T[] = [];
+  let data: T[] = []
 
   if (isAccumulated && ids.length > 0 && currentPage >= 1) {
     // Calculate current page slice for accumulated data
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    const pageIds = ids.slice(startIndex, endIndex);
-    data = mapIdsToEntities(pageIds, entities);
+    const startIndex = (currentPage - 1) * pageSize
+    const endIndex = startIndex + pageSize
+    const pageIds = ids.slice(startIndex, endIndex)
+    data = mapIdsToEntities(pageIds, entities)
   } else {
     // Use all relevant IDs for non-accumulated data
-    data = mapIdsToEntities(ids, entities);
+    data = mapIdsToEntities(ids, entities)
   }
 
   // Calculate pagination metadata
-  const totalPages = pageSize > 0 ? Math.ceil(totalCount / pageSize) : 0;
-  const hasMore = hasMorePages(nextPageToken, isAccumulated, prevPageToken);
+  const totalPages = pageSize > 0 ? Math.ceil(totalCount / pageSize) : 0
+  const hasMore = hasMorePages(nextPageToken, isAccumulated, prevPageToken)
 
   return {
     data,
@@ -101,10 +101,10 @@ export const createPaginatedData = <T>(
       isLoading,
       hasMore,
       hasFetched,
-      error,
-    },
-  };
-};
+      error
+    }
+  }
+}
 
 /**
  * Error response for invalid selector parameters
@@ -119,9 +119,9 @@ const createErrorResponse = (errorMessage: string): PaginatedData => ({
     isLoading: false,
     hasMore: false,
     hasFetched: false,
-    error: errorMessage,
-  },
-});
+    error: errorMessage
+  }
+})
 
 /**
  * Selects paginated data for a collection of entities
@@ -137,20 +137,20 @@ export const selectPaginatedData = <T>(
     (entityCollection, paginationByType): PaginatedData => {
       // Validate required parameters
       if (!entityName || !paginationType || !paginationKey) {
-        return createErrorResponse("Missing required parameters");
+        return createErrorResponse('Missing required parameters')
       }
 
       // Get pagination state for the requested key
       const paginationState: PaginationStateType =
-        paginationByType[paginationKey] || DEFAULT_PAGINATION_STATE;
+        paginationByType[paginationKey] || DEFAULT_PAGINATION_STATE
 
       return createPaginatedData<T>(
         paginationState,
         entityCollection as Record<string, T>,
         isAccumulated
-      );
+      )
     }
-  );
+  )
 
 /**
  * Selects a single entity by ID
@@ -158,12 +158,11 @@ export const selectPaginatedData = <T>(
 export const selectEntityById = <T>(entityName: string, entityId: string) =>
   createSelector(
     [selectEntityCollection(entityName)],
-    (entityCollection): T | null => {
+    (entityCollection): T | object => {
       if (!entityName || !entityId) {
-        return null;
+        return {}
       }
 
-      return (entityCollection[entityId] as T) || null;
+      return (entityCollection[entityId] as T) || {}
     }
-  );
-
+  )

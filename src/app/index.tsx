@@ -1,13 +1,20 @@
-import { Redirect } from "expo-router";
+import { View, ActivityIndicator } from 'react-native'
+import { Colors } from '@constants/Colors'
 
-export default function StartPage() {
-  // This page typically redirects immediately based on auth state.
-  // The logic is handled in the root _layout.tsx, so this component
-  // might not even be rendered if redirection happens fast enough.
-  // If needed, you could add a loading indicator here, but _layout is better.
-
-  // Redirecting to a screen within the (app) group. The root layout will
-  // handle checking auth and redirecting to (auth) if needed.
-  return <Redirect href="/(app)" />;
+// This screen is displayed briefly while the root layout determines
+// the correct initial route based on authentication status.
+// It relies on the RootLayout's useEffect to redirect.
+export default function AppEntry() {
+  return (
+    <View
+      style={{
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: Colors.light.background
+      }}
+    >
+      <ActivityIndicator size="large" color={Colors.light.primary} />
+    </View>
+  )
 }
-
