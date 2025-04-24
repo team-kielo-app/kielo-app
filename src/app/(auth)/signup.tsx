@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   View,
   Text,
@@ -14,8 +14,26 @@ import { Link, useRouter } from 'expo-router'
 import { Colors } from '@constants/Colors'
 import { ChevronLeft } from 'lucide-react-native'
 
-const mockRegister = (data: any) =>
-  new Promise(resolve => setTimeout(resolve, 1000))
+// Mock API call (replace with actual implementation)
+const mockRegister = (data: {
+  name: string
+  email: string
+  pass: string
+}): Promise<void> => {
+  console.log('Registering user:', data.email)
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      // Simulate success or failure (e.g., email already exists)
+      if (data.email.includes('exists')) {
+        reject(new Error('EMAIL_EXISTS')) // Simulate specific error code
+      } else if (data.pass.length < 6) {
+        reject(new Error('WEAK_PASSWORD'))
+      } else {
+        resolve()
+      }
+    }, 1500)
+  })
+}
 
 export default function SignupScreen() {
   const router = useRouter()
@@ -26,34 +44,73 @@ export default function SignupScreen() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Auto-clear errors after a delay
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => {
+        setError(null)
+      }, 5000) // Clear after 5 seconds
+      return () => clearTimeout(timer)
+    }
+  }, [error])
+
   const handleRegister = async () => {
-    setError(null)
-    if (!name || !email || !password || !confirmPassword) {
+    setError(null) // Clear previous errors
+
+    // Validation
+    if (!name.trim() || !email.trim() || !password || !confirmPassword) {
       setError('Please fill in all fields.')
+      return
+    }
+    if (!/\S+@\S+\.\S+/.test(email)) {
+      setError('Please enter a valid email address.')
       return
     }
     if (password !== confirmPassword) {
       setError('Passwords do not match.')
       return
     }
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long.')
+      return
+    }
 
     setIsLoading(true)
     try {
-      await mockRegister({ name, email, password })
+      await mockRegister({
+        name: name.trim(),
+        email: email.trim(),
+        pass: password
+      })
+      // Show success alert and redirect to login
       Alert.alert(
         'Registration Successful',
-        'Please log in with your new account.',
-        [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
+        'Your account has been created. Please log in.',
+        [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }] // Redirect on OK
       )
+      // No need to clear fields as we navigate away
     } catch (err: any) {
-      setError(err.message || 'Registration failed.')
+      console.error('Registration failed:', err)
+      // Handle specific known errors or show generic message
+      if (err.message === 'EMAIL_EXISTS') {
+        setError('An account with this email already exists.')
+      } else if (err.message === 'WEAK_PASSWORD') {
+        setError('Password is too weak. Please use at least 6 characters.')
+      } else {
+        setError('Could not create account. Please try again later.')
+      }
     } finally {
       setIsLoading(false)
     }
   }
 
   const handleGoBack = () => {
-    router.replace('/(auth)/login')
+    // Navigate back if possible, otherwise go to login
+    if (router.canGoBack()) {
+      router.back()
+    } else {
+      router.replace('/(auth)/login')
+    }
   }
 
   return (
@@ -70,11 +127,15 @@ export default function SignupScreen() {
 
         <View style={styles.titleContainer}>
           <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join Kielo and start learning!</Text>
+          <Text style={styles.subtitle}>Join us and start your journey!</Text>
         </View>
 
-        {error && <Text style={styles.errorText}>{error}</Text>}
+        {/* Message Area */}
+        <View style={styles.messageContainer}>
+          {error && <Text style={styles.errorText}>{error}</Text>}
+        </View>
 
+        {/* Form Area */}
         <View style={styles.formContainer}>
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Full Name</Text>
@@ -85,6 +146,7 @@ export default function SignupScreen() {
               onChangeText={setName}
               editable={!isLoading}
               placeholderTextColor={Colors.light.textTertiary}
+              autoCapitalize="words"
             />
           </View>
           <View style={styles.inputGroup}>
@@ -104,7 +166,7 @@ export default function SignupScreen() {
             <Text style={styles.label}>Password</Text>
             <TextInput
               style={[styles.input, isLoading && styles.inputDisabled]}
-              placeholder="Enter Password"
+              placeholder="Enter Password (min. 6 chars)"
               value={password}
               onChangeText={setPassword}
               secureTextEntry
@@ -126,15 +188,8 @@ export default function SignupScreen() {
           </View>
         </View>
 
+        {/* Footer Area */}
         <View style={styles.footerContainer}>
-          <View style={styles.registerLinkContainer}>
-            <Text style={styles.footerText}>Already have an account? </Text>
-            <Link href="/(auth)/login" asChild>
-              <Pressable>
-                <Text style={styles.linkTextBold}>Log In</Text>
-              </Pressable>
-            </Link>
-          </View>
           <Pressable
             style={({ pressed }) => [
               styles.actionButton,
@@ -145,17 +200,33 @@ export default function SignupScreen() {
             disabled={isLoading}
           >
             {isLoading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={Colors.light.white} />
             ) : (
               <Text style={styles.actionButtonText}>Register</Text>
             )}
           </Pressable>
+          <View style={styles.loginLinkContainer}>
+            <Text style={styles.footerText}>Already have an account? </Text>
+            <Link href="/(auth)/login" asChild>
+              <Pressable disabled={isLoading}>
+                <Text
+                  style={[
+                    styles.linkTextBold,
+                    isLoading && styles.linkDisabled
+                  ]}
+                >
+                  Log In
+                </Text>
+              </Pressable>
+            </Link>
+          </View>
         </View>
       </View>
     </ScrollView>
   )
 }
 
+// Styles similar to other auth screens
 const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
@@ -168,7 +239,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 420,
     alignSelf: 'center',
-    gap: 25
+    gap: 20 // Consistent gap
   },
   headerContainer: {
     flexDirection: 'row',
@@ -179,7 +250,9 @@ const styles = StyleSheet.create({
     padding: 8,
     marginLeft: -8
   },
-  titleContainer: {},
+  titleContainer: {
+    marginBottom: 5 // Smaller gap before message area
+  },
   title: {
     fontSize: 28,
     fontFamily: 'Inter-Bold',
@@ -190,17 +263,24 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: 'Inter-Regular',
     color: Colors.light.textSecondary,
-    marginBottom: 4,
     lineHeight: 24
+  },
+  // --- Message Area ---
+  messageContainer: {
+    minHeight: 20, // Reserve space
+    justifyContent: 'center',
+    alignItems: 'center'
   },
   errorText: {
     color: Colors.light.error,
     textAlign: 'center',
     fontFamily: 'Inter-SemiBold',
-    fontSize: 14
+    fontSize: 14,
+    paddingHorizontal: 10
   },
+  // --- Form ---
   formContainer: {
-    gap: 20
+    gap: 15 // Slightly smaller gap between inputs
   },
   inputGroup: {
     width: '100%'
@@ -227,48 +307,32 @@ const styles = StyleSheet.create({
     color: Colors.light.textTertiary,
     borderColor: Colors.light.border
   },
+  // --- Links ---
   linkTextBold: {
     color: Colors.light.primary,
     fontSize: 14,
     fontFamily: 'Inter-SemiBold'
   },
-  orSeparatorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center'
+  linkDisabled: {
+    opacity: 0.6
   },
-  orSeparatorLine: { flex: 1, height: 1, backgroundColor: Colors.light.border },
-  orSeparatorText: {
-    marginHorizontal: 12,
-    fontSize: 14,
-    fontFamily: 'Inter-Medium',
-    color: Colors.light.textSecondary
-  },
-  socialLoginContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 20
-  },
-  socialButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.light.border
-  },
-  buttonDisabled: { opacity: 0.6 },
+  // --- Footer ---
   footerContainer: {
     width: '100%',
     alignItems: 'center',
-    gap: 20
+    gap: 20, // Space between button and login link
+    marginTop: 10 // Add margin top
   },
-  registerLinkContainer: { flexDirection: 'row', alignItems: 'center' },
+  loginLinkContainer: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
   footerText: {
     fontSize: 14,
     fontFamily: 'Inter-Regular',
     color: Colors.light.textSecondary
   },
+  // --- Action Button ---
   actionButton: {
     width: '100%',
     height: 52,
@@ -284,5 +348,8 @@ const styles = StyleSheet.create({
     color: Colors.light.white,
     fontSize: 16,
     fontFamily: 'Inter-SemiBold'
+  },
+  buttonDisabled: {
+    opacity: 0.6
   }
 })

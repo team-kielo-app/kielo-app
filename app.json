@@ -13,6 +13,14 @@
       "bundleIdentifier": "com.kielo.app",
       "requireFullScreen": true,
       "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSExceptionDomains": {
+            "localhost": {
+              "NSIncludesSubdomains": false,
+              "NSExceptionAllowsInsecureHTTPLoads": true
+            }
+          }
+        },
         "ITSAppUsesNonExemptEncryption": false
       }
     },

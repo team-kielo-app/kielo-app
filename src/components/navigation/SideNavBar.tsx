@@ -88,7 +88,11 @@ export function SideNavBar() {
               style={[styles.navItem, isActive && styles.navItemActive]}
               onPress={handlePress}
               // Disable visually if protected and not logged in? Optional.
-              // style={[styles.navItem, isActive && styles.navItemActive, item.protected && !isAuthenticated && styles.navItemDisabled]}
+              style={[
+                styles.navItem,
+                isActive && styles.navItemActive,
+                item.protected && !isAuthenticated && styles.navItemDisabled
+              ]}
             >
               <Icon
                 size={22}

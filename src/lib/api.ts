@@ -179,6 +179,10 @@ const request = async <T>(
     // --- Handle Response ---
     if (!response.ok) {
       if (response.status === 401 && !isRetry) {
+        if (url.includes('/auth/')) {
+          throw new Error('Authentication failed.')
+        }
+
         console.log('Received 401 Unauthorized, attempting token refresh...')
         // Pass the dispatch received from the thunk
         const newToken = await handleRefreshToken(dispatch)

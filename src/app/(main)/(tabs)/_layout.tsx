@@ -1,11 +1,11 @@
-import { Tabs, useRouter, Slot } from 'expo-router'
+import { Tabs, Slot, useRouter } from 'expo-router'
 import { StyleSheet, Platform } from 'react-native'
 import { Colors } from '@constants/Colors'
-import { useSelector } from 'react-redux'
-import { selectIsAuthenticated } from '@features/auth/authSelectors'
-import { useRequireAuthAction } from '@hooks/useRequireAuthAction'
 import { navItems } from '@constants/navigation'
 import { useResponsiveDimensions } from '@/hooks/useResponsiveDimensions'
+import { useSelector } from 'react-redux'
+import { selectIsAuthenticated } from '@/features/auth/authSelectors'
+import { useRequireAuthAction } from '@/hooks/useRequireAuthAction'
 
 export default function TabLayout() {
   const router = useRouter()

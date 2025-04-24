@@ -39,13 +39,16 @@ const LoginView = () => {
   const params = useLocalSearchParams<{ redirect?: string }>()
 
   const status = useSelector(selectAuthStatus)
-  const error = useSelector(selectAuthError)
+  const rawError = useSelector(selectAuthError)
   const isAuthenticated = useSelector(selectIsAuthenticated)
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isPasswordVisible, setIsPasswordVisible] = useState(false)
+  const [localError, setLocalError] = useState<string | null>(null)
+
   const isLoading = status === 'loading'
+  const displayError = rawError || localError
 
   const [googleRequest, googleResponse, promptAsyncGoogle] = useAuthRequest({
     iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
@@ -56,13 +59,11 @@ const LoginView = () => {
   useEffect(() => {
     if (status === 'succeeded' && isAuthenticated) {
       const defaultRedirect = '/(main)/(tabs)/'
-      let redirectPath = params.redirect || defaultRedirect
-      if (!redirectPath.startsWith('/(main)/')) {
-        console.warn(
-          `Login: Redirect path "${redirectPath}" is not within /(main)/. Using default: ${defaultRedirect}`
-        )
-        redirectPath = defaultRedirect
-      }
+      const redirectPath =
+        params.redirect && params.redirect.startsWith('/(main)/')
+          ? params.redirect
+          : defaultRedirect
+
       console.log('Login successful, redirecting to:', redirectPath)
       router.replace(redirectPath)
     }
@@ -73,6 +74,8 @@ const LoginView = () => {
       googleResponse?.type === 'success' &&
       googleResponse.authentication?.accessToken
     ) {
+      dispatch(clearAuthError())
+      setLocalError(null)
       dispatch(
         loginWithSocialThunk({
           provider: 'google',
@@ -81,40 +84,47 @@ const LoginView = () => {
       )
     } else if (googleResponse?.type === 'error') {
       console.error('Google Auth Error:', googleResponse.error)
-      Alert.alert(
-        'Login Error',
-        'Google authentication failed. Please try again.'
-      )
+      setLocalError('Google sign-in failed. Please try again.')
     }
   }, [googleResponse, dispatch])
 
   useEffect(() => {
-    if (!error) return
-    const timeoutId = setTimeout(() => {
-      if (email !== '' || password !== '') {
-        dispatch(clearAuthError())
-      }
-    }, 100)
-    return () => clearTimeout(timeoutId)
-  }, [email, password, dispatch, error])
+    let timerId: NodeJS.Timeout | null = null
+    if (rawError || localError) {
+      timerId = setTimeout(() => {
+        if (rawError) dispatch(clearAuthError())
+        if (localError) setLocalError(null)
+      }, 5000)
+    }
+    return () => {
+      if (timerId) clearTimeout(timerId)
+    }
+  }, [rawError, localError, dispatch])
 
   const handleLoginSubmit = useCallback(() => {
-    if (!email || !password) {
-      Alert.alert('Validation Error', 'Please enter both email and password.')
+    dispatch(clearAuthError())
+    setLocalError(null)
+
+    if (!email.trim() || !password) {
+      setLocalError('Please enter both email and password.')
       return
     }
-    dispatch(loginUserThunk({ email, password }))
+    dispatch(loginUserThunk({ email: email.trim(), password }))
   }, [email, password, dispatch])
 
   const handleGoogleLoginPress = useCallback(() => {
+    dispatch(clearAuthError())
+    setLocalError(null)
     if (googleRequest) promptAsyncGoogle()
-  }, [googleRequest, promptAsyncGoogle])
+  }, [googleRequest, promptAsyncGoogle, dispatch])
+
   const handleAppleLoginPress = useCallback(() => {
-    Alert.alert('Not Implemented', 'Apple login needs implementation.')
+    setLocalError('Apple login is not yet implemented.')
   }, [])
   const handleTwitterLoginPress = useCallback(() => {
-    Alert.alert('Not Implemented', 'X/Twitter login needs implementation.')
+    setLocalError('X/Twitter login is not yet implemented.')
   }, [])
+
   const handleEmailChange = useCallback((text: string) => setEmail(text), [])
   const handlePasswordChange = useCallback(
     (text: string) => setPassword(text),
@@ -126,7 +136,17 @@ const LoginView = () => {
   )
 
   const handleGoBack = () => {
-    router.replace('/(main)/(tabs)/')
+    if (router.canGoBack()) {
+      router.back()
+    } else {
+      const defaultRedirect = '/(main)/(tabs)/'
+      const redirectPath =
+        params.redirect && !params.redirect.startsWith('/(auth)/')
+          ? params.redirect
+          : defaultRedirect
+
+      router.replace(redirectPath)
+    }
   }
 
   const renderSocialButton = useCallback(
@@ -151,9 +171,9 @@ const LoginView = () => {
         <Pressable
           style={({ pressed }) => [
             styles.socialButton,
-            disabled && styles.buttonDisabled,
+            (disabled || isLoading) && styles.buttonDisabled,
             pressed &&
-              !disabled && {
+              !(disabled || isLoading) && {
                 backgroundColor: pressedColors[provider] || Colors.light.border
               },
             !pressed && {
@@ -162,13 +182,13 @@ const LoginView = () => {
             }
           ]}
           onPress={onPress}
-          disabled={disabled}
+          disabled={disabled || isLoading}
         >
           <FontAwesome name={iconName as any} size={20} color="white" />
         </Pressable>
       )
     },
-    []
+    [isLoading]
   )
 
   return (
@@ -189,7 +209,9 @@ const LoginView = () => {
           <Text style={styles.subtitle}>You've been missed!</Text>
         </View>
 
-        {error && <Text style={styles.errorText}>{error}</Text>}
+        <View style={styles.messageContainer}>
+          {displayError && <Text style={styles.errorText}>{displayError}</Text>}
+        </View>
 
         <View style={styles.formContainer}>
           <View style={styles.inputGroup}>
@@ -208,13 +230,14 @@ const LoginView = () => {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Password</Text>
-            <View style={styles.passwordInputWrapper}>
+            <View
+              style={[
+                styles.passwordInputWrapper,
+                isLoading && styles.inputDisabled
+              ]}
+            >
               <TextInput
-                style={[
-                  styles.input,
-                  styles.passwordInputOnly,
-                  isLoading && styles.inputDisabled
-                ]}
+                style={[styles.input, styles.passwordInputOnly]}
                 placeholder="Enter Password"
                 value={password}
                 onChangeText={handlePasswordChange}
@@ -225,6 +248,7 @@ const LoginView = () => {
               <TouchableOpacity
                 onPress={togglePasswordVisibility}
                 style={styles.passwordVisibilityButton}
+                disabled={isLoading}
               >
                 {isPasswordVisible ? (
                   <EyeOff size={20} color={Colors.light.textSecondary} />
@@ -234,38 +258,38 @@ const LoginView = () => {
               </TouchableOpacity>
             </View>
             <Link href="/(auth)/forgot-password" asChild>
-              <Pressable style={styles.forgotPasswordButton}>
-                <Text style={styles.linkText}>Forgot Password?</Text>
+              <Pressable
+                style={styles.forgotPasswordButton}
+                disabled={isLoading}
+              >
+                <Text
+                  style={[styles.linkText, isLoading && styles.linkDisabled]}
+                >
+                  Forgot Password?
+                </Text>
               </Pressable>
             </Link>
           </View>
         </View>
 
-        <View style={styles.orSeparatorContainer}>
-          <View style={styles.orSeparatorLine} />
-          <Text style={styles.orSeparatorText}>or</Text>
-          <View style={styles.orSeparatorLine} />
-        </View>
-
-        <View style={styles.socialLoginContainer}>
-          {renderSocialButton(
-            'google',
-            handleGoogleLoginPress,
-            !googleRequest || isLoading
-          )}
-          {renderSocialButton('apple', handleAppleLoginPress, isLoading)}
-          {renderSocialButton('twitter', handleTwitterLoginPress, isLoading)}
+        <View style={styles.socialLoginsSection}>
+          <View style={styles.orSeparatorContainer}>
+            <View style={styles.orSeparatorLine} />
+            <Text style={styles.orSeparatorText}>or continue with</Text>
+            <View style={styles.orSeparatorLine} />
+          </View>
+          <View style={styles.socialLoginContainer}>
+            {renderSocialButton(
+              'google',
+              handleGoogleLoginPress,
+              !googleRequest
+            )}
+            {renderSocialButton('apple', handleAppleLoginPress)}
+            {renderSocialButton('twitter', handleTwitterLoginPress)}
+          </View>
         </View>
 
         <View style={styles.footerContainer}>
-          <View style={styles.registerLinkContainer}>
-            <Text style={styles.footerText}>Don't have an account? </Text>
-            <Link href="/(auth)/signup" asChild>
-              <Pressable>
-                <Text style={styles.linkTextBold}>Register</Text>
-              </Pressable>
-            </Link>
-          </View>
           <Pressable
             style={({ pressed }) => [
               styles.actionButton,
@@ -276,11 +300,27 @@ const LoginView = () => {
             disabled={isLoading}
           >
             {isLoading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={Colors.light.white} />
             ) : (
               <Text style={styles.actionButtonText}>Login</Text>
             )}
           </Pressable>
+
+          <View style={styles.registerLinkContainer}>
+            <Text style={styles.footerText}>Don't have an account? </Text>
+            <Link href="/(auth)/signup" asChild>
+              <Pressable disabled={isLoading}>
+                <Text
+                  style={[
+                    styles.linkTextBold,
+                    isLoading && styles.linkDisabled
+                  ]}
+                >
+                  Register
+                </Text>
+              </Pressable>
+            </Link>
+          </View>
         </View>
       </View>
     </ScrollView>
@@ -293,33 +333,33 @@ export default LoginView
 const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
-    justifyContent: 'center', // Center content vertically if needed
-    backgroundColor: Colors.light.background // Apply background color here
+    justifyContent: 'center',
+    backgroundColor: Colors.light.background
   },
   innerContainer: {
     paddingHorizontal: 24,
-    paddingVertical: 20, // Consistent vertical padding
+    paddingVertical: 20,
     width: '100%',
     maxWidth: 420,
     alignSelf: 'center',
-    gap: 25 // Vertical gap between major sections
+    gap: 20 // Consistent gap between sections
   },
   // --- Header ---
   headerContainer: {
     flexDirection: 'row',
-    alignItems: 'center', // Align back button vertically if other elements were here
-    minHeight: 40 // Ensure space for back button even if titles are below
-    // No marginBottom needed, rely on innerContainer gap
+    alignItems: 'center',
+    minHeight: 40
   },
   backButton: {
-    padding: 8, // Increase touch target slightly
-    marginLeft: -8 // Offset padding visually
+    padding: 8,
+    marginLeft: -8
   },
+  // --- Title ---
   titleContainer: {
-    // Group titles, rely on innerContainer gap for spacing above/below
+    marginBottom: 5 // Smaller gap before message area
   },
   title: {
-    fontSize: 28, // Slightly larger title
+    fontSize: 28,
     fontFamily: 'Inter-Bold',
     color: Colors.light.text,
     marginBottom: 8
@@ -328,20 +368,24 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: 'Inter-Regular',
     color: Colors.light.textSecondary,
-    marginBottom: 4,
-    lineHeight: 24 // Improve readability
+    lineHeight: 24
   },
-  // --- Error ---
+  // --- Message Area ---
+  messageContainer: {
+    minHeight: 20, // Reserve space
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
   errorText: {
     color: Colors.light.error,
     textAlign: 'center',
     fontFamily: 'Inter-SemiBold',
-    fontSize: 14
-    // Rely on innerContainer gap, remove extra margins
+    fontSize: 14,
+    paddingHorizontal: 10
   },
   // --- Form ---
   formContainer: {
-    gap: 20 // Space between input groups
+    gap: 15 // Slightly smaller gap between inputs
   },
   inputGroup: {
     width: '100%'
@@ -353,7 +397,6 @@ const styles = StyleSheet.create({
     marginBottom: 8
   },
   input: {
-    // Base input style
     height: 52,
     paddingHorizontal: 16,
     borderRadius: 12,
@@ -367,50 +410,55 @@ const styles = StyleSheet.create({
   inputDisabled: {
     backgroundColor: Colors.light.backgroundLight,
     color: Colors.light.textTertiary,
-    borderColor: Colors.light.border // Ensure border stays visible
+    borderColor: Colors.light.border
   },
   passwordInputWrapper: {
-    // Wrapper specific for password field + icon
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.light.border,
-    backgroundColor: Colors.light.white // Background for the wrapper
+    backgroundColor: Colors.light.white
+    // Apply disabled style to wrapper
+    // This helps disable the background and border consistently
   },
   passwordInputOnly: {
-    // Input style when inside the wrapper
     flex: 1,
-    borderWidth: 0, // Remove individual border
-    height: 50, // Match wrapper height minus border
-    backgroundColor: 'transparent' // Use wrapper background
+    borderWidth: 0,
+    height: 50,
+    backgroundColor: 'transparent'
   },
   passwordVisibilityButton: {
-    padding: 14 // Consistent hit area
+    padding: 14
   },
   forgotPasswordButton: {
     alignSelf: 'flex-end',
     marginTop: 8,
-    paddingVertical: 4 // Add vertical padding for touch area
+    paddingVertical: 4
   },
   // --- Links ---
   linkText: {
-    // Style for general links like Forgot Password
     color: Colors.light.primary,
     fontSize: 14,
     fontFamily: 'Inter-Medium'
   },
   linkTextBold: {
-    // Style for more prominent links like Register/Login in footer
     color: Colors.light.primary,
     fontSize: 14,
-    fontFamily: 'Inter-SemiBold' // Bolder
+    fontFamily: 'Inter-SemiBold'
+  },
+  linkDisabled: {
+    opacity: 0.6 // Visually indicate disabled link
+  },
+  // --- Social Logins Section ---
+  socialLoginsSection: {
+    gap: 20, // Space between separator and buttons
+    marginTop: 10 // Add some margin top
   },
   // --- Separator ---
   orSeparatorContainer: {
     flexDirection: 'row',
     alignItems: 'center'
-    // Rely on innerContainer gap
   },
   orSeparatorLine: { flex: 1, height: 1, backgroundColor: Colors.light.border },
   orSeparatorText: {
@@ -419,52 +467,55 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Medium',
     color: Colors.light.textSecondary
   },
-  // --- Social ---
+  // --- Social Buttons ---
   socialLoginContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 20
-    // Rely on innerContainer gap
   },
   socialButton: {
     width: 50,
     height: 50,
-    borderRadius: 12, // Slightly less round
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: Colors.light.border // Add border
-    // Background colors set dynamically inline
+    borderColor: Colors.light.border
   },
-  buttonDisabled: { opacity: 0.6 }, // Generic disabled state for all buttons
   // --- Footer ---
   footerContainer: {
     width: '100%',
     alignItems: 'center',
-    gap: 20 // Space between register link and button
-    // Rely on innerContainer gap for space above
+    gap: 20, // Space between button and register link
+    marginTop: 10 // Add some margin top
   },
-  registerLinkContainer: { flexDirection: 'row', alignItems: 'center' },
+  registerLinkContainer: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
   footerText: {
     fontSize: 14,
     fontFamily: 'Inter-Regular',
     color: Colors.light.textSecondary
   },
-  // --- Action Button (Login/Register/Reset etc.) ---
+  // --- Action Button ---
   actionButton: {
     width: '100%',
     height: 52,
-    backgroundColor: Colors.light.text, // Black background for primary action
+    backgroundColor: Colors.light.text,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center'
   },
   actionButtonPressed: {
-    backgroundColor: '#333' // Darker background on press
+    backgroundColor: '#333'
   },
   actionButtonText: {
     color: Colors.light.white,
     fontSize: 16,
     fontFamily: 'Inter-SemiBold'
+  },
+  buttonDisabled: {
+    opacity: 0.6
   }
 })

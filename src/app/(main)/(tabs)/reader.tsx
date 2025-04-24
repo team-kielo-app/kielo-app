@@ -261,7 +261,8 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     fontFamily: 'Inter-Regular',
     fontSize: 16,
-    color: Colors.light.text
+    color: Colors.light.text,
+    outlineStyle: 'none'
   },
   categoriesContainer: {
     marginBottom: 16
