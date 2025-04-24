@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useDispatch } from 'react-redux'
 import { AppDispatch } from '@store/store'
 import { initializeAuthThunk } from '@features/auth/authActions'
-import { Status } from '@/types'
+import type { ApiStatusType } from '@lib/api.d'
 import { initializeDeviceToken } from '@lib/api'
 
 /**
@@ -10,7 +10,7 @@ import { initializeDeviceToken } from '@lib/api'
  * initializing push notification token and dispatching the auth check.
  * @param authStatus Current authentication status ('idle', 'loading', 'succeeded', 'failed')
  */
-export const useAppInitialization = (authStatus: Status) => {
+export const useAppInitialization = (authStatus: ApiStatusType) => {
   const dispatch = useDispatch<AppDispatch>()
 
   useEffect(() => {

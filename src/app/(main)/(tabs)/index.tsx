@@ -19,9 +19,9 @@ import {
 import { Link, useRouter } from 'expo-router'
 import { useSelector, useDispatch } from 'react-redux'
 
-import { DailyGoalChart } from '@components/home/DailyGoalChart' // Assuming component exists
-import { ProgressCard } from '@components/home/ProgressCard' // Assuming component exists
-import { ArticleThumbnail } from '@components/reader/ArticleThumbnail' // Assuming component exists
+import { DailyGoalChart } from '@components/home/DailyGoalChart'
+import { ProgressCard } from '@components/home/ProgressCard'
+import { ArticleThumbnail } from '@components/reader/ArticleThumbnail'
 import { Colors } from '@constants/Colors'
 import { useResponsiveDimensions } from '@hooks/useResponsiveDimensions'
 import { selectIsAuthenticated, selectUser } from '@features/auth/authSelectors'
@@ -31,7 +31,6 @@ import { selectPaginatedData } from '@pagination/selectors'
 import { useRequireAuthAction } from '@hooks/useRequireAuthAction'
 import { nameParser } from '@utils/string'
 
-// Filled from original file
 const weeklyProgress = [
   { day: 'Mon', minutes: 12 },
   { day: 'Tue', minutes: 18 },
@@ -62,16 +61,14 @@ export default function HomeScreen() {
     )(state)
   )
 
-  const [streakDays, setStreakDays] = useState(7) // Mock streak
+  const [streakDays, setStreakDays] = useState(7)
 
-  // Fetch articles logic (consider fetching strategy based on auth)
   useEffect(() => {
     if (!pagination.isLoading && !pagination.error && articles.length < 5) {
       dispatch(fetchArticles(paginationKey, { reset: true }))
     }
   }, [dispatch, userState?.id, articles.length])
 
-  // Guarded action for starting a challenge
   const startChallengeAction = (challengeId: string) => {
     alert(`Starting challenge ${challengeId} (Not Implemented)`)
   }
@@ -83,13 +80,11 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
-        // showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
           isDesktop && styles.wideScreenContent
         ]}
       >
-        {/* --- Profile Section --- */}
         <View style={styles.profileSection}>
           <View style={styles.headerTextContainer}>
             {isAuthenticated && userState ? (
@@ -143,7 +138,6 @@ export default function HomeScreen() {
               <View style={styles.streakInfo}>
                 <Trophy size={20} color={Colors.light.accent} />
                 <Text style={styles.streakText}>
-                  {' '}
                   {streakDays} day streak! Keep it up!
                 </Text>
               </View>
@@ -289,7 +283,7 @@ const styles = StyleSheet.create({
     color: Colors.light.primary,
     fontWeight: '500',
     fontFamily: 'Inter-Medium'
-  }, // Added font
+  },
   streakContainer: {
     backgroundColor: Colors.light.cardBackground,
     borderRadius: 12,
@@ -342,7 +336,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 12,
-    gap: 12 // Added gap
+    gap: 12
   },
   articleList: {
     paddingRight: 20 // Ensures last item isn't cut off visually

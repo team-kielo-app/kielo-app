@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import {
   View,
   Text,
@@ -6,153 +6,237 @@ import {
   StyleSheet,
   Pressable,
   ActivityIndicator,
-  Alert,
   ScrollView,
   TouchableOpacity
 } from 'react-native'
 import { Link, useRouter } from 'expo-router'
 import { Colors } from '@constants/Colors'
-import { ChevronLeft } from 'lucide-react-native'
-
-// Mock API call (replace with actual implementation)
-const mockRegister = (data: {
-  name: string
-  email: string
-  pass: string
-}): Promise<void> => {
-  console.log('Registering user:', data.email)
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      // Simulate success or failure (e.g., email already exists)
-      if (data.email.includes('exists')) {
-        reject(new Error('EMAIL_EXISTS')) // Simulate specific error code
-      } else if (data.pass.length < 6) {
-        reject(new Error('WEAK_PASSWORD'))
-      } else {
-        resolve()
-      }
-    }, 1500)
-  })
-}
+import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native'
+import { FontAwesome } from '@expo/vector-icons'
+import { authStyles } from './_styles/authStyles'
+import { useDispatch, useSelector } from 'react-redux'
+import { AppDispatch } from '@store/store'
+import {
+  registerUserThunk,
+  clearAuthError,
+  loginWithSocialThunk
+} from '@features/auth/authActions'
+import {
+  selectAuthStatus,
+  selectAuthError,
+  selectIsAuthenticated
+} from '@features/auth/authSelectors'
+import { useAuthRequest } from 'expo-auth-session/providers/google'
 
 export default function SignupScreen() {
   const router = useRouter()
-  const [name, setName] = useState('')
+  const dispatch = useDispatch<AppDispatch>()
+  const authStatus = useSelector(selectAuthStatus)
+  const authError = useSelector(selectAuthError)
+  const isAuthenticated = useSelector(selectIsAuthenticated)
+
+  const passwordInputRef = useRef<TextInput>(null)
+  const confirmPasswordInputRef = useRef<TextInput>(null)
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false)
+  const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] =
+    useState(false)
+  const [localError, setLocalError] = useState<string | null>(null)
 
-  // Auto-clear errors after a delay
+  const isLoading = authStatus === 'loading'
+  const displayError = authError || localError
+
+  const [googleRequest, googleResponse, promptAsyncGoogle] = useAuthRequest({
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
+  })
+
   useEffect(() => {
-    if (error) {
-      const timer = setTimeout(() => {
-        setError(null)
-      }, 5000) // Clear after 5 seconds
-      return () => clearTimeout(timer)
+    if (authStatus === 'succeeded' && isAuthenticated) {
+      console.log('Auth success (Signup), redirecting to main app...')
+      router.replace('/(main)/(tabs)/')
     }
-  }, [error])
+  }, [authStatus, isAuthenticated, router])
 
-  const handleRegister = async () => {
-    setError(null) // Clear previous errors
+  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null
+    if (displayError) {
+      if (localError) setLocalError(null)
+      timer = setTimeout(() => {
+        if (authError) dispatch(clearAuthError())
+      }, 5000)
+    }
+    return () => {
+      if (timer) clearTimeout(timer)
+    }
+  }, [displayError, authError, localError, dispatch])
 
-    // Validation
-    if (!name.trim() || !email.trim() || !password || !confirmPassword) {
-      setError('Please fill in all fields.')
+  useEffect(() => {
+    setLocalError(null)
+  }, [email, password, confirmPassword])
+
+  useEffect(() => {
+    if (
+      googleResponse?.type === 'success' &&
+      googleResponse.authentication?.accessToken
+    ) {
+      dispatch(clearAuthError())
+      setLocalError(null)
+      dispatch(
+        loginWithSocialThunk({
+          provider: 'google',
+          access_token: googleResponse.authentication.accessToken
+        })
+      ).catch(err => {
+        console.error('Social Login Thunk Error (Signup):', err)
+      })
+    } else if (googleResponse?.type === 'error') {
+      console.error('Google Auth Error (Signup):', googleResponse.error)
+      dispatch(clearAuthError())
+      setLocalError('Google sign-in failed. Please try again.')
+    }
+  }, [googleResponse, dispatch])
+
+  const handleRegister = useCallback(async () => {
+    if (isLoading) return
+
+    setLocalError(null)
+    if (authError) dispatch(clearAuthError())
+
+    if (!email.trim() || !password || !confirmPassword) {
       return
     }
-    if (!/\S+@\S+\.\S+/.test(email)) {
-      setError('Please enter a valid email address.')
-      return
-    }
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.')
+    if (!/\S+@\S+\.\S+/.test(email.trim())) {
+      setLocalError('Please enter a valid email address.')
       return
     }
     if (password.length < 6) {
-      setError('Password must be at least 6 characters long.')
+      setLocalError('Password must be at least 6 characters long.')
+      return
+    }
+    if (password !== confirmPassword) {
+      setLocalError('Passwords do not match.')
       return
     }
 
-    setIsLoading(true)
     try {
-      await mockRegister({
-        name: name.trim(),
-        email: email.trim(),
-        pass: password
-      })
-      // Show success alert and redirect to login
-      Alert.alert(
-        'Registration Successful',
-        'Your account has been created. Please log in.',
-        [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }] // Redirect on OK
+      await dispatch(
+        registerUserThunk({ email: email.trim(), password: password })
       )
-      // No need to clear fields as we navigate away
     } catch (err: any) {
-      console.error('Registration failed:', err)
-      // Handle specific known errors or show generic message
-      if (err.message === 'EMAIL_EXISTS') {
-        setError('An account with this email already exists.')
-      } else if (err.message === 'WEAK_PASSWORD') {
-        setError('Password is too weak. Please use at least 6 characters.')
-      } else {
-        setError('Could not create account. Please try again later.')
-      }
-    } finally {
-      setIsLoading(false)
+      console.error('Registration thunk failed:', err)
     }
-  }
+  }, [email, password, confirmPassword, authError, dispatch])
+
+  const handleGoogleLoginPress = useCallback(() => {
+    dispatch(clearAuthError())
+    setLocalError(null)
+    if (googleRequest) {
+      promptAsyncGoogle()
+    } else {
+      setLocalError('Google Sign-In is not available right now.')
+    }
+  }, [googleRequest, promptAsyncGoogle, dispatch])
+
+  const handleAppleLoginPress = useCallback(() => {
+    dispatch(clearAuthError())
+    setLocalError('Apple Sign-In is not yet implemented.')
+  }, [dispatch])
+
+  const handleFacebookLoginPress = useCallback(() => {
+    dispatch(clearAuthError())
+    setLocalError('Facebook Sign-In is not yet implemented.')
+  }, [dispatch])
 
   const handleGoBack = () => {
-    // Navigate back if possible, otherwise go to login
     if (router.canGoBack()) {
       router.back()
     } else {
       router.replace('/(auth)/login')
     }
   }
+  const togglePasswordVisibility = () => setIsPasswordVisible(prev => !prev)
+  const toggleConfirmPasswordVisibility = () =>
+    setIsConfirmPasswordVisible(prev => !prev)
+
+  const renderSocialButton = useCallback(
+    (
+      provider: 'google' | 'apple' | 'facebook',
+      onPress: () => void,
+      disabled: boolean = false
+    ) => {
+      const iconName = provider === 'facebook' ? 'facebook-f' : provider
+      const brandColors = {
+        google: '#DB4437',
+        apple: '#000000',
+        facebook: '#1877F2'
+      }
+      const pressedColors = {
+        google: '#c33d2e',
+        apple: '#333333',
+        facebook: '#166fe5'
+      }
+      return (
+        <Pressable
+          style={({ pressed }) => [
+            styles.socialButton,
+            (disabled || isLoading) && authStyles.buttonDisabled,
+            pressed &&
+              !(disabled || isLoading) && {
+                backgroundColor: pressedColors[provider] || Colors.light.border
+              },
+            !pressed && {
+              backgroundColor:
+                brandColors[provider] || Colors.light.cardBackground
+            }
+          ]}
+          onPress={onPress}
+          disabled={disabled || isLoading}
+        >
+          <FontAwesome name={iconName as any} size={20} color="white" />
+        </Pressable>
+      )
+    },
+    [isLoading]
+  )
 
   return (
     <ScrollView
-      contentContainerStyle={styles.scrollContainer}
+      contentContainerStyle={authStyles.scrollContainer}
       keyboardShouldPersistTaps="handled"
     >
-      <View style={styles.innerContainer}>
-        <View style={styles.headerContainer}>
-          <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
+      <View style={authStyles.innerContainer}>
+        <View style={authStyles.headerContainer}>
+          <TouchableOpacity
+            onPress={handleGoBack}
+            style={authStyles.backButton}
+          >
             <ChevronLeft size={28} color={Colors.light.text} />
           </TouchableOpacity>
         </View>
 
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join us and start your journey!</Text>
+        <View style={authStyles.titleContainer}>
+          <Text style={authStyles.title}>Create Account</Text>
+          <Text style={authStyles.subtitle}>
+            Join us and start your journey!
+          </Text>
         </View>
 
-        {/* Message Area */}
-        <View style={styles.messageContainer}>
-          {error && <Text style={styles.errorText}>{error}</Text>}
+        <View style={authStyles.messageContainer}>
+          {displayError && (
+            <Text style={authStyles.errorText}>{displayError}</Text>
+          )}
         </View>
 
-        {/* Form Area */}
-        <View style={styles.formContainer}>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Full Name</Text>
+        <View style={authStyles.formContainer}>
+          <View style={authStyles.inputGroup}>
+            <Text style={authStyles.label}>Email</Text>
             <TextInput
-              style={[styles.input, isLoading && styles.inputDisabled]}
-              placeholder="Enter Full Name"
-              value={name}
-              onChangeText={setName}
-              editable={!isLoading}
-              placeholderTextColor={Colors.light.textTertiary}
-              autoCapitalize="words"
-            />
-          </View>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={[styles.input, isLoading && styles.inputDisabled]}
+              style={[authStyles.input, isLoading && authStyles.inputDisabled]}
               placeholder="Enter Email"
               value={email}
               onChangeText={setEmail}
@@ -160,41 +244,117 @@ export default function SignupScreen() {
               autoCapitalize="none"
               editable={!isLoading}
               placeholderTextColor={Colors.light.textTertiary}
+              returnKeyType="next"
+              onSubmitEditing={() => passwordInputRef.current?.focus()}
+              blurOnSubmit={false}
             />
           </View>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={[styles.input, isLoading && styles.inputDisabled]}
-              placeholder="Enter Password (min. 6 chars)"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              editable={!isLoading}
-              placeholderTextColor={Colors.light.textTertiary}
-            />
+          <View style={authStyles.inputGroup}>
+            <Text style={authStyles.label}>Password</Text>
+            <View
+              style={[
+                authStyles.passwordInputWrapper,
+                isLoading && styles.inputWrapperDisabled
+              ]}
+            >
+              <TextInput
+                ref={passwordInputRef}
+                style={[
+                  authStyles.input,
+                  authStyles.passwordInputOnly,
+                  isLoading && authStyles.inputDisabled
+                ]}
+                placeholder="Enter Password (min. 6 chars)"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!isPasswordVisible}
+                editable={!isLoading}
+                placeholderTextColor={Colors.light.textTertiary}
+                returnKeyType="next"
+                onSubmitEditing={() => confirmPasswordInputRef.current?.focus()}
+                blurOnSubmit={false}
+              />
+              <TouchableOpacity
+                onPress={togglePasswordVisibility}
+                style={authStyles.passwordVisibilityButton}
+                disabled={isLoading}
+              >
+                {isPasswordVisible ? (
+                  <EyeOff size={20} color={Colors.light.textSecondary} />
+                ) : (
+                  <Eye size={20} color={Colors.light.textSecondary} />
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Confirm Password</Text>
-            <TextInput
-              style={[styles.input, isLoading && styles.inputDisabled]}
-              placeholder="Confirm Password"
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              secureTextEntry
-              editable={!isLoading}
-              placeholderTextColor={Colors.light.textTertiary}
-            />
+          <View style={authStyles.inputGroup}>
+            <Text style={authStyles.label}>Confirm Password</Text>
+            <View
+              style={[
+                authStyles.passwordInputWrapper,
+                isLoading && styles.inputWrapperDisabled
+              ]}
+            >
+              <TextInput
+                ref={confirmPasswordInputRef}
+                style={[
+                  authStyles.input,
+                  authStyles.passwordInputOnly,
+                  isLoading && authStyles.inputDisabled
+                ]}
+                placeholder="Confirm Password"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry={!isConfirmPasswordVisible}
+                editable={!isLoading}
+                placeholderTextColor={Colors.light.textTertiary}
+                onSubmitEditing={handleRegister}
+                returnKeyType="go"
+              />
+              <TouchableOpacity
+                onPress={toggleConfirmPasswordVisibility}
+                style={authStyles.passwordVisibilityButton}
+                disabled={isLoading}
+              >
+                {isConfirmPasswordVisible ? (
+                  <EyeOff size={20} color={Colors.light.textSecondary} />
+                ) : (
+                  <Eye size={20} color={Colors.light.textSecondary} />
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
-        {/* Footer Area */}
-        <View style={styles.footerContainer}>
+        <View style={styles.socialLoginsSection}>
+          <View style={styles.orSeparatorContainer}>
+            <View style={styles.orSeparatorLine} />
+            <Text style={styles.orSeparatorText}>or continue with</Text>
+            <View style={styles.orSeparatorLine} />
+          </View>
+          <View style={styles.socialLoginContainer}>
+            {renderSocialButton(
+              'google',
+              handleGoogleLoginPress,
+              !googleRequest || isLoading
+            )}
+            {renderSocialButton('apple', handleAppleLoginPress, isLoading)}
+            {renderSocialButton(
+              'facebook',
+              handleFacebookLoginPress,
+              isLoading
+            )}
+          </View>
+        </View>
+
+        <View
+          style={[authStyles.footerContainer, styles.signupFooterContainer]}
+        >
           <Pressable
             style={({ pressed }) => [
-              styles.actionButton,
-              isLoading && styles.buttonDisabled,
-              pressed && !isLoading && styles.actionButtonPressed
+              authStyles.actionButton,
+              isLoading && authStyles.buttonDisabled,
+              pressed && !isLoading && authStyles.actionButtonPressed
             ]}
             onPress={handleRegister}
             disabled={isLoading}
@@ -202,7 +362,7 @@ export default function SignupScreen() {
             {isLoading ? (
               <ActivityIndicator color={Colors.light.white} />
             ) : (
-              <Text style={styles.actionButtonText}>Register</Text>
+              <Text style={authStyles.actionButtonText}>Register</Text>
             )}
           </Pressable>
           <View style={styles.loginLinkContainer}>
@@ -211,8 +371,8 @@ export default function SignupScreen() {
               <Pressable disabled={isLoading}>
                 <Text
                   style={[
-                    styles.linkTextBold,
-                    isLoading && styles.linkDisabled
+                    authStyles.linkTextBold,
+                    isLoading && authStyles.linkDisabled
                   ]}
                 >
                   Log In
@@ -226,130 +386,36 @@ export default function SignupScreen() {
   )
 }
 
-// Styles similar to other auth screens
 const styles = StyleSheet.create({
-  scrollContainer: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    backgroundColor: Colors.light.background
-  },
-  innerContainer: {
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-    width: '100%',
-    maxWidth: 420,
-    alignSelf: 'center',
-    gap: 20 // Consistent gap
-  },
-  headerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    minHeight: 40
-  },
-  backButton: {
-    padding: 8,
-    marginLeft: -8
-  },
-  titleContainer: {
-    marginBottom: 5 // Smaller gap before message area
-  },
-  title: {
-    fontSize: 28,
-    fontFamily: 'Inter-Bold',
-    color: Colors.light.text,
-    marginBottom: 8
-  },
-  subtitle: {
-    fontSize: 18,
-    fontFamily: 'Inter-Regular',
-    color: Colors.light.textSecondary,
-    lineHeight: 24
-  },
-  // --- Message Area ---
-  messageContainer: {
-    minHeight: 20, // Reserve space
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
-  errorText: {
-    color: Colors.light.error,
-    textAlign: 'center',
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 14,
-    paddingHorizontal: 10
-  },
-  // --- Form ---
-  formContainer: {
-    gap: 15 // Slightly smaller gap between inputs
-  },
-  inputGroup: {
-    width: '100%'
-  },
-  label: {
-    fontSize: 14,
-    fontFamily: 'Inter-Medium',
-    color: Colors.light.textSecondary,
-    marginBottom: 8
-  },
-  input: {
-    height: 52,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    fontSize: 16,
-    backgroundColor: Colors.light.white,
-    color: Colors.light.text,
-    fontFamily: 'Inter-Regular',
-    borderWidth: 1,
-    borderColor: Colors.light.border
-  },
-  inputDisabled: {
-    backgroundColor: Colors.light.backgroundLight,
-    color: Colors.light.textTertiary,
-    borderColor: Colors.light.border
-  },
-  // --- Links ---
-  linkTextBold: {
-    color: Colors.light.primary,
-    fontSize: 14,
-    fontFamily: 'Inter-SemiBold'
-  },
-  linkDisabled: {
-    opacity: 0.6
-  },
-  // --- Footer ---
-  footerContainer: {
-    width: '100%',
-    alignItems: 'center',
-    gap: 20, // Space between button and login link
-    marginTop: 10 // Add margin top
-  },
-  loginLinkContainer: {
-    flexDirection: 'row',
-    alignItems: 'center'
-  },
+  signupFooterContainer: { gap: 20 },
+  loginLinkContainer: { flexDirection: 'row', alignItems: 'center' },
   footerText: {
     fontSize: 14,
     fontFamily: 'Inter-Regular',
     color: Colors.light.textSecondary
   },
-  // --- Action Button ---
-  actionButton: {
-    width: '100%',
-    height: 52,
-    backgroundColor: Colors.light.text,
+  inputWrapperDisabled: {},
+  socialLoginsSection: { gap: 20, marginTop: 10 },
+  orSeparatorContainer: { flexDirection: 'row', alignItems: 'center' },
+  orSeparatorLine: { flex: 1, height: 1, backgroundColor: Colors.light.border },
+  orSeparatorText: {
+    marginHorizontal: 12,
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    color: Colors.light.textSecondary
+  },
+  socialLoginContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 20
+  },
+  socialButton: {
+    width: 50,
+    height: 50,
     borderRadius: 12,
     alignItems: 'center',
-    justifyContent: 'center'
-  },
-  actionButtonPressed: {
-    backgroundColor: '#333'
-  },
-  actionButtonText: {
-    color: Colors.light.white,
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold'
-  },
-  buttonDisabled: {
-    opacity: 0.6
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.light.border
   }
 })

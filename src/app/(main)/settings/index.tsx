@@ -251,8 +251,7 @@ export default function SettingsScreen() {
                           styles.fontSizeButtonTextActive
                       ]}
                     >
-                      {' '}
-                      {size}{' '}
+                      {size}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -280,7 +279,6 @@ export default function SettingsScreen() {
 
         <View style={styles.footer}>
           <Text style={styles.versionText}>
-            {' '}
             Kielo.app v{Constants.expoConfig?.version}
           </Text>
           <Text style={styles.copyrightText}>© 2025. All rights reserved.</Text>

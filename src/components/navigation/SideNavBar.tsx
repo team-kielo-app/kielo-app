@@ -4,60 +4,47 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Platform,
   ActivityIndicator
 } from 'react-native'
-import { Link, useSegments, useRouter } from 'expo-router'
-import {
-  Home,
-  Book,
-  User,
-  BicepsFlexed,
-  Settings,
-  LogIn,
-  LogOut
-} from 'lucide-react-native' // Added icons
-import { useSelector, useDispatch } from 'react-redux' // Added useDispatch
+import { useSegments, useRouter } from 'expo-router'
+import { LogIn, LogOut } from 'lucide-react-native'
+import { useSelector, useDispatch } from 'react-redux'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { Colors } from '@constants/Colors'
 import {
   selectIsAuthenticated,
   selectAuthStatus
-} from '@features/auth/authSelectors' // Added selectAuthStatus
-import { logoutUser } from '@features/auth/authActions' // Added logout action
+} from '@features/auth/authSelectors'
+import { logoutUser } from '@features/auth/authActions'
 import { useRequireAuthAction } from '@hooks/useRequireAuthAction'
-import { navItems } from '@/constants/navigation' // Import shared data
-import { AppDispatch } from '@store/store' // Import AppDispatch type
+import { navItems } from '@/constants/navigation'
+import { AppDispatch } from '@store/store'
 
 export function SideNavBar() {
   const router = useRouter()
   const segments = useSegments()
   const insets = useSafeAreaInsets()
-  const dispatch = useDispatch<AppDispatch>() // Typed dispatch
+  const dispatch = useDispatch<AppDispatch>()
 
   const isAuthenticated = useSelector(selectIsAuthenticated)
-  const authStatus = useSelector(selectAuthStatus) // Get status for logout button
+  const authStatus = useSelector(selectAuthStatus)
 
-  // Determine active segment considering nested structure
   let activeSegmentKey: string | null = null
   if (segments.length > 0 && segments[0] === '(main)') {
     if (segments.length > 1 && segments[1] === '(tabs)') {
-      activeSegmentKey = segments[2] || 'index' // Handle '/(main)/(tabs)/' -> index
+      activeSegmentKey = segments[2] || 'index'
     } else if (segments.length > 1) {
-      // Handle direct children like settings: check segments[1] possibly combined with segments[2]
-      activeSegmentKey = segments.slice(1).join('/') // e.g., 'settings/index'
+      activeSegmentKey = segments.slice(1).join('/')
     }
   }
 
-  // Guarded navigation actions (can be reused or specific)
   const navigateToProtected = useRequireAuthAction((path: string) => {
     router.push(path as any)
   }, 'Login required.')
 
   const handleLogout = () => {
     dispatch(logoutUser())
-    // No need to manually redirect, RootLayout will handle it
   }
 
   return (
@@ -76,7 +63,7 @@ export function SideNavBar() {
 
           const handlePress = () => {
             if (item.protected) {
-              navigateToProtected(item.path) // Use generic guarded action
+              navigateToProtected(item.path)
             } else {
               router.push(item.path as any)
             }
@@ -87,7 +74,6 @@ export function SideNavBar() {
               key={item.name}
               style={[styles.navItem, isActive && styles.navItemActive]}
               onPress={handlePress}
-              // Disable visually if protected and not logged in? Optional.
               style={[
                 styles.navItem,
                 isActive && styles.navItemActive,
@@ -111,7 +97,6 @@ export function SideNavBar() {
         })}
       </View>
 
-      {/* --- Bottom Login/Logout Action --- */}
       <View style={styles.bottomActions}>
         {authStatus === 'loading' ? (
           <ActivityIndicator color={Colors.light.primary} />
@@ -134,7 +119,6 @@ export function SideNavBar() {
           </TouchableOpacity>
         )}
       </View>
-      {/* ------------------------------------ */}
     </View>
   )
 }
@@ -149,7 +133,6 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     borderRightColor: Colors.light.border,
     paddingHorizontal: 16,
-    // paddingBottom handled by inset
     display: 'flex',
     flexDirection: 'column'
   },
@@ -176,7 +159,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.primaryLight
   },
   navItemDisabled: {
-    // Optional style for disabled items
     opacity: 0.5
   },
   navLabel: {
@@ -189,8 +171,8 @@ const styles = StyleSheet.create({
     color: Colors.light.primary
   },
   bottomActions: {
-    marginTop: 'auto', // Push to bottom
-    paddingTop: 20, // Add space above actions
+    marginTop: 'auto',
+    paddingTop: 20,
     borderTopWidth: 1,
     borderTopColor: Colors.light.border
   },

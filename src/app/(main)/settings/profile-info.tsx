@@ -6,8 +6,7 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  ActivityIndicator,
-  Alert
+  ActivityIndicator
 } from 'react-native'
 import { useSelector } from 'react-redux'
 import { useProtectedRoute } from '@hooks/useProtectedRoute'
@@ -15,6 +14,7 @@ import { selectUser } from '@features/auth/authSelectors'
 import { RootState } from '@store/store'
 import { Colors } from '@constants/Colors'
 import { ScreenHeader } from '@components/common/ScreenHeader'
+import { showPlatformAlert } from '@lib/platformAlert'
 
 // Mock update action
 const mockUpdateProfile = (data: any) =>
@@ -48,7 +48,7 @@ export default function ProfileInfoScreen() {
     setIsLoading(true)
     try {
       await mockUpdateProfile({ name, bio })
-      Alert.alert('Success', 'Profile updated successfully.')
+      showPlatformAlert('Success', 'Profile updated successfully.')
       // TODO: Trigger refetch of user data
     } catch (err: any) {
       setError(err.message || 'Failed to update profile.')

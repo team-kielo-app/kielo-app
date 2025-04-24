@@ -6,12 +6,12 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  ActivityIndicator,
-  Alert
+  ActivityIndicator
 } from 'react-native'
 import { useProtectedRoute } from '@hooks/useProtectedRoute'
 import { Colors } from '@constants/Colors'
 import { ScreenHeader } from '@components/common/ScreenHeader'
+import { showPlatformAlert } from '@lib/platformAlert'
 
 // Mock update action
 const mockChangePassword = (data: any) =>
@@ -54,7 +54,7 @@ export default function ChangePasswordScreen() {
     setIsLoading(true)
     try {
       await mockChangePassword({ currentPassword, newPassword })
-      Alert.alert('Success', 'Password updated successfully.')
+      showPlatformAlert('Success', 'Password updated successfully.')
       setCurrentPassword('')
       setNewPassword('')
       setConfirmNewPassword('')

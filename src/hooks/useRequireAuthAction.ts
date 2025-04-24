@@ -1,8 +1,8 @@
-import { useSelector } from "react-redux";
-import { useRouter, usePathname } from "expo-router";
-import { useCallback } from "react";
-import { selectIsAuthenticated } from "@features/auth/authSelectors";
-import { Alert } from "react-native";
+import { useSelector } from 'react-redux'
+import { useRouter, usePathname } from 'expo-router'
+import { useCallback } from 'react'
+import { selectIsAuthenticated } from '@features/auth/authSelectors'
+import { showPlatformAlert } from '@lib/platformAlert'
 
 /**
  * Hook to guard actions that require authentication.
@@ -17,36 +17,36 @@ import { Alert } from "react-native";
  */
 export function useRequireAuthAction<T extends (...args: any[]) => any>(
   actionCallback: T,
-  message: string = "You need to be logged in to perform this action."
+  message: string = 'You need to be logged in to perform this action.'
 ): (...args: Parameters<T>) => void {
-  const isAuthenticated = useSelector(selectIsAuthenticated);
-  const router = useRouter();
-  const pathname = usePathname(); // Get the current path (e.g., /main/article/123)
+  const isAuthenticated = useSelector(selectIsAuthenticated)
+  const router = useRouter()
+  const pathname = usePathname() // Get the current path (e.g., /main/article/123)
 
   const guardedAction = useCallback(
     (...args: Parameters<T>) => {
       if (isAuthenticated) {
-        actionCallback(...args);
+        actionCallback(...args)
       } else {
-        Alert.alert("Authentication Required", message, [
-          { text: "Cancel", style: "cancel" },
+        showPlatformAlert('Authentication Required', message, [
+          { text: 'Cancel', style: 'cancel' },
           {
-            text: "Login",
+            text: 'Login',
             onPress: () => {
               console.log(
                 `[useRequireAuthAction] Redirecting to login from ${pathname}`
-              );
+              )
               // Redirect to login within the auth group, passing the current path
               router.push(
                 `/(auth)/login?redirect=${encodeURIComponent(pathname)}`
-              );
-            },
-          },
-        ]);
+              )
+            }
+          }
+        ])
       }
     },
     [isAuthenticated, actionCallback, router, pathname, message]
-  );
+  )
 
-  return guardedAction;
+  return guardedAction
 }

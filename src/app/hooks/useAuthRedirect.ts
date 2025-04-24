@@ -28,8 +28,6 @@ export const useAuthRedirect = (
   const authStatus = useSelector(selectAuthStatus)
 
   useEffect(() => {
-    const isAuthCheckComplete =
-      authStatus === 'succeeded' || authStatus === 'failed'
     if (!isAuthCheckComplete) return
 
     const isAuthRoute = segments[0] === '(auth)'
@@ -52,10 +50,6 @@ export const useAuthRedirect = (
             pathname: '/(auth)/login',
             params: { redirect: pathname }
           })
-        }
-      } else if (!isLoginRoute) {
-        if (isRootRoute) {
-          router.replace('/(main)/(tabs)/')
         }
       }
     }

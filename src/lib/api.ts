@@ -1,17 +1,13 @@
-// src/lib/api.ts
+import { store } from '@store/store'
+import { AppDispatch } from '@store/store'
 
-import { store } from '@store/store' // Keep store import for getState in handleRefreshToken
-import { AppDispatch } from '@store/store' // Keep AppDispatch type
-
-// Import the *new action creators* and selectors
 import * as authActions from '@features/auth/authActions'
 import * as authSelectors from '@features/auth/authSelectors'
 
 import * as Device from 'expo-device'
 import { Platform } from 'react-native'
 import * as tokenStorage from '@lib/tokenStorage'
-
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL
+import { API_URL } from './apiRoot'
 
 let deviceToken: string | null = null
 export const initializeDeviceToken = async () => {
@@ -35,10 +31,6 @@ export const initializeDeviceToken = async () => {
   return deviceToken
 }
 
-// --- Token Refresh Logic ---
-// This part directly interacts with the store state and dispatches actions.
-// It uses the AppDispatch type.
-
 let isRefreshing = false
 let failedRefresh = false
 let refreshPromise: Promise<string | null> | null = null
@@ -46,12 +38,8 @@ let refreshPromise: Promise<string | null> | null = null
 const handleRefreshToken = async (
   dispatch: AppDispatch
 ): Promise<string | null> => {
-  // NOTE: This function still relies heavily on direct dispatch calls.
-  // Alternatives like middleware or event emitters could decouple this further.
-
   if (failedRefresh) {
     console.log('Refresh previously failed, forcing logout.')
-    // Dispatch the logoutUser action creator
     dispatch(authActions.logoutUser())
     return null
   }
@@ -59,7 +47,6 @@ const handleRefreshToken = async (
     isRefreshing = true
     failedRefresh = false
 
-    // Use the new selectors via store.getState()
     const currentRefreshToken =
       authSelectors.selectRefreshToken(store.getState()) ||
       (await tokenStorage.getStoredTokens())
@@ -74,7 +61,7 @@ const handleRefreshToken = async (
     console.log('Attempting to refresh token...')
     refreshPromise = (async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        const response = await fetch(`${API_URL}/auth/refresh`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -96,7 +83,6 @@ const handleRefreshToken = async (
         const newRefreshToken = data.refresh_token
         const newExpiresAt = Date.now() + data.expires_in * 1000
 
-        // Dispatch the new setRefreshedTokens action creator
         dispatch(
           authActions.setRefreshedTokens({
             accessToken: newAccessToken,
@@ -119,7 +105,6 @@ const handleRefreshToken = async (
         isRefreshing = false
         failedRefresh = true
         refreshPromise = null
-        // Dispatch the new logoutUser action creator
         dispatch(authActions.logoutUser())
         return null
       }
@@ -131,19 +116,15 @@ const handleRefreshToken = async (
   }
 }
 
-// --- API Client Request Function ---
-// This function receives dispatch from the calling thunk.
-
 const request = async <T>(
   url: string,
   options: RequestInit = {},
-  dispatch: AppDispatch, // Receives dispatch from the thunk action creator
+  dispatch: AppDispatch,
   isRetry: boolean = false
 ): Promise<T> => {
-  if (!API_BASE_URL) throw new Error('API base URL is not configured.')
+  if (!API_URL) throw new Error('API base URL is not configured.')
   if (!deviceToken) await initializeDeviceToken()
 
-  // Use selectors via store.getState() here to get current token state
   const state = store.getState()
   let token = authSelectors.selectAuthToken(state)
   const expiresAt = authSelectors.selectTokenExpiresAt(state)
@@ -152,14 +133,12 @@ const request = async <T>(
 
   if (token && expiresAt && expiresAt - bufferSeconds * 1000 < Date.now()) {
     console.log('Token expired or nearing expiry, attempting refresh...')
-    // Call refresh handler, passing the dispatch received from the thunk
     token = await handleRefreshToken(dispatch)
     if (!token) {
       throw new Error('Authentication required or refresh failed.')
     }
   }
 
-  // --- Prepare Headers ---
   const headers: HeadersInit = {
     ...options.headers,
     'Content-Type': 'application/json',
@@ -169,14 +148,12 @@ const request = async <T>(
     headers['Authorization'] = `Bearer ${token}`
   }
 
-  // --- Make Request ---
   try {
-    const response = await fetch(`${API_BASE_URL}${url}`, {
+    const response = await fetch(`${API_URL}${url}`, {
       ...options,
       headers: headers
     })
 
-    // --- Handle Response ---
     if (!response.ok) {
       if (response.status === 401 && !isRetry) {
         if (url.includes('/auth/')) {
@@ -184,13 +161,11 @@ const request = async <T>(
         }
 
         console.log('Received 401 Unauthorized, attempting token refresh...')
-        // Pass the dispatch received from the thunk
         const newToken = await handleRefreshToken(dispatch)
         if (newToken) {
           console.log(
             'Refresh successful after 401, retrying original request...'
           )
-          // Pass the dispatch received from the thunk for the retry
           return request<T>(url, options, dispatch, true)
         } else {
           throw new Error(
@@ -199,7 +174,6 @@ const request = async <T>(
         }
       }
 
-      // Handle other errors (no change needed here)
       let errorData
       try {
         errorData = await response.json()
@@ -217,12 +191,10 @@ const request = async <T>(
     return response.json() as Promise<T>
   } catch (error) {
     console.error(`Network or other error during fetch to ${url}:`, error)
-    throw error // Re-throw for thunk's rejectWithValue
+    throw error
   }
 }
 
-// --- Exported API Client Methods ---
-// These methods accept dispatch and pass it down to the core request function.
 export const apiClient = {
   get: <T>(url: string, dispatch: AppDispatch): Promise<T> =>
     request<T>(url, { method: 'GET' }, dispatch),

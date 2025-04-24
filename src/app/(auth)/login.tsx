@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import {
   View,
   Text,
@@ -6,10 +6,8 @@ import {
   StyleSheet,
   ActivityIndicator,
   Pressable,
-  Alert,
   TouchableOpacity,
-  ScrollView,
-  Platform
+  ScrollView
 } from 'react-native'
 import { useSelector, useDispatch } from 'react-redux'
 import { FontAwesome } from '@expo/vector-icons'
@@ -17,7 +15,6 @@ import { maybeCompleteAuthSession } from 'expo-web-browser'
 import { useAuthRequest } from 'expo-auth-session/providers/google'
 import { Link, useLocalSearchParams, useRouter } from 'expo-router'
 import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native'
-
 import {
   loginUserThunk,
   loginWithSocialThunk,
@@ -30,6 +27,7 @@ import {
 } from '@features/auth/authSelectors'
 import { AppDispatch } from '@store/store'
 import { Colors } from '@constants/Colors'
+import { authStyles } from './_styles/authStyles'
 
 maybeCompleteAuthSession()
 
@@ -41,6 +39,8 @@ const LoginView = () => {
   const status = useSelector(selectAuthStatus)
   const rawError = useSelector(selectAuthError)
   const isAuthenticated = useSelector(selectIsAuthenticated)
+
+  const passwordInputRef = useRef<TextInput>(null)
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -63,8 +63,7 @@ const LoginView = () => {
         params.redirect && params.redirect.startsWith('/(main)/')
           ? params.redirect
           : defaultRedirect
-
-      console.log('Login successful, redirecting to:', redirectPath)
+      console.log('Auth success, redirecting to:', redirectPath)
       router.replace(redirectPath)
     }
   }, [status, isAuthenticated, router, params.redirect])
@@ -81,49 +80,68 @@ const LoginView = () => {
           provider: 'google',
           access_token: googleResponse.authentication.accessToken
         })
-      )
+      ).catch(err => {
+        console.error('Social Login Thunk Error (Login):', err)
+      })
     } else if (googleResponse?.type === 'error') {
-      console.error('Google Auth Error:', googleResponse.error)
+      console.error('Google Auth Error (Login):', googleResponse.error)
+      dispatch(clearAuthError())
       setLocalError('Google sign-in failed. Please try again.')
     }
   }, [googleResponse, dispatch])
 
   useEffect(() => {
     let timerId: NodeJS.Timeout | null = null
-    if (rawError || localError) {
+    if (displayError) {
+      if (localError) setLocalError(null)
       timerId = setTimeout(() => {
         if (rawError) dispatch(clearAuthError())
-        if (localError) setLocalError(null)
       }, 5000)
     }
     return () => {
       if (timerId) clearTimeout(timerId)
     }
-  }, [rawError, localError, dispatch])
+  }, [displayError, rawError, localError, dispatch])
 
-  const handleLoginSubmit = useCallback(() => {
+  useEffect(() => {
+    setLocalError(null)
+  }, [email, password])
+
+  const handleLoginSubmit = useCallback(async () => {
+    if (isLoading) return
+
     dispatch(clearAuthError())
     setLocalError(null)
 
     if (!email.trim() || !password) {
-      setLocalError('Please enter both email and password.')
       return
     }
-    dispatch(loginUserThunk({ email: email.trim(), password }))
+    try {
+      await dispatch(loginUserThunk({ email: email.trim(), password }))
+    } catch (error) {
+      console.error('Login thunk failed:', error)
+    }
   }, [email, password, dispatch])
 
   const handleGoogleLoginPress = useCallback(() => {
     dispatch(clearAuthError())
     setLocalError(null)
-    if (googleRequest) promptAsyncGoogle()
+    if (googleRequest) {
+      promptAsyncGoogle()
+    } else {
+      setLocalError('Google Sign-In is not available right now.')
+    }
   }, [googleRequest, promptAsyncGoogle, dispatch])
 
   const handleAppleLoginPress = useCallback(() => {
-    setLocalError('Apple login is not yet implemented.')
-  }, [])
-  const handleTwitterLoginPress = useCallback(() => {
-    setLocalError('X/Twitter login is not yet implemented.')
-  }, [])
+    dispatch(clearAuthError())
+    setLocalError('Apple Sign-In is not yet implemented.')
+  }, [dispatch])
+
+  const handleFacebookLoginPress = useCallback(() => {
+    dispatch(clearAuthError())
+    setLocalError('Facebook Sign-In is not yet implemented.')
+  }, [dispatch])
 
   const handleEmailChange = useCallback((text: string) => setEmail(text), [])
   const handlePasswordChange = useCallback(
@@ -144,34 +162,32 @@ const LoginView = () => {
         params.redirect && !params.redirect.startsWith('/(auth)/')
           ? params.redirect
           : defaultRedirect
-
       router.replace(redirectPath)
     }
   }
 
   const renderSocialButton = useCallback(
     (
-      provider: 'google' | 'apple' | 'twitter',
+      provider: 'google' | 'apple' | 'facebook',
       onPress: () => void,
       disabled: boolean = false
     ) => {
-      const iconName = provider === 'twitter' ? 'twitter' : provider
+      const iconName = provider === 'facebook' ? 'facebook-f' : provider
       const brandColors = {
         google: '#DB4437',
         apple: '#000000',
-        twitter: '#1DA1F2'
+        facebook: '#1877F2'
       }
       const pressedColors = {
         google: '#c33d2e',
         apple: '#333333',
-        twitter: '#1a91da'
+        facebook: '#166fe5'
       }
-
       return (
         <Pressable
           style={({ pressed }) => [
             styles.socialButton,
-            (disabled || isLoading) && styles.buttonDisabled,
+            (disabled || isLoading) && authStyles.buttonDisabled,
             pressed &&
               !(disabled || isLoading) && {
                 backgroundColor: pressedColors[provider] || Colors.light.border
@@ -193,31 +209,36 @@ const LoginView = () => {
 
   return (
     <ScrollView
-      contentContainerStyle={styles.scrollContainer}
+      contentContainerStyle={authStyles.scrollContainer}
       keyboardShouldPersistTaps="handled"
     >
-      <View style={styles.innerContainer}>
-        <View style={styles.headerContainer}>
-          <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
+      <View style={authStyles.innerContainer}>
+        <View style={authStyles.headerContainer}>
+          <TouchableOpacity
+            onPress={handleGoBack}
+            style={authStyles.backButton}
+          >
             <ChevronLeft size={28} color={Colors.light.text} />
           </TouchableOpacity>
         </View>
 
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>Let's Sign you in.</Text>
-          <Text style={styles.subtitle}>Welcome back</Text>
-          <Text style={styles.subtitle}>You've been missed!</Text>
+        <View style={authStyles.titleContainer}>
+          <Text style={authStyles.title}>Let's Sign you in.</Text>
+          <Text style={authStyles.subtitle}>Welcome back</Text>
+          <Text style={authStyles.subtitle}>You've been missed!</Text>
         </View>
 
-        <View style={styles.messageContainer}>
-          {displayError && <Text style={styles.errorText}>{displayError}</Text>}
+        <View style={authStyles.messageContainer}>
+          {displayError && (
+            <Text style={authStyles.errorText}>{displayError}</Text>
+          )}
         </View>
 
-        <View style={styles.formContainer}>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Username or Email</Text>
+        <View style={authStyles.formContainer}>
+          <View style={authStyles.inputGroup}>
+            <Text style={authStyles.label}>Username or Email</Text>
             <TextInput
-              style={[styles.input, isLoading && styles.inputDisabled]}
+              style={[authStyles.input, isLoading && authStyles.inputDisabled]}
               placeholder="Enter Username or Email"
               value={email}
               onChangeText={handleEmailChange}
@@ -225,29 +246,38 @@ const LoginView = () => {
               autoCapitalize="none"
               placeholderTextColor={Colors.light.textTertiary}
               editable={!isLoading}
+              returnKeyType="next"
+              onSubmitEditing={() => passwordInputRef.current?.focus()}
+              blurOnSubmit={false}
             />
           </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Password</Text>
+          <View style={authStyles.inputGroup}>
+            <Text style={authStyles.label}>Password</Text>
             <View
               style={[
-                styles.passwordInputWrapper,
-                isLoading && styles.inputDisabled
+                authStyles.passwordInputWrapper,
+                isLoading && styles.inputWrapperDisabled
               ]}
             >
               <TextInput
-                style={[styles.input, styles.passwordInputOnly]}
+                ref={passwordInputRef}
+                style={[
+                  authStyles.input,
+                  authStyles.passwordInputOnly,
+                  isLoading && authStyles.inputDisabled
+                ]}
                 placeholder="Enter Password"
                 value={password}
                 onChangeText={handlePasswordChange}
                 secureTextEntry={!isPasswordVisible}
                 placeholderTextColor={Colors.light.textTertiary}
                 editable={!isLoading}
+                onSubmitEditing={handleLoginSubmit}
+                returnKeyType="go"
               />
               <TouchableOpacity
                 onPress={togglePasswordVisibility}
-                style={styles.passwordVisibilityButton}
+                style={authStyles.passwordVisibilityButton}
                 disabled={isLoading}
               >
                 {isPasswordVisible ? (
@@ -263,7 +293,10 @@ const LoginView = () => {
                 disabled={isLoading}
               >
                 <Text
-                  style={[styles.linkText, isLoading && styles.linkDisabled]}
+                  style={[
+                    authStyles.linkText,
+                    isLoading && authStyles.linkDisabled
+                  ]}
                 >
                   Forgot Password?
                 </Text>
@@ -282,19 +315,23 @@ const LoginView = () => {
             {renderSocialButton(
               'google',
               handleGoogleLoginPress,
-              !googleRequest
+              !googleRequest || isLoading
             )}
-            {renderSocialButton('apple', handleAppleLoginPress)}
-            {renderSocialButton('twitter', handleTwitterLoginPress)}
+            {renderSocialButton('apple', handleAppleLoginPress, isLoading)}
+            {renderSocialButton(
+              'facebook',
+              handleFacebookLoginPress,
+              isLoading
+            )}
           </View>
         </View>
 
-        <View style={styles.footerContainer}>
+        <View style={[authStyles.footerContainer, styles.loginFooterContainer]}>
           <Pressable
             style={({ pressed }) => [
-              styles.actionButton,
-              isLoading && styles.buttonDisabled,
-              pressed && !isLoading && styles.actionButtonPressed
+              authStyles.actionButton,
+              isLoading && authStyles.buttonDisabled,
+              pressed && !isLoading && authStyles.actionButtonPressed
             ]}
             onPress={handleLoginSubmit}
             disabled={isLoading}
@@ -302,18 +339,17 @@ const LoginView = () => {
             {isLoading ? (
               <ActivityIndicator color={Colors.light.white} />
             ) : (
-              <Text style={styles.actionButtonText}>Login</Text>
+              <Text style={authStyles.actionButtonText}>Login</Text>
             )}
           </Pressable>
-
           <View style={styles.registerLinkContainer}>
             <Text style={styles.footerText}>Don't have an account? </Text>
             <Link href="/(auth)/signup" asChild>
               <Pressable disabled={isLoading}>
                 <Text
                   style={[
-                    styles.linkTextBold,
-                    isLoading && styles.linkDisabled
+                    authStyles.linkTextBold,
+                    isLoading && authStyles.linkDisabled
                   ]}
                 >
                   Register
@@ -329,137 +365,14 @@ const LoginView = () => {
 
 export default LoginView
 
-// --- Styles (Consolidated & Refined) ---
 const styles = StyleSheet.create({
-  scrollContainer: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    backgroundColor: Colors.light.background
-  },
-  innerContainer: {
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-    width: '100%',
-    maxWidth: 420,
-    alignSelf: 'center',
-    gap: 20 // Consistent gap between sections
-  },
-  // --- Header ---
-  headerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    minHeight: 40
-  },
-  backButton: {
-    padding: 8,
-    marginLeft: -8
-  },
-  // --- Title ---
-  titleContainer: {
-    marginBottom: 5 // Smaller gap before message area
-  },
-  title: {
-    fontSize: 28,
-    fontFamily: 'Inter-Bold',
-    color: Colors.light.text,
-    marginBottom: 8
-  },
-  subtitle: {
-    fontSize: 18,
-    fontFamily: 'Inter-Regular',
-    color: Colors.light.textSecondary,
-    lineHeight: 24
-  },
-  // --- Message Area ---
-  messageContainer: {
-    minHeight: 20, // Reserve space
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
-  errorText: {
-    color: Colors.light.error,
-    textAlign: 'center',
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 14,
-    paddingHorizontal: 10
-  },
-  // --- Form ---
-  formContainer: {
-    gap: 15 // Slightly smaller gap between inputs
-  },
-  inputGroup: {
-    width: '100%'
-  },
-  label: {
-    fontSize: 14,
-    fontFamily: 'Inter-Medium',
-    color: Colors.light.textSecondary,
-    marginBottom: 8
-  },
-  input: {
-    height: 52,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    fontSize: 16,
-    backgroundColor: Colors.light.white,
-    color: Colors.light.text,
-    fontFamily: 'Inter-Regular',
-    borderWidth: 1,
-    borderColor: Colors.light.border
-  },
-  inputDisabled: {
-    backgroundColor: Colors.light.backgroundLight,
-    color: Colors.light.textTertiary,
-    borderColor: Colors.light.border
-  },
-  passwordInputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-    backgroundColor: Colors.light.white
-    // Apply disabled style to wrapper
-    // This helps disable the background and border consistently
-  },
-  passwordInputOnly: {
-    flex: 1,
-    borderWidth: 0,
-    height: 50,
-    backgroundColor: 'transparent'
-  },
-  passwordVisibilityButton: {
-    padding: 14
-  },
   forgotPasswordButton: {
     alignSelf: 'flex-end',
     marginTop: 8,
     paddingVertical: 4
   },
-  // --- Links ---
-  linkText: {
-    color: Colors.light.primary,
-    fontSize: 14,
-    fontFamily: 'Inter-Medium'
-  },
-  linkTextBold: {
-    color: Colors.light.primary,
-    fontSize: 14,
-    fontFamily: 'Inter-SemiBold'
-  },
-  linkDisabled: {
-    opacity: 0.6 // Visually indicate disabled link
-  },
-  // --- Social Logins Section ---
-  socialLoginsSection: {
-    gap: 20, // Space between separator and buttons
-    marginTop: 10 // Add some margin top
-  },
-  // --- Separator ---
-  orSeparatorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center'
-  },
+  socialLoginsSection: { gap: 20, marginTop: 10 },
+  orSeparatorContainer: { flexDirection: 'row', alignItems: 'center' },
   orSeparatorLine: { flex: 1, height: 1, backgroundColor: Colors.light.border },
   orSeparatorText: {
     marginHorizontal: 12,
@@ -467,7 +380,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Medium',
     color: Colors.light.textSecondary
   },
-  // --- Social Buttons ---
   socialLoginContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -482,40 +394,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.light.border
   },
-  // --- Footer ---
-  footerContainer: {
-    width: '100%',
-    alignItems: 'center',
-    gap: 20, // Space between button and register link
-    marginTop: 10 // Add some margin top
-  },
-  registerLinkContainer: {
-    flexDirection: 'row',
-    alignItems: 'center'
-  },
+  loginFooterContainer: { gap: 20 },
+  registerLinkContainer: { flexDirection: 'row', alignItems: 'center' },
   footerText: {
     fontSize: 14,
     fontFamily: 'Inter-Regular',
     color: Colors.light.textSecondary
   },
-  // --- Action Button ---
-  actionButton: {
-    width: '100%',
-    height: 52,
-    backgroundColor: Colors.light.text,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  actionButtonPressed: {
-    backgroundColor: '#333'
-  },
-  actionButtonText: {
-    color: Colors.light.white,
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold'
-  },
-  buttonDisabled: {
-    opacity: 0.6
-  }
+  inputWrapperDisabled: { borderColor: Colors.light.border, opacity: 0.7 }
 })

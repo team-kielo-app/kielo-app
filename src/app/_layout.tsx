@@ -41,11 +41,16 @@ function RootLayoutNav() {
 
   const showSplash = isLoading
 
-  if (showSplash) {
-    return <CustomSplashScreen />
-  }
-
-  return <Slot />
+  return (
+    <View style={styles.container}>
+      <Slot />
+      {showSplash && (
+        <View style={[StyleSheet.absoluteFill, styles.splashOverlay]}>
+          <CustomSplashScreen />
+        </View>
+      )}
+    </View>
+  )
 }
 
 export default function RootLayout() {
@@ -77,6 +82,13 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1
+  },
+  splashOverlay: {
+    zIndex: 10,
+    backgroundColor: Colors.light.background
+  },
   splashContainer: {
     flex: 1,
     justifyContent: 'center',
