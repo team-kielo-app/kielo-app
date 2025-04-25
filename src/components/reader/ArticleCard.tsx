@@ -1,6 +1,6 @@
 import React from 'react'
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native'
-import { ArticleType } from 'types/article'
+import type { ArticleType } from '@features/articles/types'
 import { Colors } from '@constants/Colors'
 import { Bookmark, BookmarkCheck } from 'lucide-react-native'
 import { useResponsiveDimensions } from '@/hooks/useResponsiveDimensions'

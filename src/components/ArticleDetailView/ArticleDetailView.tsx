@@ -1,4 +1,3 @@
-// src/components/ArticleDetailView.tsx
 import React from 'react'
 import {
   View,
@@ -10,7 +9,6 @@ import {
   Pressable,
   Linking
 } from 'react-native'
-// Import useSegments along with useRouter
 import { useRouter, useSegments } from 'expo-router'
 import { Article } from '@features/articles/types'
 import { Colors } from '@constants/Colors'
@@ -30,46 +28,33 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
   onRetry
 }) => {
   const router = useRouter()
-  // Get the current path segments
   const segments = useSegments()
   const { isMobile } = useResponsiveDimensions()
 
-  // --- Action Handlers ---
   const handleRetry = () => {
     onRetry()
   }
 
   const handleGoBack = () => {
-    // Filter out layout segments (e.g., "(app)") and group segments
     const navigableSegments = segments.filter(
-      // Regex matches segments starting with '(' and ending with ')'
       segment => !/^\(.+\)$/.test(segment)
-      // Add more filters if needed, e.g., filter out 'index' if it's not desired
-      // segment => !/^\(.+\)$/.test(segment) && segment !== 'index'
     )
 
-    // Check if there are navigable segments to go back from
     if (navigableSegments.length > 1) {
-      // Create the parent path by removing the last navigable segment
       const parentSegments = navigableSegments.slice(0, -1)
-      const navigationPath = '/' + parentSegments.join('/') // Ensure leading slash
+      const navigationPath = '/' + parentSegments.join('/')
 
       console.log('Navigating up to:', navigationPath)
       router.push(navigationPath)
     } else {
-      // Fallback: Navigate to root or just go back in history if parent cannot be determined
       console.log(
         'Cannot determine parent path from segments, navigating to "/" or back.'
       )
-      // Option 1: Go to a known root for the section
-      // router.push('/');
-      // Option 2: Fallback to simple history back
       router.back()
     }
   }
 
   const handleOpenUrl = async () => {
-    // ... (keep existing handleOpenUrl implementation)
     if (!article?.url) return
     const supported = await Linking.canOpenURL(article.url)
     if (supported) {
@@ -79,9 +64,6 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
     }
   }
 
-  // --- Render Logic ---
-
-  // 1. Loading State
   if (isLoading && !article) {
     return (
       <View style={styles.centered}>
@@ -91,7 +73,6 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
     )
   }
 
-  // 2. Error State
   if (error && !article) {
     return (
       <View style={styles.centered}>
@@ -100,7 +81,6 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
         <Pressable onPress={handleRetry} style={styles.retryButton}>
           <Text style={styles.retryButtonText}>Retry</Text>
         </Pressable>
-        {/* Use the updated handleGoBack */}
         <Pressable onPress={handleGoBack} style={styles.backButton}>
           <Text style={styles.backButtonText}>Go Back</Text>
         </Pressable>
@@ -108,12 +88,10 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
     )
   }
 
-  // 3. Not Found State
   if (!article) {
     return (
       <View style={styles.centered}>
         <Text style={styles.infoText}>Article not found.</Text>
-        {/* Use the updated handleGoBack */}
         <Pressable onPress={handleGoBack} style={styles.backButton}>
           <Text style={styles.backButtonText}>Go Back</Text>
         </Pressable>
@@ -121,13 +99,11 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
     )
   }
 
-  // 4. Display Article Content
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
     >
-      {/* ... keep existing content rendering (title, date, url, content) ... */}
       <Text
         style={[
           styles.title,
@@ -165,10 +141,10 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: Platform.OS === 'web' ? 40 : 20,
-    maxWidth: 800, // Max width for readability on web/tablet
+    maxWidth: 800,
     width: '100%',
-    alignSelf: 'center', // Center content column
-    paddingBottom: 60 // Ensure space at the bottom
+    alignSelf: 'center',
+    paddingBottom: 60
   },
   centered: {
     flex: 1,
@@ -193,11 +169,11 @@ const styles = StyleSheet.create({
   },
   sourceUrl: {
     fontSize: 13,
-    color: Colors.light.tint, // Make it look like a link
+    color: Colors.light.tint,
     marginBottom: 20,
     textAlign: 'center',
     fontStyle: 'italic',
-    textDecorationLine: 'underline' // Underline to indicate pressable
+    textDecorationLine: 'underline'
   },
   content: {
     lineHeight: 24,
