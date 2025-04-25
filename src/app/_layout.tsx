@@ -17,16 +17,22 @@ import {
 } from '@features/auth/authSelectors'
 import { Colors } from '@constants/Colors'
 
+import { DashboardSkeletonDesktop } from '@components/skeletons/DashboardSkeletonDesktop'
+import { DashboardSkeletonMobile } from '@components/skeletons/DashboardSkeletonMobile'
+
+import { useResponsiveDimensions } from '@hooks/useResponsiveDimensions'
 import { useDeviceOrientation } from './hooks/useDeviceOrientation'
 import { useAppInitialization } from './hooks/useAppInitialization'
 import { useAuthRedirect } from './hooks/useAuthRedirect'
 
-const CustomSplashScreen = React.memo(() => (
-  <View style={styles.splashContainer}>
-    <ActivityIndicator size="large" color={Colors.light.primary} />
-    <Text style={styles.splashText}>Loading Kielo...</Text>
-  </View>
-))
+const CustomSplashScreen = React.memo(() => {
+  const { isDesktop } = useResponsiveDimensions()
+  if (isDesktop) {
+    return <DashboardSkeletonDesktop />
+  }
+
+  return <DashboardSkeletonMobile />
+})
 
 function RootLayoutNav() {
   const isAuthenticated = useSelector(selectIsAuthenticated)
@@ -39,12 +45,10 @@ function RootLayoutNav() {
   useAppInitialization(authStatus)
   useAuthRedirect(isAuthenticated, isAuthCheckComplete)
 
-  const showSplash = isLoading
-
   return (
     <View style={styles.container}>
       <Slot />
-      {showSplash && (
+      {isLoading && (
         <View style={[StyleSheet.absoluteFill, styles.splashOverlay]}>
           <CustomSplashScreen />
         </View>
