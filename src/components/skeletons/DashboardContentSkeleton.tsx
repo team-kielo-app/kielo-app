@@ -17,7 +17,7 @@ export const DashboardContentSkeleton: React.FC = React.memo(() => {
             borderRadius={6}
             style={{ marginBottom: 6 }}
           />
-          <SkeletonBlock width="50%" height={18} borderRadius={4} />
+          <SkeletonBlock width="50%" height={18} borderRadius={5} />
         </View>
         <SkeletonCircle size={44} />
       </View>
@@ -26,8 +26,8 @@ export const DashboardContentSkeleton: React.FC = React.memo(() => {
         <SkeletonBlock
           width="40%"
           height={20}
-          borderRadius={4}
-          style={{ marginBottom: 20 }}
+          borderRadius={5}
+          style={{ marginBottom: 30 }}
         />
         <View style={styles.streakBars}>
           {[...Array(7)].map((_, i) => (
@@ -35,12 +35,12 @@ export const DashboardContentSkeleton: React.FC = React.memo(() => {
               <SkeletonBlock
                 width={16}
                 height={Math.random() * 80 + 40}
-                borderRadius={4}
+                borderRadius={5}
               />
               <SkeletonBlock
                 width={20}
                 height={12}
-                borderRadius={4}
+                borderRadius={5}
                 style={{ marginTop: 8 }}
               />
             </View>
@@ -49,45 +49,43 @@ export const DashboardContentSkeleton: React.FC = React.memo(() => {
       </View>
 
       <View style={styles.sectionHeader}>
-        <SkeletonBlock width={150} height={22} borderRadius={4} />
-        <SkeletonBlock width={60} height={18} borderRadius={4} />
+        <SkeletonBlock width={150} height={22} borderRadius={5} />
+        <SkeletonBlock width={60} height={18} borderRadius={5} />
       </View>
       <View style={styles.progressRow}>
         <View style={[styles.card, styles.progressCard]}>
           <SkeletonBlock
             width="50%"
             height={18}
-            borderRadius={4}
+            borderRadius={5}
             style={{ marginBottom: 8 }}
           />
           <SkeletonBlock
             width="70%"
             height={14}
-            borderRadius={4}
+            borderRadius={5}
             style={{ marginBottom: 20 }}
           />
-          <SkeletonBlock width="100%" height={8} borderRadius={4} />
         </View>
         <View style={[styles.card, styles.progressCard]}>
           <SkeletonBlock
             width="50%"
             height={18}
-            borderRadius={4}
+            borderRadius={5}
             style={{ marginBottom: 8 }}
           />
           <SkeletonBlock
             width="70%"
             height={14}
-            borderRadius={4}
+            borderRadius={5}
             style={{ marginBottom: 20 }}
           />
-          <SkeletonBlock width="100%" height={8} borderRadius={4} />
         </View>
       </View>
 
       <View style={styles.sectionHeader}>
-        <SkeletonBlock width={180} height={22} borderRadius={4} />
-        <SkeletonBlock width={60} height={18} borderRadius={4} />
+        <SkeletonBlock width={180} height={22} borderRadius={5} />
+        <SkeletonBlock width={60} height={18} borderRadius={5} />
       </View>
       <View style={styles.articlesRow}>
         {[...Array(3)].map((_, i) => (
@@ -95,22 +93,22 @@ export const DashboardContentSkeleton: React.FC = React.memo(() => {
             <SkeletonBlock
               width="90%"
               height={18}
-              borderRadius={4}
+              borderRadius={5}
               style={{ marginBottom: 6 }}
             />
             <SkeletonBlock
               width="60%"
               height={18}
-              borderRadius={4}
+              borderRadius={5}
               style={{ marginBottom: 12 }}
             />
-            <SkeletonBlock width="70%" height={14} borderRadius={4} />
+            <SkeletonBlock width="70%" height={14} borderRadius={5} />
           </View>
         ))}
       </View>
 
       <View style={styles.sectionHeader}>
-        <SkeletonBlock width={150} height={22} borderRadius={4} />
+        <SkeletonBlock width={150} height={22} borderRadius={5} />
       </View>
       <View style={[styles.card, styles.challengeCard]}>
         <SkeletonCircle size={36} />
@@ -118,12 +116,12 @@ export const DashboardContentSkeleton: React.FC = React.memo(() => {
           <SkeletonBlock
             width="80%"
             height={16}
-            borderRadius={4}
+            borderRadius={5}
             style={{ marginBottom: 6 }}
           />
-          <SkeletonBlock width="60%" height={14} borderRadius={4} />
+          <SkeletonBlock width="60%" height={14} borderRadius={5} />
         </View>
-        <SkeletonBlock width={10} height={16} borderRadius={4} />
+        <SkeletonBlock width={10} height={16} borderRadius={5} />
       </View>
     </ScrollView>
   )

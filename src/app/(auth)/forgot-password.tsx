@@ -11,7 +11,7 @@ import {
 import { useRouter } from 'expo-router'
 import { Colors } from '@constants/Colors'
 import { ChevronLeft } from 'lucide-react-native'
-import { authStyles } from './_styles/authStyles'
+import authStyles from './_styles/authStyles'
 import { useDispatch } from 'react-redux'
 import { AppDispatch } from '@store/store'
 import { requestPasswordResetThunk } from '@features/auth/authActions'

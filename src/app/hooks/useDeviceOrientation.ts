@@ -7,7 +7,7 @@ import { lockAsync, OrientationLock } from 'expo-screen-orientation'
  * Locks the screen orientation based on the device type (Tablet: Landscape, Phone: Portrait).
  * Runs only once on component mount.
  */
-export const useDeviceOrientation = () => {
+const useDeviceOrientation = () => {
   useEffect(() => {
     const lockOrientation = async () => {
       if (Platform.OS !== 'ios' && Platform.OS !== 'android') return
@@ -29,3 +29,5 @@ export const useDeviceOrientation = () => {
     lockOrientation()
   }, [])
 }
+
+export default useDeviceOrientation

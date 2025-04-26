@@ -1,5 +1,5 @@
-import React from 'react'
-import { Slot } from 'expo-router'
+import React, { useEffect } from 'react'
+import { Slot, SplashScreen } from 'expo-router'
 import { Provider, useSelector } from 'react-redux'
 import { ActivityIndicator, View, StyleSheet, Text } from 'react-native'
 import {
@@ -21,17 +21,15 @@ import { DashboardSkeletonDesktop } from '@components/skeletons/DashboardSkeleto
 import { DashboardSkeletonMobile } from '@components/skeletons/DashboardSkeletonMobile'
 
 import { useResponsiveDimensions } from '@hooks/useResponsiveDimensions'
-import { useDeviceOrientation } from './hooks/useDeviceOrientation'
-import { useAppInitialization } from './hooks/useAppInitialization'
-import { useAuthRedirect } from './hooks/useAuthRedirect'
+import useDeviceOrientation from './hooks/useDeviceOrientation'
+import useAppInitialization from './hooks/useAppInitialization'
+import useAuthRedirect from './hooks/useAuthRedirect'
+
+SplashScreen.preventAutoHideAsync()
 
 const CustomSplashScreen = React.memo(() => {
   const { isDesktop } = useResponsiveDimensions()
-  if (isDesktop) {
-    return <DashboardSkeletonDesktop />
-  }
-
-  return <DashboardSkeletonMobile />
+  return isDesktop ? <DashboardSkeletonDesktop /> : <DashboardSkeletonMobile />
 })
 
 function RootLayoutNav() {
@@ -39,20 +37,27 @@ function RootLayoutNav() {
   const authStatus = useSelector(selectAuthStatus)
   const isAuthCheckComplete =
     authStatus === 'succeeded' || authStatus === 'failed'
-  const isLoading = authStatus === 'idle' || authStatus === 'loading'
+  const isLoadingAuth = authStatus === 'idle' || authStatus === 'loading'
 
   useDeviceOrientation()
-  useAppInitialization(authStatus)
-  useAuthRedirect(isAuthenticated, isAuthCheckComplete)
+  const shouldForceLogin = useAppInitialization(authStatus)
+  useAuthRedirect(isAuthenticated, isAuthCheckComplete, shouldForceLogin)
+
+  const isInitializing = isLoadingAuth || shouldForceLogin === null
+
+  useEffect(() => {
+    if (!isInitializing) {
+      SplashScreen.hideAsync()
+    }
+  }, [isInitializing])
+
+  if (isInitializing) {
+    return <CustomSplashScreen />
+  }
 
   return (
     <View style={styles.container}>
       <Slot />
-      {isLoading && (
-        <View style={[StyleSheet.absoluteFill, styles.splashOverlay]}>
-          <CustomSplashScreen />
-        </View>
-      )}
     </View>
   )
 }
@@ -66,7 +71,7 @@ export default function RootLayout() {
   })
 
   if (!fontsLoaded && !fontError) {
-    return <CustomSplashScreen />
+    return null
   }
 
   if (fontError) {

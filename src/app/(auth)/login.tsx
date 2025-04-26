@@ -20,14 +20,10 @@ import {
   loginWithSocialThunk,
   clearAuthError
 } from '@features/auth/authActions'
-import {
-  selectAuthStatus,
-  selectAuthError,
-  selectIsAuthenticated
-} from '@features/auth/authSelectors'
+import { selectAuthStatus, selectAuthError } from '@features/auth/authSelectors'
 import { AppDispatch } from '@store/store'
 import { Colors } from '@constants/Colors'
-import { authStyles } from './_styles/authStyles'
+import authStyles from './_styles/authStyles'
 
 maybeCompleteAuthSession()
 
@@ -38,7 +34,6 @@ const LoginView = () => {
 
   const status = useSelector(selectAuthStatus)
   const rawError = useSelector(selectAuthError)
-  const isAuthenticated = useSelector(selectIsAuthenticated)
 
   const passwordInputRef = useRef<TextInput>(null)
 
@@ -55,18 +50,6 @@ const LoginView = () => {
     androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
     webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
   })
-
-  useEffect(() => {
-    if (status === 'succeeded' && isAuthenticated) {
-      const defaultRedirect = '/(main)/(tabs)/'
-      const redirectPath =
-        params.redirect && params.redirect.startsWith('/(main)/')
-          ? params.redirect
-          : defaultRedirect
-      console.log('Auth success, redirecting to:', redirectPath)
-      router.replace(redirectPath)
-    }
-  }, [status, isAuthenticated, router, params.redirect])
 
   useEffect(() => {
     if (

@@ -1,7 +1,7 @@
 import { StyleSheet } from 'react-native'
 import { Colors } from '@constants/Colors'
 
-export const authStyles = StyleSheet.create({
+const authStyles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     justifyContent: 'center',
@@ -141,3 +141,5 @@ export const authStyles = StyleSheet.create({
     opacity: 0.6
   }
 })
+
+export default authStyles

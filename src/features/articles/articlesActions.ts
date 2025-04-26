@@ -1,12 +1,12 @@
 // --- Specific Article Actions ---
 // src/features/articles/articlesActions.ts
-import { ARTICLE_ARRAY } from "@entities/schemas"; // Assuming schemas are defined
-import { mapArticles } from "@entities/transforms"; // Assuming schemas are defined
-import * as actionTypes from "./articlesActionTypes";
-import { withPaginationList } from "@pagination/actions";
-import { createApiRequestThunk } from "@pagination/apiRequestThunkFactory";
-import { selectArticlePagination } from "./articlesSelectors"; // Need selectors
-import { ThunkAction } from "redux-thunk"; // Or use RTK types
+import { ARTICLE_ARRAY } from '@entities/schemas' // Assuming schemas are defined
+import { mapArticles } from '@entities/transforms' // Assuming schemas are defined
+import * as actionTypes from './articlesActionTypes'
+import { withPaginationList } from '@pagination/actions'
+import { createApiRequestThunk } from '@pagination/apiRequestThunkFactory'
+import { selectArticlePagination } from './articlesSelectors' // Need selectors
+import { ThunkAction } from 'redux-thunk' // Or use RTK types
 
 // --- Action Creator for fetching Article LIST ---
 export const fetchArticles = (
@@ -18,23 +18,23 @@ export const fetchArticles = (
     types: [
       actionTypes.FETCH_ARTICLES_REQUEST,
       actionTypes.FETCH_ARTICLES_SUCCESS,
-      actionTypes.FETCH_ARTICLES_FAILURE,
+      actionTypes.FETCH_ARTICLES_FAILURE
     ],
     // Adapt endpoint based on ownerId (e.g., /users/{ownerId}/articles or /articles?ownerId=...)
     endpoint: `/news/articles`, // Adjust as needed
-    verb: "GET",
+    verb: 'GET',
     schema: ARTICLE_ARRAY, // Use your defined normalizr schema
-    transform: [(res) => res.articles, mapArticles], // Extract data if nested
-  });
+    transform: [res => res.articles, mapArticles] // Extract data if nested
+  })
 
   // Use the HOC
   return withPaginationList<RootState>({
     apiRequestFunction: apiRequestThunk,
     getStatePaginationData: selectArticlePagination, // Selector for state.pagination
     paginationKey: ownerId,
-    pageSize: 25, // Specific page size for articles
-  })(options); // Pass options like { reset: true } or { fetchNext: true }
-};
+    pageSize: 25 // Specific page size for articles
+  })(options) // Pass options like { reset: true } or { fetchNext: true }
+}
 
 // --- Action Creator for fetching a SINGLE Article ---
 export const fetchSingleArticle = (
@@ -45,21 +45,21 @@ export const fetchSingleArticle = (
     types: [
       actionTypes.FETCH_SINGLE_ARTICLE_REQUEST,
       actionTypes.FETCH_SINGLE_ARTICLE_SUCCESS,
-      actionTypes.FETCH_SINGLE_ARTICLE_FAILURE,
+      actionTypes.FETCH_SINGLE_ARTICLE_FAILURE
     ],
     endpoint: `/news/articles/${articleId}`,
-    verb: "GET",
+    verb: 'GET',
 
     schema: ARTICLE_ARRAY, // Use your defined normalizr schema
-    transform: [(res) => [res], mapArticles], // Extract data if nested
-    cb,
-  });
+    transform: [res => [res], mapArticles], // Extract data if nested
+    cb
+  })
   // No pagination HOC needed, just dispatch the API request thunk directly
   // Pass an empty meta object or define specific meta if needed for the single fetch reducer logic
   return apiRequestThunk({
-    meta: { entityName: "articles", itemId: articleId },
-  });
-};
+    meta: { entityName: 'articles', itemId: articleId }
+  })
+}
 
 // --- Action Creator for DELETING an Article ---
 // export const deleteArticle = (articleId: string, ownerId?: string, cb?: (err: Error | null, res?: any) => void) => {
@@ -84,4 +84,3 @@ export const fetchSingleArticle = (
 //         paginationKey, // Pass the key so the pagination reducer can remove the ID
 //     })(); // No body needed for DELETE
 // }
-

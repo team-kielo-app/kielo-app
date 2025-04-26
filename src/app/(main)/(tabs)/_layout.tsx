@@ -31,45 +31,46 @@ export default function TabLayout() {
         headerShown: false
       }}
     >
-      {navItems.map(item => {
-        if (!item.targetSegment) return null
+      {navItems
+        .map(item => {
+          if (!item.targetSegment) return null
+          if (!item.isTabItem) return null
 
-        const Icon = item.icon
-        return (
-          <Tabs.Screen
-            key={item.name}
-            name={
-              item.targetSegment === '(tabs)' ? 'index' : item.targetSegment
-            }
-            options={{
-              title: item.name,
-              tabBarIcon: ({ color, size }) => (
-                <Icon size={size} color={color} />
-              )
-            }}
-            listeners={
-              item.protected
-                ? {
-                    tabPress: e => {
-                      if (!isAuthenticated) {
-                        e.preventDefault()
-                        if (item.targetSegment === 'profile') {
-                          navigateToProfile()
-                        } else {
-                          router.push(
-                            `/(auth)/login?redirect=${encodeURIComponent(
-                              item.path
-                            )}`
-                          )
+          const Icon = item.icon
+          return (
+            <Tabs.Screen
+              key={item.name}
+              name={item.targetSegment}
+              options={{
+                title: item.name,
+                tabBarIcon: ({ color, size }) => (
+                  <Icon size={size} color={color} />
+                )
+              }}
+              listeners={
+                item.protected
+                  ? {
+                      tabPress: e => {
+                        if (!isAuthenticated) {
+                          e.preventDefault()
+                          if (item.targetSegment === 'profile') {
+                            navigateToProfile()
+                          } else {
+                            router.push(
+                              `/(auth)/login?redirect=${encodeURIComponent(
+                                item.path
+                              )}`
+                            )
+                          }
                         }
                       }
                     }
-                  }
-                : undefined
-            }
-          />
-        )
-      })}
+                  : undefined
+              }
+            />
+          )
+        })
+        .filter(Boolean)}
     </Tabs>
   )
 }

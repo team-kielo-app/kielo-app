@@ -13,7 +13,7 @@ import { Link, useRouter } from 'expo-router'
 import { Colors } from '@constants/Colors'
 import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native'
 import { FontAwesome } from '@expo/vector-icons'
-import { authStyles } from './_styles/authStyles'
+import authStyles from './_styles/authStyles'
 import { useDispatch, useSelector } from 'react-redux'
 import { AppDispatch } from '@store/store'
 import {
@@ -54,13 +54,6 @@ export default function SignupScreen() {
     androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
     webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
   })
-
-  useEffect(() => {
-    if (authStatus === 'succeeded' && isAuthenticated) {
-      console.log('Auth success (Signup), redirecting to main app...')
-      router.replace('/(main)/(tabs)/')
-    }
-  }, [authStatus, isAuthenticated, router])
 
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null
