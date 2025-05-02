@@ -1,8 +1,17 @@
-import React from 'react'
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native'
+import React, { useMemo, useState } from 'react'
 import type { ArticleType } from '@features/articles/types'
 import { Colors } from '@constants/Colors'
-import { Bookmark, BookmarkCheck } from 'lucide-react-native'
+import { Link } from 'expo-router'
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  TouchableOpacity
+} from 'react-native'
+import { Article } from '@features/articles/types' // Use the new Article typeate formatting
+import { BookOpen } from 'lucide-react-native'
+import { formatDistanceToNow } from 'date-fns'
 import { useResponsiveDimensions } from '@/hooks/useResponsiveDimensions'
 
 type ArticleCardProps = {
@@ -15,138 +24,134 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
   onPress
 }) => {
   const { isDesktop } = useResponsiveDimensions()
-  const [isSaved, setIsSaved] = React.useState(false)
+  const [isSaved, setIsSaved] = useState(false)
+
+  const formattedDate = useMemo(() => {
+    if (!article?.publication_date) return ''
+    return formatDistanceToNow(new Date(article?.publication_date))
+  }, [article?.publication_date])
 
   const toggleSaved = (e: any) => {
     e.stopPropagation()
     setIsSaved(!isSaved)
   }
 
+  const handleBrandPress = () => {
+    console.log(
+      'Navigate to brand page for:',
+      article?.brand?.source_identifier
+    )
+    // Future implementation:
+    // router.push({
+    //   pathname: '/(main)/brand/[id]',
+    //   params: { id: article.brand.source_identifier }
+    // });
+    // For now, maybe just log or do nothing
+  }
+
   return (
     <TouchableOpacity
-      style={[styles.container, isDesktop && styles.wideScreenContainer]}
+      style={[styles.card]}
       onPress={onPress}
       activeOpacity={0.8}
     >
-      <View
-        style={[
-          styles.contentContainer,
-          isDesktop && styles.wideScreenContentContainer
-        ]}
-      >
-        <View style={styles.textContainer}>
-          <View style={styles.metadataContainer}>
-            <Text style={styles.category}>
-              {article?.category?.toUpperCase()}
-            </Text>
-            <Text style={styles.date}>{article?.date}</Text>
-          </View>
+      {/* Optional: Bookmark Icon */}
+      <View style={styles.bookmarkIconContainer}>
+        <BookOpen size={18} color={Colors.light.textTertiary} />
+        {/* Or use a bookmark icon based on article.isBookmarked */}
+      </View>
 
-          <Text style={styles.title} numberOfLines={isDesktop ? 2 : 3}>
-            {article?.title}
-          </Text>
+      {/* Content */}
+      <View style={styles.content}>
+        {/* Title */}
+        <Text style={styles.title} numberOfLines={3}>
+          {article?.title}
+        </Text>
 
-          {isDesktop && (
-            <Text style={styles.subtitle} numberOfLines={2}>
-              {article?.subtitle}
-            </Text>
-          )}
+        {/* Brand Info & Date */}
+        <View style={styles.footer}>
+          <Pressable onPress={handleBrandPress} hitSlop={10}>
+            <Text style={styles.brandName}>{article?.brand?.display_name}</Text>
+          </Pressable>
+          <Text style={styles.date}>{formattedDate}</Text>
         </View>
+      </View>
 
-        <View style={styles.imageContainer}>
-          <Image
-            source={{ uri: article?.imageUrl }}
-            style={styles.image}
-            resizeMode="cover"
-          />
-          <TouchableOpacity style={styles.bookmarkButton} onPress={toggleSaved}>
-            {isSaved ? (
-              <BookmarkCheck size={18} color={Colors.light.primary} />
-            ) : (
-              <Bookmark size={18} color={Colors.light.white} />
-            )}
-          </TouchableOpacity>
-        </View>
+      {/* Optional: Progress Bar if tracking reading */}
+      <View style={styles.progressBarContainer}>
+        <View
+          style={[styles.progressBar, { width: `${Math.random() * 100}%` }]}
+        />
       </View>
     </TouchableOpacity>
   )
 }
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: Colors.light.cardBackground,
+  card: {
+    backgroundColor: Colors.light.white,
     borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 16,
-    shadowColor: Colors.light.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 2
+    marginBottom: 15,
+    // Common card styles (shadow, border etc)
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.light.border,
+    overflow: 'hidden', // Needed for progress bar potentially
+    minHeight: 120, // Adjust as needed
+    padding: 12,
+    position: 'relative' // For absolute positioning of icon
   },
-  wideScreenContainer: {
-    width: '48%'
+  bookmarkIconContainer: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    padding: 4, // Hit area
+    // backgroundColor: 'rgba(255,255,255,0.7)', // Optional background
+    borderRadius: 15
   },
-  contentContainer: {
-    flexDirection: 'row',
-    padding: 16
-  },
-  wideScreenContentContainer: {
-    flexDirection: 'column-reverse',
-    height: 280
-  },
-  textContainer: {
+  content: {
     flex: 1,
-    marginRight: 12
-  },
-  metadataContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8
-  },
-  category: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 12,
-    color: Colors.light.primary
-  },
-  date: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 12,
-    color: Colors.light.textSecondary
+    justifyContent: 'space-between' // Push title up and footer down
   },
   title: {
-    fontFamily: 'Inter-SemiBold',
     fontSize: 16,
+    fontFamily: 'Inter-SemiBold', // Or your title font
     color: Colors.light.text,
-    marginBottom: 4,
-    lineHeight: 22
+    marginBottom: 10,
+    lineHeight: 22,
+    paddingRight: 25 // Avoid overlapping icon
   },
-  subtitle: {
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 'auto' // Push footer to bottom
+  },
+  brandName: {
+    fontSize: 13,
+    fontFamily: 'Inter-Medium',
+    color: Colors.light.primary, // Or use brand color if desired/safe
+    paddingVertical: 2 // Hit area for Pressable
+  },
+  date: {
+    fontSize: 12,
     fontFamily: 'Inter-Regular',
-    fontSize: 14,
-    color: Colors.light.textSecondary,
-    lineHeight: 20
+    color: Colors.light.textSecondary
   },
-  imageContainer: {
-    position: 'relative',
-    width: 80,
-    height: 80,
-    borderRadius: 8,
+  // Optional progress bar styling
+  progressBarContainer: {
+    height: 4,
+    backgroundColor: Colors.light.backgroundLight,
+    borderRadius: 2,
     overflow: 'hidden'
   },
-  image: {
-    width: '100%',
-    height: '100%'
-  },
-  bookmarkButton: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    alignItems: 'center',
-    justifyContent: 'center'
+  progressBar: {
+    height: '100%',
+    backgroundColor: Colors.light.primary,
+    borderRadius: 2
   }
 })

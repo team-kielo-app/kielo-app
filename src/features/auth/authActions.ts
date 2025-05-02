@@ -12,8 +12,6 @@ import type {
 import { apiClient } from '@lib/api'
 import { RootState, AppDispatch, AppThunk } from '@store/store'
 import * as tokenStorage from '@lib/tokenStorage'
-import * as appStorage from '@lib/appStorage'
-import { HAS_OPENED_BEFORE_KEY } from '@constants/appStorage'
 
 export const loginRequest = (): actionTypes.LoginRequestAction => ({
   type: actionTypes.LOGIN_REQUEST
@@ -312,7 +310,6 @@ export const executePasswordResetThunk =
 
 export const logoutUser = (): AppThunk => async dispatch => {
   await tokenStorage.removeStoredTokens()
-  await appStorage.deleteAppItem(HAS_OPENED_BEFORE_KEY)
   dispatch(logoutUserSuccess())
 }
 

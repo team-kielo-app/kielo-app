@@ -298,10 +298,8 @@ const styles = StyleSheet.create({
     // paddingTop: 8, // Removed, header provides spacing
   },
   wideScreenArticlesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     // justifyContent: "space-between", // Let items flow with padding
-    gap: 16, // Use gap for spacing between cards
+    gap: 4, // Use gap for spacing between cards
     maxWidth: 1200,
     alignSelf: 'center',
     width: '100%',
