@@ -52,7 +52,7 @@ export const ArticleCardWithThumbnail: React.FC<
   const handlePress = () => {
     // Navigate to the reader screen using the article ID
     router.push({
-      pathname: '/(main)/article/[id]',
+      pathname: '/(main)/reader/[id]',
       params: { id: article.id }
     })
   }

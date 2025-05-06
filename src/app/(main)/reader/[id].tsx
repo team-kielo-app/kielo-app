@@ -11,7 +11,7 @@ import {
   ActivityIndicator
 } from 'react-native'
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   ArrowLeft,
   Bookmark,
@@ -184,6 +184,33 @@ export default function ArticleScreen() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.articleHeaderControls}>
+          <TouchableOpacity
+            style={styles.backButtonContainer}
+            onPress={handleGoBack}
+          >
+            <ArrowLeft size={22} color={Colors.light.white} />
+          </TouchableOpacity>
+          <View style={styles.headerRightButtons}>
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={handleToggleSave}
+            >
+              {isSavedLocally ? (
+                <BookmarkCheck size={22} color={Colors.light.white} />
+              ) : (
+                <Bookmark size={22} color={Colors.light.white} />
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={() => alert('Share action not implemented')}
+            >
+              <Share size={22} color={Colors.light.white} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <ScrollView
           // showsVerticalScrollIndicator={false}
           contentContainerStyle={[
@@ -199,36 +226,8 @@ export default function ArticleScreen() {
             />
           }
         >
-          {/* Header Image & Controls */}
-          <View style={styles.articleHeaderControls}>
-            <TouchableOpacity
-              style={styles.backButtonContainer}
-              onPress={handleGoBack}
-            >
-              <ArrowLeft size={22} color={Colors.light.white} />
-            </TouchableOpacity>
-            <View style={styles.headerRightButtons}>
-              <TouchableOpacity
-                style={styles.headerButton}
-                onPress={handleToggleSave}
-              >
-                {isSavedLocally ? (
-                  <BookmarkCheck size={22} color={Colors.light.white} />
-                ) : (
-                  <Bookmark size={22} color={Colors.light.white} />
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.headerButton}
-                onPress={() => alert('Share action not implemented')}
-              >
-                <Share size={22} color={Colors.light.white} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
           <LinearGradient
-            colors={['rgba(0,0,0,0.7)', 'transparent']}
+            colors={['rgba(0,0,0,0.25)', 'transparent']}
             style={styles.headerGradient}
           />
 
@@ -438,22 +437,22 @@ const styles = StyleSheet.create({
     zIndex: 2
   },
   articleHeaderControls: {
-    position: 'sticky',
-    top: 0, // Adjust based on SafeAreaView top inset if needed
+    position: 'absolute',
+    top: 0,
     left: 0,
     right: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    paddingTop: 40,
+    marginTop: 50,
     zIndex: 3
   },
   backButtonContainer: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
     alignItems: 'center',
     justifyContent: 'center',
     backdropFilter: 'blur(10px)'
@@ -466,7 +465,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     alignItems: 'center',
     justifyContent: 'center',
     backdropFilter: 'blur(10px)'
@@ -475,7 +474,7 @@ const styles = StyleSheet.create({
   articleContainer: {
     padding: 20,
     backgroundColor: Colors.light.background,
-    marginTop: -20, // Pull content up slightly over image bottom
+    marginTop: 40, // Pull content up slightly over image bottom
     borderTopLeftRadius: 20, // Rounded corners
     borderTopRightRadius: 20,
     zIndex: 1 // Ensure content is above image if overlap occurs

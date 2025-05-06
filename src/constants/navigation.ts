@@ -53,7 +53,7 @@ export const navItems: NavItem[] = [
     name: 'Settings',
     path: '/(main)/settings/',
     icon: Settings,
-    targetSegment: 'settings/index',
+    targetSegment: 'settings',
     protected: true,
     isTabItem: false
   }

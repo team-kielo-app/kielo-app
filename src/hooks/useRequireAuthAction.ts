@@ -21,7 +21,7 @@ export function useRequireAuthAction<T extends (...args: any[]) => any>(
 ): (...args: Parameters<T>) => void {
   const isAuthenticated = useSelector(selectIsAuthenticated)
   const router = useRouter()
-  const pathname = usePathname() // Get the current path (e.g., /main/article/123)
+  const pathname = usePathname() // Get the current path (e.g., /main/reader/123)
 
   const guardedAction = useCallback(
     (...args: Parameters<T>) => {

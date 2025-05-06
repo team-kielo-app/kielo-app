@@ -55,7 +55,7 @@ export default function ReaderScreen() {
     if (!pagination.isLoading && !pagination.error && articles.length < 5) {
       dispatch(fetchArticles(paginationKey, { reset: true }))
     }
-  }, [dispatch, userState?.id, articles.length])
+  }, [dispatch, paginationKey])
 
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
@@ -182,7 +182,7 @@ export default function ReaderScreen() {
             <ArticleCard
               article={item}
               // Navigate to article detail within main group
-              onPress={() => router.push(`/(main)/article/${item.id}`)}
+              onPress={() => router.push(`/(main)/reader/${item.id}`)}
             />
           )}
           contentContainerStyle={[

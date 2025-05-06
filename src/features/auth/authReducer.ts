@@ -69,7 +69,7 @@ const authReducer = (state = initialState, action: AuthAction): AuthState => {
     case actionTypes.LOGOUT_USER:
       return {
         ...initialState,
-        status: 'idle'
+        status: 'failed'
       }
 
     case actionTypes.CLEAR_AUTH_ERROR:

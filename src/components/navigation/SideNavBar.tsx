@@ -58,7 +58,7 @@ export function SideNavBar() {
 
       <View style={styles.navItemsContainer}>
         {navItems.map(item => {
-          const isActive = activeSegmentKey === item.targetSegment
+          const isActive = activeSegmentKey?.startsWith(item.targetSegment)
           const Icon = item.icon
 
           const handlePress = () => {

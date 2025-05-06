@@ -116,14 +116,7 @@ export default function ProfileScreen() {
         dispatch(fetchArticles(userState.id, { reset: true, savedOnly: true })) // Fetch saved articles
       }
     }
-  }, [
-    isAuthenticated,
-    userState?.id,
-    dispatch,
-    pagination.isLoading,
-    pagination.error,
-    articles.length
-  ])
+  }, [dispatch, userState?.id])
 
   if (isAuthLoading || !isAuthenticated) {
     return (

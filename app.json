@@ -41,10 +41,16 @@
       [
         "expo-splash-screen",
         {
-          "image": "./src/assets/ic-launcher/web/favicon-96x96.png",
+          "image": "./src/assets/ic-launcher/icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
+        }
+      ],
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.521986945017-c31klbimc2jbd0kpcqnqvfrrt1ss1hih"
         }
       ],
       "expo-secure-store",

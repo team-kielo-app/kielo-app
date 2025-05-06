@@ -7,14 +7,15 @@ import {
   ActivityIndicator,
   Pressable,
   TouchableOpacity,
-  ScrollView
+  ScrollView,
+  Platform
 } from 'react-native'
 import { useSelector, useDispatch } from 'react-redux'
 import { FontAwesome } from '@expo/vector-icons'
-import { maybeCompleteAuthSession } from 'expo-web-browser'
-import { useAuthRequest } from 'expo-auth-session/providers/google'
-import { Link, useLocalSearchParams, useRouter } from 'expo-router'
-import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native'
+import {
+  GoogleSignin,
+  statusCodes
+} from '@react-native-google-signin/google-signin'
 import {
   loginUserThunk,
   loginWithSocialThunk,
@@ -24,8 +25,21 @@ import { selectAuthStatus, selectAuthError } from '@features/auth/authSelectors'
 import { AppDispatch } from '@store/store'
 import { Colors } from '@constants/Colors'
 import authStyles from './_styles/authStyles'
+import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native'
+import {
+  Link,
+  useLocalSearchParams,
+  useRouter,
+  useSegments,
+  usePathname
+} from 'expo-router'
 
-maybeCompleteAuthSession()
+// Configure Google Sign-In
+GoogleSignin.configure({
+  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+  iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+  offlineAccess: false
+})
 
 const LoginView = () => {
   const dispatch = useDispatch<AppDispatch>()
@@ -45,108 +59,99 @@ const LoginView = () => {
   const isLoading = status === 'loading'
   const displayError = rawError || localError
 
-  const [googleRequest, googleResponse, promptAsyncGoogle] = useAuthRequest({
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
-  })
-
-  useEffect(() => {
-    if (
-      googleResponse?.type === 'success' &&
-      googleResponse.authentication?.accessToken
-    ) {
-      dispatch(clearAuthError())
-      setLocalError(null)
-      dispatch(
-        loginWithSocialThunk({
-          provider: 'google',
-          access_token: googleResponse.authentication.accessToken
-        })
-      ).catch(err => {
-        console.error('Social Login Thunk Error (Login):', err)
-      })
-    } else if (googleResponse?.type === 'error') {
-      console.error('Google Auth Error (Login):', googleResponse.error)
-      dispatch(clearAuthError())
-      setLocalError('Google sign-in failed. Please try again.')
-    }
-  }, [googleResponse, dispatch])
-
-  useEffect(() => {
-    let timerId: NodeJS.Timeout | null = null
-    if (displayError) {
-      if (localError) setLocalError(null)
-      timerId = setTimeout(() => {
-        if (rawError) dispatch(clearAuthError())
-      }, 5000)
-    }
-    return () => {
-      if (timerId) clearTimeout(timerId)
-    }
-  }, [displayError, rawError, localError, dispatch])
-
-  useEffect(() => {
-    setLocalError(null)
-  }, [email, password])
-
+  // Email/password login
   const handleLoginSubmit = useCallback(async () => {
     if (isLoading) return
-
     dispatch(clearAuthError())
     setLocalError(null)
-
-    if (!email.trim() || !password) {
-      return
-    }
+    if (!email.trim() || !password) return
     try {
       await dispatch(loginUserThunk({ email: email.trim(), password }))
     } catch (error) {
       console.error('Login thunk failed:', error)
     }
-  }, [email, password, dispatch])
+  }, [email, password, dispatch, isLoading])
 
-  const handleGoogleLoginPress = useCallback(() => {
+  // Google Sign-In
+  const handleGoogleLoginPress = useCallback(async () => {
     dispatch(clearAuthError())
     setLocalError(null)
-    if (googleRequest) {
-      promptAsyncGoogle()
-    } else {
-      setLocalError('Google Sign-In is not available right now.')
-    }
-  }, [googleRequest, promptAsyncGoogle, dispatch])
+    try {
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true })
+      const response = await GoogleSignin.signIn()
+      if (response.type === 'cancelled') return
 
+      const { idToken, accessToken } = await GoogleSignin.getTokens()
+      if (idToken || accessToken) {
+        await dispatch(
+          loginWithSocialThunk({
+            provider: 'google',
+            access_token: accessToken || idToken
+          })
+        )
+      }
+    } catch (error: any) {
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        // user cancelled the login flow
+      } else if (error.code === statusCodes.IN_PROGRESS) {
+        // operation (e.g. sign in) is in progress
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        setLocalError('Google Play Services not available or outdated')
+      } else {
+        setLocalError('Google sign-in failed. Please try again.')
+      }
+    }
+  }, [dispatch])
+
+  // Other social placeholders
   const handleAppleLoginPress = useCallback(() => {
     dispatch(clearAuthError())
+    setLocalError(null)
     setLocalError('Apple Sign-In is not yet implemented.')
   }, [dispatch])
 
   const handleFacebookLoginPress = useCallback(() => {
     dispatch(clearAuthError())
+    setLocalError(null)
     setLocalError('Facebook Sign-In is not yet implemented.')
   }, [dispatch])
 
-  const handleEmailChange = useCallback((text: string) => setEmail(text), [])
-  const handlePasswordChange = useCallback(
-    (text: string) => setPassword(text),
-    []
-  )
+  // Clear errors on input
+  useEffect(() => {
+    setLocalError(null)
+  }, [email, password])
+
+  // Clear remote errors after timeout
+  useEffect(() => {
+    let timer: NodeJS.Timeout
+    if (displayError) {
+      timer = setTimeout(() => {
+        dispatch(clearAuthError())
+        setLocalError(null)
+      }, 5000)
+    }
+    return () => clearTimeout(timer)
+  }, [displayError, dispatch])
+
   const togglePasswordVisibility = useCallback(
-    () => setIsPasswordVisible(prev => !prev),
+    () => setIsPasswordVisible(v => !v),
     []
   )
 
   const handleGoBack = () => {
-    if (router.canGoBack()) {
-      router.back()
-    } else {
-      const defaultRedirect = '/(main)/(tabs)/'
-      const redirectPath =
-        params.redirect && !params.redirect.startsWith('/(auth)/')
-          ? params.redirect
-          : defaultRedirect
-      router.replace(redirectPath)
-    }
+    // if (router.canGoBack()) {
+    //   router.back()
+    // } else {
+    const defaultRedirect = '/(main)/(tabs)/'
+    const redirectParams =
+      params.redirect && decodeURIComponent(params.redirect)
+    console.log('redirectParams:', params)
+    const redirectPath =
+      redirectParams && !redirectParams.startsWith('/(auth)/')
+        ? redirectParams
+        : defaultRedirect
+    router.replace(redirectPath)
+    // }
   }
 
   const renderSocialButton = useCallback(
@@ -158,12 +163,12 @@ const LoginView = () => {
       const iconName = provider === 'facebook' ? 'facebook-f' : provider
       const brandColors = {
         google: '#DB4437',
-        apple: '#000000',
+        apple: '#000',
         facebook: '#1877F2'
       }
       const pressedColors = {
         google: '#c33d2e',
-        apple: '#333333',
+        apple: '#333',
         facebook: '#166fe5'
       }
       return (
@@ -173,12 +178,9 @@ const LoginView = () => {
             (disabled || isLoading) && authStyles.buttonDisabled,
             pressed &&
               !(disabled || isLoading) && {
-                backgroundColor: pressedColors[provider] || Colors.light.border
+                backgroundColor: pressedColors[provider]
               },
-            !pressed && {
-              backgroundColor:
-                brandColors[provider] || Colors.light.cardBackground
-            }
+            !pressed && { backgroundColor: brandColors[provider] }
           ]}
           onPress={onPress}
           disabled={disabled || isLoading}
@@ -196,6 +198,7 @@ const LoginView = () => {
       keyboardShouldPersistTaps="handled"
     >
       <View style={authStyles.innerContainer}>
+        {/* Header */}
         <View style={authStyles.headerContainer}>
           <TouchableOpacity
             onPress={handleGoBack}
@@ -205,18 +208,16 @@ const LoginView = () => {
           </TouchableOpacity>
         </View>
 
+        {/* Titles */}
         <View style={authStyles.titleContainer}>
           <Text style={authStyles.title}>Let's Sign you in.</Text>
           <Text style={authStyles.subtitle}>Welcome back</Text>
-          <Text style={authStyles.subtitle}>You've been missed!</Text>
         </View>
 
-        <View style={authStyles.messageContainer}>
-          {displayError && (
-            <Text style={authStyles.errorText}>{displayError}</Text>
-          )}
-        </View>
+        {/* Error Message */}
+        <Text style={authStyles.errorText}>{displayError}</Text>
 
+        {/* Form */}
         <View style={authStyles.formContainer}>
           <View style={authStyles.inputGroup}>
             <Text style={authStyles.label}>Username or Email</Text>
@@ -224,16 +225,16 @@ const LoginView = () => {
               style={[authStyles.input, isLoading && authStyles.inputDisabled]}
               placeholder="Enter Username or Email"
               value={email}
-              onChangeText={handleEmailChange}
+              onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
-              placeholderTextColor={Colors.light.textTertiary}
               editable={!isLoading}
               returnKeyType="next"
               onSubmitEditing={() => passwordInputRef.current?.focus()}
-              blurOnSubmit={false}
+              placeholderTextColor={Colors.light.textTertiary}
             />
           </View>
+
           <View style={authStyles.inputGroup}>
             <Text style={authStyles.label}>Password</Text>
             <View
@@ -251,17 +252,17 @@ const LoginView = () => {
                 ]}
                 placeholder="Enter Password"
                 value={password}
-                onChangeText={handlePasswordChange}
+                onChangeText={setPassword}
                 secureTextEntry={!isPasswordVisible}
-                placeholderTextColor={Colors.light.textTertiary}
                 editable={!isLoading}
-                onSubmitEditing={handleLoginSubmit}
                 returnKeyType="go"
+                onSubmitEditing={handleLoginSubmit}
+                placeholderTextColor={Colors.light.textTertiary}
               />
               <TouchableOpacity
                 onPress={togglePasswordVisibility}
-                style={authStyles.passwordVisibilityButton}
                 disabled={isLoading}
+                style={authStyles.passwordVisibilityButton}
               >
                 {isPasswordVisible ? (
                   <EyeOff size={20} color={Colors.light.textSecondary} />
@@ -272,8 +273,8 @@ const LoginView = () => {
             </View>
             <Link href="/(auth)/forgot-password" asChild>
               <Pressable
-                style={styles.forgotPasswordButton}
                 disabled={isLoading}
+                style={styles.forgotPasswordButton}
               >
                 <Text
                   style={[
@@ -288,6 +289,7 @@ const LoginView = () => {
           </View>
         </View>
 
+        {/* Social Logins */}
         <View style={styles.socialLoginsSection}>
           <View style={styles.orSeparatorContainer}>
             <View style={styles.orSeparatorLine} />
@@ -295,11 +297,7 @@ const LoginView = () => {
             <View style={styles.orSeparatorLine} />
           </View>
           <View style={styles.socialLoginContainer}>
-            {renderSocialButton(
-              'google',
-              handleGoogleLoginPress,
-              !googleRequest || isLoading
-            )}
+            {renderSocialButton('google', handleGoogleLoginPress, isLoading)}
             {renderSocialButton('apple', handleAppleLoginPress, isLoading)}
             {renderSocialButton(
               'facebook',
@@ -309,6 +307,7 @@ const LoginView = () => {
           </View>
         </View>
 
+        {/* Actions */}
         <View style={[authStyles.footerContainer, styles.loginFooterContainer]}>
           <Pressable
             style={({ pressed }) => [
@@ -373,9 +372,7 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 12,
     alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.light.border
+    justifyContent: 'center'
   },
   loginFooterContainer: { gap: 20 },
   registerLinkContainer: { flexDirection: 'row', alignItems: 'center' },

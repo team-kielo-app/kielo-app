@@ -70,7 +70,7 @@ export default function HomeScreen() {
     if (!pagination.isLoading && !pagination.error && articles.length < 5) {
       dispatch(fetchArticles(paginationKey, { reset: true }))
     }
-  }, [dispatch, userState?.id, articles.length])
+  }, [dispatch, paginationKey, articles.length])
 
   const handleRefreshAction = useCallback(() => {
     console.log('Dispatching fetchFeaturedArticlesThunk for refresh')

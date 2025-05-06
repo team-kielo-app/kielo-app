@@ -2,6 +2,7 @@ import React, { useEffect } from 'react'
 import { Slot, SplashScreen } from 'expo-router'
 import { Provider, useSelector } from 'react-redux'
 import { ActivityIndicator, View, StyleSheet, Text } from 'react-native'
+import Toast from 'react-native-toast-message'
 import {
   useFonts,
   Inter_400Regular,
@@ -21,9 +22,9 @@ import { DashboardSkeletonDesktop } from '@components/skeletons/DashboardSkeleto
 import { DashboardSkeletonMobile } from '@components/skeletons/DashboardSkeletonMobile'
 
 import { useResponsiveDimensions } from '@hooks/useResponsiveDimensions'
-import useDeviceOrientation from './hooks/useDeviceOrientation'
-import useAppInitialization from './hooks/useAppInitialization'
-import useAuthRedirect from './hooks/useAuthRedirect'
+import useDeviceOrientation from './_hooks/useDeviceOrientation'
+import useAppInitialization from './_hooks/useAppInitialization'
+import useAuthRedirect from './_hooks/useAuthRedirect'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -82,6 +83,7 @@ export default function RootLayout() {
   return (
     <Provider store={store}>
       <RootLayoutNav />
+      <Toast />
     </Provider>
   )
 }

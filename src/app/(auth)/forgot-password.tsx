@@ -48,7 +48,7 @@ export default function ForgotPasswordScreen() {
     setIsLoading(true)
     try {
       await dispatch(requestPasswordResetThunk({ email: email.trim() }))
-      router.push('/(auth)/reset-password')
+      router.push(`/(auth)/reset-password?email=${encodeURIComponent(email)}`)
     } catch (err: any) {
       console.error('Forgot Password thunk failed:', err)
       const errorMessage =

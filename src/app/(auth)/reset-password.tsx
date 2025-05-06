@@ -12,7 +12,7 @@ import {
   TextInputKeyPressEventData,
   Platform
 } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Colors } from '@constants/Colors'
 import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native'
 import authStyles from './_styles/authStyles'
@@ -29,6 +29,9 @@ const OTP_LENGTH = 6
 export default function ResetPasswordScreen() {
   const router = useRouter()
   const dispatch = useDispatch<AppDispatch>()
+  const params = useLocalSearchParams<{ email: string }>()
+
+  const emailParam = params.email && decodeURIComponent(params.email)
 
   const otpInputs = useRef<Array<TextInput | null>>([])
   const confirmPasswordInputRef = useRef<TextInput>(null)
@@ -117,7 +120,9 @@ export default function ResetPasswordScreen() {
 
     setIsLoading(true)
     try {
-      await dispatch(verifyResetTokenThunk({ token: verificationCode }))
+      await dispatch(
+        verifyResetTokenThunk({ token: verificationCode, email: emailParam })
+      )
       setStep('reset')
       setError(null)
     } catch (err: any) {
@@ -163,6 +168,7 @@ export default function ResetPasswordScreen() {
     try {
       const result = await dispatch(
         executePasswordResetThunk({
+          email: emailParam,
           token: verificationCode,
           new_password: password
         })
@@ -228,7 +234,7 @@ export default function ResetPasswordScreen() {
           </Text>
           <Text style={authStyles.subtitle}>
             {step === 'verify'
-              ? 'Enter the 6-digit code sent to your email.'
+              ? `Enter the 6-digit code sent to "${emailParam}"`
               : 'Enter and confirm your new password.'}
           </Text>
         </View>

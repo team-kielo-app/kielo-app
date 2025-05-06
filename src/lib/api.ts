@@ -5,6 +5,7 @@ import * as Device from 'expo-device'
 import { Platform } from 'react-native'
 import * as tokenStorage from '@lib/tokenStorage'
 import * as secureStorage from './secureStorage'
+import { showAuthDebugToast } from './debugToast'
 import { API_URL } from './apiRoot'
 
 const DEVICE_TOKEN_KEY = 'kielo_device_token'
@@ -81,6 +82,7 @@ const handleRefreshToken = async (
           refresh_token?: string
           expires_in: number
         } = await response.json()
+        showAuthDebugToast('success', 'Token Refreshed')
         const newAccessToken = data.access_token
         const newRefreshToken = data.refresh_token
         const newExpiresAt = Date.now() + data.expires_in * 1000
@@ -103,6 +105,11 @@ const handleRefreshToken = async (
         return newAccessToken
       } catch (error) {
         console.error('Failed to refresh token:', error)
+        showAuthDebugToast(
+          'error',
+          'Token Refresh Failed',
+          `Status: ${error?.status || 'Network Error'}. Logging out.`
+        )
         isRefreshing = false
         failedRefresh = true
         refreshPromise = null
@@ -167,6 +174,11 @@ const request = async <T>(
           )
           return request<T>(url, options, dispatch, true)
         } else {
+          showAuthDebugToast(
+            'error',
+            'Session Invalidated',
+            `API returned 401 and refresh failed for ${url}.`
+          )
           throw new Error(
             `Authentication failed after refresh attempt. Status: ${response.status}`
           )

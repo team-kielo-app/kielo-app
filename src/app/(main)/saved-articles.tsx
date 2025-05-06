@@ -68,7 +68,7 @@ export default function SavedArticlesScreen() {
         renderItem={({ item }) => (
           <ArticleCard
             article={item}
-            onPress={() => router.push(`/(main)/article/${item.id}`)}
+            onPress={() => router.push(`/(main)/reader/${item.id}`)}
           />
         )}
         contentContainerStyle={styles.listContent}
