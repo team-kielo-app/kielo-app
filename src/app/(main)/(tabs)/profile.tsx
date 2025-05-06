@@ -20,7 +20,7 @@ import {
   Calendar
 } from 'lucide-react-native'
 import { Colors } from '@constants/Colors'
-import { ArticleThumbnail } from '@/components/reader/ArticleThumbnail'
+import { ArticleCardWithThumbnail } from '@/components/reader/ArticleCardWithThumbnail'
 import { ProgressRing } from '@/components/profile/ProgressRing'
 import { AchievementCard } from '@/components/profile/AchievementCard'
 import { useResponsiveDimensions } from '@hooks/useResponsiveDimensions'
@@ -225,7 +225,7 @@ export default function ProfileScreen() {
             (isDesktop ? (
               <View style={styles.wideScreenArticles}>
                 {articles.map(article => (
-                  <ArticleThumbnail
+                  <ArticleCardWithThumbnail
                     key={article.id}
                     article={article}
                     size="medium"
@@ -239,7 +239,10 @@ export default function ProfileScreen() {
                 contentContainerStyle={styles.savedArticlesScrollContent}
               >
                 {articles.map(article => (
-                  <ArticleThumbnail key={article.id} article={article} />
+                  <ArticleCardWithThumbnail
+                    key={article.id}
+                    article={article}
+                  />
                 ))}
               </ScrollView>
             ))}

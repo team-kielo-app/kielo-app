@@ -7,6 +7,7 @@ import { withPaginationList } from '@pagination/actions'
 import { createApiRequestThunk } from '@pagination/apiRequestThunkFactory'
 import { selectArticlePagination } from './articlesSelectors' // Need selectors
 import { ThunkAction } from 'redux-thunk' // Or use RTK types
+import { RootState } from '@store/store'
 
 // --- Action Creator for fetching Article LIST ---
 export const fetchArticles = (

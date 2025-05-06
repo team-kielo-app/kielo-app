@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import {
   View,
   Text,
@@ -6,7 +6,9 @@ import {
   ScrollView,
   TouchableOpacity,
   FlatList,
-  Image
+  Image,
+  RefreshControl,
+  ActivityIndicator
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import {
@@ -21,7 +23,7 @@ import { useSelector, useDispatch } from 'react-redux'
 
 import { DailyGoalChart } from '@components/home/DailyGoalChart'
 import { ProgressCard } from '@components/home/ProgressCard'
-import { ArticleThumbnail } from '@components/reader/ArticleThumbnail'
+import { ArticleCardWithThumbnail } from '@components/reader/ArticleCardWithThumbnail'
 import { Colors } from '@constants/Colors'
 import { useResponsiveDimensions } from '@hooks/useResponsiveDimensions'
 import { selectIsAuthenticated, selectUser } from '@features/auth/authSelectors'
@@ -30,6 +32,7 @@ import { AppDispatch, RootState } from '@store/store'
 import { selectPaginatedData } from '@pagination/selectors'
 import { useRequireAuthAction } from '@hooks/useRequireAuthAction'
 import { nameParser } from '@utils/string'
+import { useRefresh } from '@/hooks/useRefresh'
 
 const weeklyProgress = [
   { day: 'Mon', minutes: 12 },
@@ -69,6 +72,13 @@ export default function HomeScreen() {
     }
   }, [dispatch, userState?.id, articles.length])
 
+  const handleRefreshAction = useCallback(() => {
+    console.log('Dispatching fetchFeaturedArticlesThunk for refresh')
+    return dispatch(fetchArticles(paginationKey, { reset: true }))
+  }, [dispatch])
+
+  const [isRefreshing, handleRefresh] = useRefresh(handleRefreshAction)
+
   const startChallengeAction = (challengeId: string) => {
     alert(`Starting challenge ${challengeId} (Not Implemented)`)
   }
@@ -77,6 +87,8 @@ export default function HomeScreen() {
     'Login to start the daily challenge.'
   )
 
+  const showInitialLoading = pagination.isLoading && articles.length === 0
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
@@ -84,6 +96,14 @@ export default function HomeScreen() {
           styles.scrollContent,
           isDesktop && styles.wideScreenContent
         ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={Colors.light.primary}
+            colors={[Colors.light.primary]}
+          />
+        }
       >
         <View style={styles.profileSection}>
           <View style={styles.headerTextContainer}>
@@ -190,15 +210,31 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </Link>
           </View>
-          <FlatList
-            data={articles.slice(0, 5)}
-            keyExtractor={item => item.id}
-            horizontal
-            // showsHorizontalScrollIndicator={false}
-            renderItem={({ item }) => <ArticleThumbnail article={item} />}
-            contentContainerStyle={styles.articleList}
-            style={{ marginTop: 16 }}
-          />
+
+          {showInitialLoading ? (
+            <View style={styles.centered}>
+              <ActivityIndicator size="large" color={Colors.light.primary} />
+            </View>
+          ) : (
+            <FlatList
+              data={articles}
+              keyExtractor={item => item.id}
+              horizontal
+              // showsHorizontalScrollIndicator={false}
+              renderItem={({ item }) => (
+                <ArticleCardWithThumbnail article={item} />
+              )}
+              ListEmptyComponent={
+                pagination.isLoading ? null : (
+                  <Text style={styles.emptyText}>
+                    No featured articles found.
+                  </Text>
+                )
+              }
+              contentContainerStyle={styles.articleList}
+              style={{ marginTop: 16 }}
+            />
+          )}
         </View>
 
         {/* --- Daily Challenge --- */}
@@ -238,6 +274,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.background
+  },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyText: {
+    textAlign: 'center',
+    marginTop: 50,
+    color: Colors.light.textSecondary
   },
   scrollContent: {
     padding: 20,

@@ -35,23 +35,19 @@ const CustomSplashScreen = React.memo(() => {
 function RootLayoutNav() {
   const isAuthenticated = useSelector(selectIsAuthenticated)
   const authStatus = useSelector(selectAuthStatus)
-  const isAuthCheckComplete =
-    authStatus === 'succeeded' || authStatus === 'failed'
   const isLoadingAuth = authStatus === 'idle' || authStatus === 'loading'
 
   useDeviceOrientation()
-  const shouldForceLogin = useAppInitialization(authStatus)
-  useAuthRedirect(isAuthenticated, isAuthCheckComplete, shouldForceLogin)
-
-  const isInitializing = isLoadingAuth || shouldForceLogin === null
+  useAppInitialization(authStatus)
+  useAuthRedirect(isAuthenticated, isLoadingAuth)
 
   useEffect(() => {
-    if (!isInitializing) {
+    if (!isLoadingAuth) {
       SplashScreen.hideAsync()
     }
-  }, [isInitializing])
+  }, [isLoadingAuth])
 
-  if (isInitializing) {
+  if (isLoadingAuth) {
     return <CustomSplashScreen />
   }
 

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import {
   View,
   Text,
@@ -6,8 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  Modal,
   Animated,
+  Pressable,
   ActivityIndicator
 } from 'react-native'
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router'
@@ -29,8 +29,12 @@ import { useResponsiveDimensions } from '@hooks/useResponsiveDimensions'
 import { fetchSingleArticle } from '@features/articles/articlesActions'
 import { AppDispatch, RootState } from '@store/store'
 import { selectEntityById } from '@pagination/selectors'
-import { selectIsAuthenticated } from '@features/auth/authSelectors'
 import { useRequireAuthAction } from '@hooks/useRequireAuthAction'
+import { format } from 'date-fns'
+import { ParagraphRenderer } from '@components/ParagraphRenderer'
+import { ArticleThumbnail } from '@components/reader/ArticleThumbnail' // --- Import the new component ---
+import { useRefresh } from '@hooks/useRefresh' // --- Import useRefresh ---
+import { RefreshControl } from 'react-native'
 
 export default function ArticleScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -38,19 +42,42 @@ export default function ArticleScreen() {
   const dispatch = useDispatch<AppDispatch>()
   const { isDesktop } = useResponsiveDimensions()
 
+  const [isFetching, setIsFetching] = useState(false)
+
   const article = useSelector((state: RootState) =>
     selectEntityById('articles', id)(state)
   )
 
+  const publicationDateFormatted = useMemo(() => {
+    if (!article?.publication_date) return ''
+    return format(new Date(article.publication_date), 'MMMM dd, yyyy')
+  }, [article?.publication_date])
+
   useEffect(() => {
-    if (id && (!article || !article?.content)) {
-      dispatch(fetchSingleArticle(id))
+    if (isFetching) return
+
+    if (id && (!article || !article?.paragraphs)) {
+      setIsFetching(true)
+      dispatch(fetchSingleArticle(id, () => setIsFetching(false)))
     }
   }, [id, dispatch])
 
+  const handleRefreshAction = React.useCallback(() => {
+    if (!id) {
+      console.warn('Cannot refresh, article ID is missing.')
+      return Promise.resolve()
+    }
+    console.log(`Dispatching fetchSingleArticle for refresh, ID: ${id}`)
+    setIsFetching(true)
+    return dispatch(fetchSingleArticle(id, () => setIsFetching(false)))
+  }, [dispatch, id])
+
+  const [isRefreshing, handleRefresh] = useRefresh(handleRefreshAction)
+
   const [isSavedLocally, setIsSavedLocally] = useState(false)
-  const [selectedText, setSelectedText] = useState<null | string>(null)
-  const [translationModalVisible, setTranslationModalVisible] = useState(false)
+  const [selectedParagraph, setSelectedParagraph] = useState<null | object>(
+    null
+  )
   const translateAnimation = useRef(new Animated.Value(0)).current
 
   const handleGoBack = () => {
@@ -59,19 +86,20 @@ export default function ArticleScreen() {
   }
 
   const saveArticleAction = () => {
-    /* ... */ setIsSavedLocally(true)
+    setIsSavedLocally(true)
   }
   const unsaveArticleAction = () => {
-    /* ... */ setIsSavedLocally(false)
+    setIsSavedLocally(false)
   }
   const handleToggleSave = useRequireAuthAction(() => {
     if (isSavedLocally) unsaveArticleAction()
     else saveArticleAction()
   }, 'Login to save this article?.')
 
-  const handleTextSelection = (text: string) => {
-    setSelectedText(text)
-    setTranslationModalVisible(true)
+  const handleTextSelection = (paragraph: object) => {
+    if (!paragraph.translation_en) return
+
+    setSelectedParagraph(paragraph)
     Animated.timing(translateAnimation, {
       toValue: 1,
       duration: 300,
@@ -84,8 +112,7 @@ export default function ArticleScreen() {
       duration: 200,
       useNativeDriver: true
     }).start(() => {
-      setTranslationModalVisible(false)
-      setSelectedText(null)
+      setSelectedParagraph(null)
     })
   }
   const translateY = translateAnimation.interpolate({
@@ -94,24 +121,64 @@ export default function ArticleScreen() {
   })
 
   const saveVocabularyAction = (word: string) => {
-    /* ... */ closeTranslationModal()
+    closeTranslationModal()
   }
   const handleSaveVocabulary = useRequireAuthAction(
     saveVocabularyAction,
     'Login to save vocabulary.'
   )
 
-  if (!article && !id) {
-    /* ... Error handling ... */
+  const handleBrandPress = () => {
+    // Future implementation:
+    // router.push({ pathname: '/(main)/brand/[id]', params: { id: article.brand.source_identifier } });
+    alert(`Brand page for ${article?.brand?.display_name} not implemented yet.`)
   }
-  if (!article) {
-    /* ... Loading state ... */
+  const isLoadingArticle = isFetching && !article
+
+  if (isLoadingArticle) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={Colors.light.primary} />
+      </View>
+    )
   }
 
-  const paragraphs =
-    typeof article?.content === 'string'
-      ? [article?.content]
-      : article?.content || []
+  // Handle case where article fetch failed or ID is invalid
+  if (!article && !isFetching) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.errorContainer}>
+          <TouchableOpacity
+            onPress={handleGoBack}
+            style={styles.errorBackButton}
+          >
+            <ArrowLeft size={20} color={Colors.light.text} />
+          </TouchableOpacity>
+          <Text style={styles.errorText}>Failed to load article.</Text>
+          <TouchableOpacity onPress={handleRefreshAction}>
+            <Text style={styles.errorRetry}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    )
+  }
+
+  // Handle case where article might not exist (e.g., bad ID) even if not explicitly 'failed'
+  if (!article) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.errorContainer}>
+          <TouchableOpacity
+            onPress={handleGoBack}
+            style={styles.errorBackButton}
+          >
+            <ArrowLeft size={20} color={Colors.light.text} />
+          </TouchableOpacity>
+          <Text style={styles.errorText}>Article not found.</Text>
+        </View>
+      </SafeAreaView>
+    )
+  }
 
   return (
     <>
@@ -123,45 +190,47 @@ export default function ArticleScreen() {
             styles.scrollContent,
             isDesktop && styles.wideScreenContent
           ]}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              tintColor={Colors.light.primary}
+              colors={[Colors.light.primary]}
+            />
+          }
         >
           {/* Header Image & Controls */}
-          <View style={styles.headerImageContainer}>
-            <Image
-              source={{ uri: article?.imageUrl }}
-              style={styles.headerImage}
-              resizeMode="cover"
-            />
-            <LinearGradient
-              colors={['rgba(0,0,0,0.7)', 'transparent']}
-              style={styles.headerGradient}
-            />
-            <View style={styles.articleHeaderControls}>
+          <View style={styles.articleHeaderControls}>
+            <TouchableOpacity
+              style={styles.backButtonContainer}
+              onPress={handleGoBack}
+            >
+              <ArrowLeft size={22} color={Colors.light.white} />
+            </TouchableOpacity>
+            <View style={styles.headerRightButtons}>
               <TouchableOpacity
-                style={styles.backButtonContainer}
-                onPress={handleGoBack}
+                style={styles.headerButton}
+                onPress={handleToggleSave}
               >
-                <ArrowLeft size={22} color={Colors.light.white} />
+                {isSavedLocally ? (
+                  <BookmarkCheck size={22} color={Colors.light.white} />
+                ) : (
+                  <Bookmark size={22} color={Colors.light.white} />
+                )}
               </TouchableOpacity>
-              <View style={styles.headerRightButtons}>
-                <TouchableOpacity
-                  style={styles.headerButton}
-                  onPress={handleToggleSave}
-                >
-                  {isSavedLocally ? (
-                    <BookmarkCheck size={22} color={Colors.light.white} />
-                  ) : (
-                    <Bookmark size={22} color={Colors.light.white} />
-                  )}
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.headerButton}
-                  onPress={() => alert('Share action not implemented')}
-                >
-                  <Share size={22} color={Colors.light.white} />
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                style={styles.headerButton}
+                onPress={() => alert('Share action not implemented')}
+              >
+                <Share size={22} color={Colors.light.white} />
+              </TouchableOpacity>
             </View>
           </View>
+
+          <LinearGradient
+            colors={['rgba(0,0,0,0.7)', 'transparent']}
+            style={styles.headerGradient}
+          />
 
           {/* Article Content Area */}
           <View
@@ -177,7 +246,25 @@ export default function ArticleScreen() {
               <Text style={styles.articleDate}>{article?.date}</Text>
             </View>
             <Text style={styles.articleTitle}>{article?.title}</Text>
-            <Text style={styles.articleSubtitle}>{article?.subtitle}</Text>
+            {article?.subtitle && (
+              <Text style={styles.articleSubtitle}>{article.subtitle}</Text>
+            )}
+
+            <View style={styles.tagsContainer}>
+              {article?.tags &&
+                article?.tags?.map(tag => (
+                  <Text key={tag} style={styles.tag}>
+                    {tag}
+                  </Text>
+                ))}
+            </View>
+
+            <View style={styles.metaContainer}>
+              <Pressable onPress={handleBrandPress}>
+                <Text style={styles.brand}>{article?.brand?.display_name}</Text>
+              </Pressable>
+              <Text style={styles.date}>{publicationDateFormatted}</Text>
+            </View>
 
             {/* Optional Audio Player */}
             <TouchableOpacity
@@ -195,18 +282,21 @@ export default function ArticleScreen() {
 
             {/* Paragraphs */}
             <View style={styles.articleContent}>
-              {paragraphs.map((paragraph, index) => (
-                <TouchableOpacity
-                  key={index}
-                  onPress={() => handleTextSelection(paragraph)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.paragraph}>{paragraph}</Text>
-                </TouchableOpacity>
-              ))}
+              {article?.paragraphs &&
+                article.paragraphs
+                  .sort((a, b) => a.paragraph_index - b.paragraph_index)
+                  .map(paragraph => (
+                    <ParagraphRenderer
+                      key={paragraph.paragraph_id || paragraph.paragraph_index}
+                      paragraph={paragraph}
+                      onShowTranslation={() => handleTextSelection(paragraph)}
+                    />
+                  ))}
             </View>
             <View style={styles.sourceContainer}>
-              <Text style={styles.sourceText}>Source: {article?.source}</Text>
+              <Text style={styles.sourceText}>
+                Source: {article?.brand?.display_name}
+              </Text>
             </View>
           </View>
 
@@ -241,7 +331,7 @@ export default function ArticleScreen() {
         </ScrollView>
 
         {/* Translation Modal */}
-        {translationModalVisible && (
+        {selectedParagraph && (
           <View style={styles.modalOverlay}>
             <TouchableOpacity
               style={styles.modalBackdrop}
@@ -260,24 +350,30 @@ export default function ArticleScreen() {
                   <X size={20} color={Colors.light.text} />
                 </TouchableOpacity>
               </View>
-              <View style={styles.originalTextContainer}>
-                <Text style={styles.originalText}>{selectedText}</Text>
-                <TouchableOpacity
-                  style={styles.audioButton}
-                  onPress={() => alert(`Play audio for selection`)}
-                >
-                  <Volume2 size={18} color={Colors.light.primary} />
-                </TouchableOpacity>
-              </View>
-              <View style={styles.translationContainer}>
-                <Text style={styles.translationText}>
-                  [Translation would appear here]
-                </Text>
-              </View>
+
+              <ScrollView showsVerticalScrollIndicator={true} bounces={false}>
+                <View style={styles.originalTextContainer}>
+                  <Text style={styles.originalText}>
+                    {selectedParagraph.original_text_fi}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.audioButton}
+                    onPress={() => alert(`Play audio for selection`)}
+                  >
+                    <Volume2 size={18} color={Colors.light.primary} />
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.translationContainer}>
+                  <Text style={styles.translationText}>
+                    {selectedParagraph.translation_en}
+                  </Text>
+                </View>
+              </ScrollView>
+
               <View style={styles.modalActions}>
                 <TouchableOpacity
                   style={styles.actionButton}
-                  onPress={() => handleSaveVocabulary(selectedText || '')}
+                  onPress={() => handleSaveVocabulary(selectedParagraph || '')}
                 >
                   <Text style={styles.actionButtonText}>
                     Save to Vocabulary
@@ -292,11 +388,16 @@ export default function ArticleScreen() {
   )
 }
 
-// Styles filled from original file
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.background
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20
   },
   loadingContainer: { justifyContent: 'center', alignItems: 'center' },
   errorContainer: {
@@ -320,8 +421,9 @@ const styles = StyleSheet.create({
   },
   headerImageContainer: {
     position: 'relative',
-    height: 250,
-    width: '100%'
+    height: 100,
+    width: '100%',
+    zIndex: 2
   },
   headerImage: {
     width: '100%',
@@ -332,10 +434,11 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 100
+    height: 100,
+    zIndex: 2
   },
   articleHeaderControls: {
-    position: 'absolute',
+    position: 'sticky',
     top: 0, // Adjust based on SafeAreaView top inset if needed
     left: 0,
     right: 0,
@@ -343,7 +446,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    paddingTop: 40 // Add padding top to account for status bar/notch on mobile
+    paddingTop: 40,
+    zIndex: 3
   },
   backButtonContainer: {
     width: 40,
@@ -351,7 +455,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    backdropFilter: 'blur(10px)'
   },
   headerRightButtons: {
     flexDirection: 'row',
@@ -363,7 +468,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    backdropFilter: 'blur(10px)'
     // marginLeft: 12, // Use gap instead
   },
   articleContainer: {
@@ -410,6 +516,39 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
     marginBottom: 20,
     lineHeight: 24
+  },
+  metaContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 10 // Spacing between brand and date
+  },
+  brand: {
+    fontSize: 15,
+    paddingVertical: 8,
+    fontFamily: 'Inter-SemiBold',
+    color: Colors.light.primary // Or brand color
+  },
+  date: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: Colors.light.textSecondary
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 20,
+    gap: 6
+  },
+  tag: {
+    backgroundColor: Colors.light.backgroundLight,
+    color: Colors.light.textSecondary,
+    fontSize: 11,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    overflow: 'hidden', // Ensure text respects padding
+    fontFamily: 'Inter-Medium'
   },
   audioPlayerContainer: {
     flexDirection: 'row',
@@ -552,11 +691,12 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 30, // Add padding at the bottom
     width: '100%',
-    maxHeight: '70%',
+    maxHeight: '60%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.1,
     shadowRadius: 5,
+    flex: 1,
     elevation: 10
   },
   wideScreenModal: {
@@ -568,7 +708,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 6,
     borderBottomWidth: 1, // Add separator
     borderBottomColor: Colors.light.border,
     paddingBottom: 10

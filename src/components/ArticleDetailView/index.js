@@ -1,2 +1,0 @@
-export { ArticleDetailView } from "./ArticleDetailView";
-
