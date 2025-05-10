@@ -23,17 +23,24 @@ import { useSelector, useDispatch } from 'react-redux'
 
 import { DailyGoalChart } from '@components/home/DailyGoalChart'
 import { ProgressCard } from '@components/home/ProgressCard'
-import { ArticleCardWithThumbnail } from '@components/reader/ArticleCardWithThumbnail'
+import { ArticleCardWithThumbnail } from '@components/reader/ArticleCardWithThumbnail' // Adjust path if needed
 import { Colors } from '@constants/Colors'
 import { useResponsiveDimensions } from '@hooks/useResponsiveDimensions'
 import { selectIsAuthenticated, selectUser } from '@features/auth/authSelectors'
-import { fetchArticles } from '@features/articles/articlesActions'
+import { fetchArticles } from '@features/articles/articlesActions' // Adjust path if needed
 import { AppDispatch, RootState } from '@store/store'
-import { selectPaginatedData } from '@pagination/selectors'
+import { selectPaginatedData } from '@pagination/selectors' // Adjust path if needed
 import { useRequireAuthAction } from '@hooks/useRequireAuthAction'
-import { nameParser } from '@utils/string'
-import { useRefresh } from '@/hooks/useRefresh'
+import { nameParser } from '@utils/string' // Adjust path if needed
+import { useRefresh } from '@hooks/useRefresh' // Adjust path if needed
+// --- Import Progress Actions and Selectors ---
+import { fetchProgressThunk } from '@features/progress/progressActions' // Adjust path
+import {
+  selectProgressSummary,
+  selectProgressStatus
+} from '@features/progress/progressSlice' // Adjust path
 
+// Mock data - replace or remove once progress data is fetched
 const weeklyProgress = [
   { day: 'Mon', minutes: 12 },
   { day: 'Tue', minutes: 18 },
@@ -49,9 +56,11 @@ export default function HomeScreen() {
   const dispatch = useDispatch<AppDispatch>()
   const { isDesktop } = useResponsiveDimensions()
 
+  // Auth State
   const isAuthenticated = useSelector(selectIsAuthenticated)
   const userState = useSelector((state: RootState) => selectUser(state))
 
+  // Article Pagination State
   const paginationKey = isAuthenticated
     ? `${userState?.id}-articles-feed`
     : 'articlesPublic'
@@ -64,21 +73,46 @@ export default function HomeScreen() {
     )(state)
   )
 
-  const [streakDays, setStreakDays] = useState(7)
+  // --- Progress State ---
+  const progressSummary = useSelector(selectProgressSummary)
+  const progressStatus = useSelector(selectProgressStatus)
+  // --- End Progress State ---
 
+  // Fetch initial data
   useEffect(() => {
+    // Fetch articles if needed
     if (!pagination.isLoading && !pagination.error && articles.length < 5) {
       dispatch(fetchArticles(paginationKey, { reset: true }))
     }
-  }, [dispatch, paginationKey, articles.length])
+    // Fetch progress only if authenticated and not already fetched/loading
+    if (isAuthenticated && progressStatus === 'idle') {
+      dispatch(fetchProgressThunk())
+    }
+  }, [
+    dispatch,
+    paginationKey,
+    articles.length,
+    isAuthenticated,
+    progressStatus
+  ]) // Added progress dependencies
 
-  const handleRefreshAction = useCallback(() => {
-    console.log('Dispatching fetchFeaturedArticlesThunk for refresh')
-    return dispatch(fetchArticles(paginationKey, { reset: true }))
-  }, [dispatch])
+  // --- Refresh Logic (Fetches both Articles and Progress if authenticated) ---
+  const handleRefreshAction = useCallback(async () => {
+    // Make async
+    console.log('HomeScreen: Refreshing...')
+    const promises: Promise<any>[] = [
+      dispatch(fetchArticles(paginationKey, { reset: true })).unwrap() // Fetch articles
+    ]
+    if (isAuthenticated) {
+      promises.push(dispatch(fetchProgressThunk()).unwrap()) // Fetch progress if logged in
+    }
+    await Promise.all(promises) // Wait for all fetches to complete
+  }, [dispatch, paginationKey, isAuthenticated]) // Added isAuthenticated dependency
 
   const [isRefreshing, handleRefresh] = useRefresh(handleRefreshAction)
+  // --- End Refresh Logic ---
 
+  // Challenge Handler
   const startChallengeAction = (challengeId: string) => {
     alert(`Starting challenge ${challengeId} (Not Implemented)`)
   }
@@ -87,7 +121,10 @@ export default function HomeScreen() {
     'Login to start the daily challenge.'
   )
 
-  const showInitialLoading = pagination.isLoading && articles.length === 0
+  const showArticleLoading = pagination.isLoading && articles.length === 0
+  // Loading state for progress section (only show if authenticated)
+  const showProgressLoading =
+    isAuthenticated && progressStatus === 'loading' && !progressSummary
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -105,6 +142,8 @@ export default function HomeScreen() {
           />
         }
       >
+        {/* --- Profile Section --- */}
+
         <View style={styles.profileSection}>
           <View style={styles.headerTextContainer}>
             {isAuthenticated && userState ? (
@@ -151,51 +190,80 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/* --- Streak & Progress --- */}
+        {/* --- Streak & Progress (Conditional) --- */}
         {isAuthenticated && (
           <>
-            <View style={[styles.streakContainer, { marginBottom: 24 }]}>
-              <View style={styles.streakInfo}>
-                <Trophy size={20} color={Colors.light.accent} />
-                <Text style={styles.streakText}>
-                  {streakDays} day streak! Keep it up!
-                </Text>
+            {/* Show loading indicator for progress if needed */}
+            {showProgressLoading && (
+              <View style={styles.centeredSection}>
+                <ActivityIndicator color={Colors.light.primary} />
               </View>
-              <DailyGoalChart data={weeklyProgress} />
-            </View>
+            )}
+            {/* Show progress summary if loaded */}
+            {progressSummary && progressStatus === 'succeeded' && (
+              <>
+                <View style={[styles.streakContainer, { marginBottom: 24 }]}>
+                  <View style={styles.streakInfo}>
+                    <Trophy size={20} color={Colors.light.accent} />
+                    <Text style={styles.streakText}>
+                      {/* Use fetched streak */}
+                      {progressSummary.streak.current_streak_days} day streak!
+                      Keep it up!
+                    </Text>
+                  </View>
+                  {/* TODO: Pass real streak data to DailyGoalChart if needed */}
+                  <DailyGoalChart data={weeklyProgress} />
+                </View>
 
-            <View
-              style={[styles.section, isDesktop && styles.wideScreenSection]}
-            >
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Your Progress</Text>
-                <Link href="/(main)/progress-details" asChild>
-                  <TouchableOpacity style={styles.seeAllButton}>
-                    <Text style={styles.seeAllText}>See all</Text>
-                    <ChevronRight
-                      size={16}
-                      color={Colors.light.textSecondary}
+                <View
+                  style={[
+                    styles.section,
+                    isDesktop && styles.wideScreenSection
+                  ]}
+                >
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Your Progress</Text>
+                    <Link href="/(main)/progress-details" asChild>
+                      <TouchableOpacity style={styles.seeAllButton}>
+                        <Text style={styles.seeAllText}>See all</Text>
+                        <ChevronRight
+                          size={16}
+                          color={Colors.light.textSecondary}
+                        />
+                      </TouchableOpacity>
+                    </Link>
+                  </View>
+                  <View style={styles.progressCardsContainer}>
+                    <ProgressCard
+                      icon={<Star size={20} color={Colors.light.primary} />}
+                      title="Vocabulary"
+                      // Use fetched count
+                      subtitle={`${progressSummary.learned_words_count} words learned`}
+                      // TODO: Calculate progress based on goals if available
+                      progress={0.45} // Placeholder
+                      color={Colors.light.primary}
                     />
-                  </TouchableOpacity>
-                </Link>
+                    <ProgressCard
+                      icon={
+                        <TrendingUp size={20} color={Colors.light.accent} />
+                      }
+                      title="Reading"
+                      // Use fetched count
+                      subtitle={`${progressSummary.articles_read_count} articles completed`}
+                      // TODO: Calculate progress based on goals if available
+                      progress={0.7} // Placeholder
+                      color={Colors.light.accent}
+                    />
+                  </View>
+                </View>
+              </>
+            )}
+            {/* Optional: Show progress fetch error */}
+            {progressStatus === 'failed' && !progressSummary && (
+              <View style={styles.centeredSection}>
+                <Text style={styles.errorText}>Could not load progress.</Text>
               </View>
-              <View style={styles.progressCardsContainer}>
-                <ProgressCard
-                  icon={<Star size={20} color={Colors.light.primary} />}
-                  title="Vocabulary"
-                  subtitle="145 words learned"
-                  progress={0.45}
-                  color={Colors.light.primary}
-                />
-                <ProgressCard
-                  icon={<TrendingUp size={20} color={Colors.light.accent} />}
-                  title="Reading"
-                  subtitle="12 articles completed"
-                  progress={0.7}
-                  color={Colors.light.accent}
-                />
-              </View>
-            </View>
+            )}
           </>
         )}
 
@@ -211,8 +279,8 @@ export default function HomeScreen() {
             </Link>
           </View>
 
-          {showInitialLoading ? (
-            <View style={styles.centered}>
+          {showArticleLoading ? (
+            <View style={styles.centeredSection}>
               <ActivityIndicator size="large" color={Colors.light.primary} />
             </View>
           ) : (
@@ -275,7 +343,24 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.light.background
   },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20
+  },
+  centeredSection: {
+    // Style for centering loading/error within a section
+    height: 150, // Give it some height
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  errorText: {
+    // Reusable error text
+    color: Colors.light.error,
+    fontSize: 14,
+    textAlign: 'center'
+  },
   emptyText: {
     textAlign: 'center',
     marginTop: 50,

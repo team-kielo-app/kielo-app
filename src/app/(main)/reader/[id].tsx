@@ -32,7 +32,12 @@ import { selectEntityById } from '@pagination/selectors'
 import { useRequireAuthAction } from '@hooks/useRequireAuthAction'
 import { format } from 'date-fns'
 import { ParagraphRenderer } from '@components/ParagraphRenderer'
-import { ArticleThumbnail } from '@components/reader/ArticleThumbnail' // --- Import the new component ---
+import { selectIsItemSaved } from '@features/savedItems/savedItemsSlice' // Import selector
+import {
+  saveItemThunk,
+  unsaveItemThunk
+} from '@features/savedItems/savedItemsActions' // Import actions
+import { showAuthDebugToast } from '@lib/debugToast'
 import { useRefresh } from '@hooks/useRefresh' // --- Import useRefresh ---
 import { RefreshControl } from 'react-native'
 
@@ -85,15 +90,78 @@ export default function ArticleScreen() {
     else router.replace('/(main)/(tabs)/reader')
   }
 
-  const saveArticleAction = () => {
-    setIsSavedLocally(true)
+  const itemType = 'ArticleVersion' // Define the type for this screen
+  const itemId = id || '' // Ensure we have an ID
+
+  // Get saved status from Redux store
+  const isSavedInStore = useSelector((state: RootState) =>
+    selectIsItemSaved(state, itemType, itemId)
+  )
+  // Local state for immediate UI feedback (optimistic update) and button loading
+  const [isOptimisticallySaved, setIsOptimisticallySaved] =
+    useState(isSavedInStore)
+  const [isSaveLoading, setIsSaveLoading] = useState(false)
+
+  // Sync local optimistic state if the store changes (e.g., after list fetch)
+  useEffect(() => {
+    setIsOptimisticallySaved(isSavedInStore)
+  }, [isSavedInStore])
+
+  const handleSave = async () => {
+    if (!itemId) return
+    setIsSaveLoading(true)
+    setIsOptimisticallySaved(true) // Optimistic update
+    showAuthDebugToast('info', 'Saving article...')
+    try {
+      await dispatch(
+        saveItemThunk({ item_type: itemType, item_id: itemId })
+      ).unwrap()
+      showAuthDebugToast('success', 'Article Saved')
+      // No need to setIsOptimisticallySaved(true) again, store will update eventually
+    } catch (err: any) {
+      console.error('Save failed:', err)
+      showAuthDebugToast(
+        'error',
+        'Save Failed',
+        err?.message || 'Could not save article.'
+      )
+      setIsOptimisticallySaved(false) // Revert optimistic update on error
+    } finally {
+      setIsSaveLoading(false)
+    }
   }
-  const unsaveArticleAction = () => {
-    setIsSavedLocally(false)
+
+  const handleUnsave = async () => {
+    if (!itemId) return
+    setIsSaveLoading(true)
+    setIsOptimisticallySaved(false) // Optimistic update
+    showAuthDebugToast('info', 'Unsacing article...')
+    try {
+      await dispatch(
+        unsaveItemThunk({ item_type: itemType, item_id: itemId })
+      ).unwrap()
+      showAuthDebugToast('success', 'Article Unsaved')
+      // Reducer handles removing from list, selector will update
+    } catch (err: any) {
+      console.error('Unsave failed:', err)
+      showAuthDebugToast(
+        'error',
+        'Unsave Failed',
+        err?.message || 'Could not unsave article.'
+      )
+      setIsOptimisticallySaved(true) // Revert optimistic update on error
+    } finally {
+      setIsSaveLoading(false)
+    }
   }
+
   const handleToggleSave = useRequireAuthAction(() => {
-    if (isSavedLocally) unsaveArticleAction()
-    else saveArticleAction()
+    if (isOptimisticallySaved) {
+      // Check optimistic state for action
+      handleUnsave()
+    } else {
+      handleSave()
+    }
   }, 'Login to save this article?.')
 
   const handleTextSelection = (paragraph: object) => {
@@ -184,7 +252,14 @@ export default function ArticleScreen() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.articleHeaderControls}>
+        <View
+          style={[
+            styles.articleHeaderControls,
+            isDesktop
+              ? styles.wideScreenHeaderControls
+              : styles.mobileHeaderControls
+          ]}
+        >
           <TouchableOpacity
             style={styles.backButtonContainer}
             onPress={handleGoBack}
@@ -195,9 +270,12 @@ export default function ArticleScreen() {
             <TouchableOpacity
               style={styles.headerButton}
               onPress={handleToggleSave}
+              disabled={isSaveLoading || !itemId} // Disable while loading or if no ID
             >
-              {isSavedLocally ? (
-                <BookmarkCheck size={22} color={Colors.light.white} />
+              {isSaveLoading ? (
+                <ActivityIndicator size="small" color={Colors.light.white} />
+              ) : isOptimisticallySaved ? ( // Use optimistic state for icon
+                <BookmarkCheck size={22} color={Colors.light.primary} /> // Indicate saved
               ) : (
                 <Bookmark size={22} color={Colors.light.white} />
               )}
@@ -418,16 +496,6 @@ const styles = StyleSheet.create({
   wideScreenContent: {
     alignItems: 'center'
   },
-  headerImageContainer: {
-    position: 'relative',
-    height: 100,
-    width: '100%',
-    zIndex: 2
-  },
-  headerImage: {
-    width: '100%',
-    height: '100%'
-  },
   headerGradient: {
     position: 'absolute',
     top: 0,
@@ -445,8 +513,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    marginTop: 50,
     zIndex: 3
+  },
+  mobileHeaderControls: {
+    marginTop: 50
+  },
+  wideScreenHeaderControls: {
+    marginTop: 10,
+    marginHorizontal: 20
   },
   backButtonContainer: {
     width: 40,

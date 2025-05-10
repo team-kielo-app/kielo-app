@@ -22,6 +22,16 @@ import {
 import { Colors } from '@constants/Colors'
 import { ArticleCardWithThumbnail } from '@/components/reader/ArticleCardWithThumbnail'
 import { ProgressRing } from '@/components/profile/ProgressRing'
+import { fetchProgressThunk } from '@features/progress/progressActions'
+import {
+  selectProgressSummary,
+  selectProgressStatus
+} from '@features/progress/progressSlice'
+import { fetchEarnedAchievementsThunk } from '@features/achievements/achievementsActions'
+import {
+  selectEarnedAchievements,
+  selectAchievementsStatus
+} from '@features/achievements/achievementsSlice'
 import { AchievementCard } from '@/components/profile/AchievementCard'
 import { useResponsiveDimensions } from '@hooks/useResponsiveDimensions'
 import { useSelector, useDispatch } from 'react-redux'
@@ -96,37 +106,87 @@ const achievements = [
 ]
 
 export default function ProfileScreen() {
-  const { isLoading: isAuthLoading, isAuthenticated } = useProtectedRoute()
+  const { isLoading: isAuthLoading, isAuthenticated } = useProtectedRoute() // Auth check
   const { isDesktop } = useResponsiveDimensions()
   const dispatch = useDispatch<AppDispatch>()
   const router = useRouter()
-  const userState = useSelector((state: RootState) => selectUser(state))
-  const { data: articles, pagination } = useSelector((state: RootState) =>
-    selectPaginatedData(
-      'articles',
-      'articlePagination',
-      userState?.id,
-      true
-    )(state)
-  )
 
+  // Selectors
+  const userState = useSelector((state: RootState) => selectUser(state))
+  // Saved Articles (keep this logic)
+  const { data: savedArticles, pagination: savedArticlesPagination } =
+    useSelector((state: RootState) =>
+      selectPaginatedData(
+        'articles',
+        'articlePagination',
+        `${userState?.id}-saved`,
+        true
+      )(state)
+    )
+  // Progress Summary
+  const progressSummary = useSelector(selectProgressSummary)
+  const progressStatus = useSelector(selectProgressStatus)
+  // Earned Achievements
+  const earnedAchievements = useSelector(selectEarnedAchievements)
+  const achievementsStatus = useSelector(selectAchievementsStatus)
+
+  // Fetch Data Effect
   useEffect(() => {
     if (isAuthenticated && userState?.id) {
-      if (!pagination.isLoading && !pagination.error && articles.length < 5) {
-        dispatch(fetchArticles(userState.id, { reset: true, savedOnly: true })) // Fetch saved articles
+      // Fetch Saved Articles (if needed)
+      if (!savedArticlesPagination.isLoading) {
+        dispatch(
+          fetchArticles(`${userState.id}-saved`, {
+            reset: true
+          })
+        )
+      }
+      // Fetch Progress Summary (if needed)
+      if (progressStatus === 'idle') {
+        dispatch(fetchProgressThunk())
+      }
+      // Fetch Achievements (if needed)
+      if (achievementsStatus === 'idle') {
+        dispatch(fetchEarnedAchievementsThunk())
       }
     }
-  }, [dispatch, userState?.id])
+  }, [dispatch, isAuthenticated, userState?.id]) // Dependencies
 
-  if (isAuthLoading || !isAuthenticated) {
+  // Authentication loading/guard
+  if (isAuthLoading || !isAuthenticated || !userState) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
+        {' '}
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.light.primary} />
-        </View>
+        </View>{' '}
       </SafeAreaView>
     )
   }
+
+  // Prepare stats data from progress summary
+  const userStats = progressSummary
+    ? [
+        {
+          id: 'words',
+          label: 'Words Learned',
+          value: progressSummary.learned_words_count,
+          icon: <CheckCircle size={18} color={Colors.light.primary} />
+        },
+        {
+          id: 'articles',
+          label: 'Articles Read',
+          value: progressSummary.articles_read_count,
+          icon: <BookOpen size={18} color={Colors.light.accent} />
+        },
+        {
+          id: 'streak',
+          label: 'Day Streak',
+          value: progressSummary.streak.current_streak_days,
+          icon: <Calendar size={18} color={Colors.light.warning} />
+        }
+      ]
+    : [] // Empty array if summary not loaded
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -180,7 +240,13 @@ export default function ProfileScreen() {
               <View style={styles.divider} />
               <View style={styles.streakContainer}>
                 <Award size={24} color={Colors.light.accent} />
-                <Text style={styles.streakValue}>7</Text>
+                {progressStatus === 'loading' && !progressSummary ? (
+                  <ActivityIndicator size="small" />
+                ) : (
+                  <Text style={styles.streakValue}>
+                    {progressSummary?.streak?.current_streak_days ?? 0}
+                  </Text>
+                )}
                 <Text style={styles.streakLabel}>Day Streak</Text>
               </View>
             </View>
@@ -189,13 +255,20 @@ export default function ProfileScreen() {
 
         {/* Statistics */}
         <View style={styles.statsContainer}>
-          {stats.map(stat => (
-            <View key={stat.id} style={styles.statItem}>
-              <View style={styles.statIconContainer}>{stat.icon}</View>
-              <Text style={styles.statValue}>{stat.value}</Text>
-              <Text style={styles.statLabel}>{stat.label}</Text>
-            </View>
-          ))}
+          {progressStatus === 'loading' && !progressSummary ? (
+            <ActivityIndicator />
+          ) : (
+            userStats.map(stat => (
+              <View key={stat.id} style={styles.statItem}>
+                <View style={styles.statIconContainer}>{stat.icon}</View>
+                <Text style={styles.statValue}>{stat.value}</Text>
+                <Text style={styles.statLabel}>{stat.label}</Text>
+              </View>
+            ))
+          )}
+          {progressStatus === 'failed' && (
+            <Text style={styles.errorTextSmall}>Failed to load stats</Text>
+          )}
         </View>
 
         {/* Saved Articles Section */}
@@ -208,16 +281,16 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </Link>
           </View>
-          {pagination.isLoading && articles.length === 0 && (
+          {savedArticlesPagination.isLoading && savedArticles.length === 0 && (
             <ActivityIndicator />
           )}
-          {!pagination.isLoading && articles.length === 0 && (
+          {!savedArticlesPagination.isLoading && savedArticles.length === 0 && (
             <Text style={styles.emptySectionText}>No saved articles yet.</Text>
           )}
-          {articles.length > 0 &&
+          {savedArticles.length > 0 &&
             (isDesktop ? (
               <View style={styles.wideScreenArticles}>
-                {articles.map(article => (
+                {savedArticles.map(article => (
                   <ArticleCardWithThumbnail
                     key={article.id}
                     article={article}
@@ -231,7 +304,7 @@ export default function ProfileScreen() {
                 // showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.savedArticlesScrollContent}
               >
-                {articles.map(article => (
+                {savedArticles.map(article => (
                   <ArticleCardWithThumbnail
                     key={article.id}
                     article={article}
@@ -267,28 +340,36 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
         </View>
-
         {/* Achievements */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Achievements</Text>
-            <Link href="/(main)/achievements" asChild>
-              <TouchableOpacity>
-                <Text style={styles.viewAllText}>View all</Text>
-              </TouchableOpacity>
-            </Link>
-          </View>
+        {/* Display fetched achievements or loading/empty/error states */}
+        {achievementsStatus === 'loading' &&
+          earnedAchievements.length === 0 && <ActivityIndicator />}
+        {achievementsStatus === 'failed' && (
+          <Text style={styles.errorTextSmall}>Failed to load achievements</Text>
+        )}
+        {achievementsStatus !== 'loading' &&
+          earnedAchievements.length === 0 && (
+            <Text style={styles.emptySectionText}>
+              No achievements earned yet.
+            </Text>
+          )}
+        {earnedAchievements.length > 0 && (
           <View
             style={[
               styles.achievementsContainer,
               isDesktop && styles.wideScreenAchievements
             ]}
           >
-            {achievements.map(achievement => (
-              <AchievementCard key={achievement.id} achievement={achievement} />
+            {/* Map over fetched earnedAchievements */}
+            {earnedAchievements.map(achievement => (
+              // Ensure AchievementCard expects the EarnedAchievement structure
+              <AchievementCard
+                key={achievement.achievement_id}
+                achievement={achievement}
+              />
             ))}
           </View>
-        </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   )
@@ -301,6 +382,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.background
   },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  errorTextSmall: {
+    // Smaller error text for inline use
+    fontSize: 12,
+    color: Colors.light.error,
+    textAlign: 'center',
+    width: '100%',
+    paddingVertical: 10
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
