@@ -1,14 +1,14 @@
-import { schema } from "normalizr";
+import { schema } from 'normalizr'
 
 const articleSchema = new schema.Entity(
-  "articles",
+  'articles',
   {},
   {
-    idAttribute: "articleId",
+    idAttribute: 'id'
   }
-);
+)
 
-articleSchema.define({});
+articleSchema.define({})
 
-export default new schema.Array(articleSchema);
-
+export default new schema.Array(articleSchema)
+export { articleSchema as ARTICLE_SCHEMA_SINGLE }

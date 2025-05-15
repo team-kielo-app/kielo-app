@@ -2,6 +2,7 @@
 import { createAsyncThunk } from '@reduxjs/toolkit'
 import { apiClient } from '@lib/api'
 import { AppDispatch } from '@store/store'
+import { ApiError } from '@lib/ApiError'
 import { ProgressSummary } from './types'
 
 // Thunk for fetching progress summary
@@ -17,8 +18,15 @@ export const fetchProgressThunk = createAsyncThunk<
     )
     return response
   } catch (error: any) {
-    const message =
-      error?.data?.error || error?.message || 'Failed to fetch progress summary'
+    let message = 'Failed to fetch progress summary. Please try again later.'
+    if (error instanceof ApiError) {
+      // You could customize message based on error.status or error.data
+      // e.g., if (error.status === 403) message = "You don't have permission."
+      message =
+        error.data?.detail || error.data?.message || error.message || message
+    } else if (error.message) {
+      message = error.message
+    }
     return rejectWithValue(message)
   }
 })

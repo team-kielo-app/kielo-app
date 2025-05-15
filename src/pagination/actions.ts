@@ -3,14 +3,18 @@ import { makeQueryString } from '@utils/url'
 import { assertInvariant } from '@utils/assert'
 import { DEFAULT_PAGINATION_STATE } from './constants'
 import type { PaginationMeta, EntityMeta, PaginationStateType } from './types'
+import { ThunkAction } from '@reduxjs/toolkit'
 
-type ApiRequestFunction<T = any> = (params: {
+/**
+ * Describes a thunk creator that is configured for a specific API request (endpoint, verb, schema).
+ * It takes parameters relevant to the request execution (like query string, body, and metadata for Redux actions)
+ * and returns a ThunkAction.
+ */
+type ApiRequestThunkCreator = (params: {
   queryString?: string
-  body?: any
+  body?: Record<string, unknown> | unknown[] | undefined
   meta: PaginationMeta | EntityMeta
-  endpoint: string
-  verb: 'GET' | 'POST' | 'PUT' | 'DELETE'
-}) => T
+}) => ThunkAction<Promise<any>, RootState, unknown, any>
 
 /**
  * Higher-order function to wrap API calls with pagination logic for LISTING data.
@@ -23,7 +27,7 @@ export function withPaginationList<S extends RootState>({
   fetchPolicy = 'fetchIfNeeded',
   additionalQueryParams = {}
 }: {
-  apiRequestFunction: ApiRequestFunction
+  apiRequestFunction: ApiRequestThunkCreator
   getStatePaginationData: (state: S) => Record<string, PaginationStateType>
   paginationKey: string
   pageSize?: number
@@ -104,8 +108,6 @@ export function withPaginationList<S extends RootState>({
 
       return dispatch(
         apiRequestFunction({
-          endpoint: '',
-          verb: 'GET',
           queryString,
           meta
         })
@@ -125,7 +127,7 @@ export function withPaginationEntityAction<S extends RootState>({
   itemId,
   verb
 }: {
-  apiRequestFunction: ApiRequestFunction
+  apiRequestFunction: ApiRequestThunkCreator
   getStatePaginationData?: (state: S) => Record<string, PaginationStateType>
   paginationKey?: string
   entityName: string
@@ -145,8 +147,6 @@ export function withPaginationEntityAction<S extends RootState>({
 
     return dispatch(
       apiRequestFunction({
-        endpoint: '',
-        verb,
         body,
         meta
       })

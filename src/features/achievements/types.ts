@@ -1,5 +1,5 @@
 // src/features/achievements/types.ts
-import { Status } from '@types'
+import { ApiStatusType } from '@lib/api.d'
 
 // Assuming a structure for the detailed achievement info
 export interface AchievementDetails {
@@ -27,6 +27,6 @@ export interface AchievementListResponse {
 // Redux state for this slice
 export interface AchievementsState {
   earnedAchievements: EarnedAchievement[] // List of earned achievements
-  status: Status // Status for LISTING earned achievements
+  status: ApiStatusType // Status for LISTING earned achievements
   error: string | null
 }

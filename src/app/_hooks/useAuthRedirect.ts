@@ -10,8 +10,6 @@ const useAuthRedirect = (isAuthenticated: boolean, isLoadingAuth: boolean) => {
   const router = useRouter()
   const segments = useSegments()
 
-  console.log('noice', segments)
-
   useEffect(() => {
     if (isLoadingAuth) return
 

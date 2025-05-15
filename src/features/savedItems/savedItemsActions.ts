@@ -1,7 +1,8 @@
 // src/features/savedItems/savedItemsActions.ts
 import { createAsyncThunk } from '@reduxjs/toolkit'
 import { apiClient } from '@lib/api'
-import { AppDispatch, RootState } from '@store/store'
+import { AppDispatch } from '@store/store'
+import { ApiError } from '@lib/ApiError'
 import { SavedItem, SaveItemPayload, UnsaveItemPayload } from './types'
 
 // Thunk for fetching saved items
@@ -20,8 +21,13 @@ export const fetchSavedItemsThunk = createAsyncThunk<
     )
     return response.items // Assuming API returns { "items": [...] }
   } catch (error: any) {
-    const message =
-      error?.data?.error || error?.message || 'Failed to fetch saved items'
+    let message = 'Failed to fetch saved items. Please try again.'
+    if (error instanceof ApiError) {
+      message =
+        error.data?.detail || error.data?.message || error.message || message
+    } else if (error.message) {
+      message = error.message
+    }
     return rejectWithValue(message)
   }
 })
@@ -48,9 +54,13 @@ export const saveItemThunk = createAsyncThunk<
       item_type: payload.item_type
     }
   } catch (error: any) {
-    const message =
-      error?.data?.error || error?.message || 'Failed to save item'
-    // Reject with message and item info
+    let message = 'Failed to save item. Please try again.'
+    if (error instanceof ApiError) {
+      message =
+        error.data?.detail || error.data?.message || error.message || message
+    } else if (error.message) {
+      message = error.message
+    }
     return rejectWithValue({
       message,
       item_id: payload.item_id,
@@ -78,9 +88,14 @@ export const unsaveItemThunk = createAsyncThunk<
     return { item_id: payload.item_id, item_type: payload.item_type }
   } catch (error: any) {
     // DELETE might return 404 if already unsaved, handle specific statuses if needed
-    const message =
-      error?.data?.error || error?.message || 'Failed to unsave item'
-    // Reject with message and item info
+
+    let message = 'Failed to unsave item. Please try again.'
+    if (error instanceof ApiError) {
+      message =
+        error.data?.detail || error.data?.message || error.message || message
+    } else if (error.message) {
+      message = error.message
+    }
     return rejectWithValue({
       message,
       item_id: payload.item_id,

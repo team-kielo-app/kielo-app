@@ -1,10 +1,29 @@
 import { DEFAULT_PAGINATION_STATE } from './constants'
-import type { PaginationStateType } from './types'
+import type { PaginationStateType, PaginationMeta } from './types'
 import { uniqueStringsConcatOrder, uniqueObjectsConcatOrder } from './utils'
+
+// Define a more specific action type for the pagination reducer
+interface PaginationReducerAction {
+  type: string
+  // For success actions
+  response?: {
+    [key: string]: any // Allows for dynamic resultField
+    nextPageKey?: string | null
+    prevPageKey?: string | null
+    totalCount?: number
+    // entities?: Record<string, Record<string, any>>; // If entities are also passed here
+  }
+  // For all actions with pagination meta
+  meta?: PaginationMeta & {
+    forceRequest?: boolean /* other meta flags if needed */
+  }
+  // For failure actions
+  error?: string
+}
 
 function updateSinglePaginationState(
   state: PaginationStateType = DEFAULT_PAGINATION_STATE,
-  action: any, // Use a more specific Action type if possible
+  action: PaginationReducerAction,
   config: {
     // Pass config down
     requestTypes: string[]
@@ -95,15 +114,17 @@ function updateSinglePaginationState(
 
       // Choose concat strategy based on page fetched and ID types
       if (paginationMeta?.pageFetched === 'next') {
+        // Append new unique items
         combinedIds =
           areNewIdsStrings && areCurrentIdsStrings
             ? uniqueStringsConcatOrder(state.ids, newIds)
             : uniqueObjectsConcatOrder(state.ids, newIds, idField)
       } else if (paginationMeta?.pageFetched === 'prev') {
+        // Prepend new unique items
         combinedIds =
           areNewIdsStrings && areCurrentIdsStrings
-            ? uniqueStringsConcatOrder(newIds, state.ids) // Prepend
-            : uniqueObjectsConcatOrder(newIds, state.ids, idField) // Prepend
+            ? uniqueStringsConcatOrder(newIds, state.ids) // Swapped order for prepend effect
+            : uniqueObjectsConcatOrder(newIds, state.ids, idField) // Swapped order for prepend effect
       } else {
         // Default for 'first' or unspecified non-reset fetch: Usually replace, but could merge if needed.
         // Let's stick to replacing for simplicity unless merging 'first' page is required.

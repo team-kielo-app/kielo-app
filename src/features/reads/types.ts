@@ -1,5 +1,4 @@
-// src/features/reads/types.ts
-import { Status } from '@types'
+import { ApiStatusType } from '@lib/api.d'
 import { ArticleBrand } from '@features/articles/types' // Assuming Brand is needed
 
 // Snippet of article details returned by the Reads API
@@ -38,9 +37,9 @@ export interface MarkReadPayload {
 // Redux state for this slice
 export interface ReadsState {
   readArticles: ReadArticle[] // List of read articles
-  status: Status // Status for LISTING read articles
+  status: ApiStatusType
   error: string | null
   // Optional: Track status for marking as read
-  markReadStatus: { [articleVersionId: string]: Status }
+  markReadStatus: { [articleVersionId: string]: ApiStatusType }
   markReadError: { [articleVersionId: string]: string | null }
 }

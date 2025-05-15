@@ -6,24 +6,24 @@ import { Platform } from 'react-native'
 import * as tokenStorage from '@lib/tokenStorage'
 import * as secureStorage from './secureStorage'
 import { showAuthDebugToast } from './debugToast'
+import { ApiError } from './ApiError'
 import { API_URL } from './apiRoot'
 
 const DEVICE_TOKEN_KEY = 'kielo_device_token'
-let deviceToken: string | null = null
+let _deviceToken: string | null = null
 
 export const initializeDeviceToken = async (): Promise<string | null> => {
-  if (deviceToken) return deviceToken
+  if (_deviceToken) return _deviceToken
 
   try {
     const storedToken = await secureStorage.getSecureItem(DEVICE_TOKEN_KEY)
     if (storedToken) {
-      deviceToken = storedToken
-      console.log('Device Token Initialized from Storage:', deviceToken)
-      return deviceToken
+      _deviceToken = storedToken
+      return _deviceToken
     }
 
     if (Platform.OS === 'web') {
-      deviceToken =
+      _deviceToken =
         'web-' +
         Date.now().toString(36) +
         Math.random().toString(36).substring(2)
@@ -33,45 +33,88 @@ export const initializeDeviceToken = async (): Promise<string | null> => {
         Device.osInstallationId ||
         Device.deviceName ||
         `native-${Date.now()}`
-      deviceToken = identifier.replace(/[^a-zA-Z0-9_-]/g, '')
+      const generatedToken = identifier.replace(/[^a-zA-Z0-9_-]/g, '')
+      _deviceToken = generatedToken
     }
 
-    await secureStorage.setSecureItem(DEVICE_TOKEN_KEY, deviceToken)
-    console.log('Generated and Stored New Device Token:', deviceToken)
-    return deviceToken
+    await secureStorage.setSecureItem(DEVICE_TOKEN_KEY, _deviceToken)
+    console.log('Generated and Stored New Device Token:', _deviceToken)
+    return _deviceToken
   } catch (error) {
     console.error('Error initializing device token:', error)
-    deviceToken = 'error-fallback-' + Math.random().toString(36).substring(2)
-    return deviceToken
+    _deviceToken = 'error-fallback-' + Math.random().toString(36).substring(2)
+    return _deviceToken
   }
 }
 
-let isRefreshing = false
-let failedRefresh = false
-let refreshPromise: Promise<string | null> | null = null
+// Getter for the device token, ensures initialization has been attempted.
+// This should ideally be called after initializeDeviceToken has run at least once.
+export const getDeviceToken = (): string | null => {
+  return _deviceToken
+}
+
+// --- Token Refresh Manager ---
+const tokenRefresher = {
+  isRefreshing: false,
+  hasFailedRecently: false, // Indicates if a refresh attempt failed and we should not retry immediately
+  promise: null as Promise<string | null> | null,
+
+  resetFailure() {
+    this.hasFailedRecently = false // Call this when user logs in successfully or app restarts
+  },
+
+  async refresh(dispatch: AppDispatch): Promise<string | null> {
+    // Actual refresh logic will be moved here
+    // For now, just outlining the structure
+    return null
+  }
+}
+
+// Optional: Expose a way to reset the refresh failure flag, e.g., on successful login
+export const resetTokenRefreshFailure = () => {
+  tokenRefresher.resetFailure()
+}
 
 const handleRefreshToken = async (
   dispatch: AppDispatch
 ): Promise<string | null> => {
-  if (failedRefresh) {
+  // Use the tokenRefresher state
+  if (tokenRefresher.hasFailedRecently) {
+    console.warn(
+      'Token refresh previously failed, not attempting again immediately.'
+    )
     return null
   }
-  if (!isRefreshing) {
-    isRefreshing = true
-    failedRefresh = false
+
+  if (!tokenRefresher.isRefreshing) {
+    tokenRefresher.isRefreshing = true
+    // tokenRefresher.hasFailedRecently = false; // Reset this at the start of an attempt
+
     const currentRefreshToken =
       authSelectors.selectRefreshToken(store.getState()) ||
       (await tokenStorage.getStoredTokens()).refreshToken
     if (!currentRefreshToken) {
+      tokenRefresher.isRefreshing = false
       return null
     }
     console.log('Attempting to refresh token...')
-    refreshPromise = (async () => {
+    tokenRefresher.promise = (async () => {
       try {
-        const dt = deviceToken || (await initializeDeviceToken()) || 'missing'
+        const currentDeviceToken = getDeviceToken()
+        if (!currentDeviceToken) {
+          // This should ideally not happen if initialized at startup
+          console.warn(
+            "Device token not available for token refresh. Using 'missing'."
+          )
+        }
+
         const response = await fetch(`${API_URL}/auth/refresh`, {
+          // Now always use the initialized token
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Device-Token': dt },
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Device-Token': currentDeviceToken || 'missing'
+          },
           body: JSON.stringify({ refresh_token: currentRefreshToken })
         })
         if (!response.ok) {
@@ -100,27 +143,30 @@ const handleRefreshToken = async (
           newExpiresAt
         )
         console.log('Token refreshed successfully.')
-        isRefreshing = false
-        refreshPromise = null
+        tokenRefresher.isRefreshing = false
+        tokenRefresher.promise = null
+        tokenRefresher.hasFailedRecently = false // Successful refresh, clear failure flag
         return newAccessToken
       } catch (error) {
         console.error('Failed to refresh token:', error)
         showAuthDebugToast(
           'error',
           'Token Refresh Failed',
-          `Status: ${error?.status || 'Network Error'}. Logging out.`
+          `Status: ${
+            (error as ApiError)?.status || 'Network Error'
+          }. Logging out.`
         )
-        isRefreshing = false
-        failedRefresh = true
-        refreshPromise = null
+        tokenRefresher.isRefreshing = false
+        tokenRefresher.hasFailedRecently = true // Mark that refresh failed
+        tokenRefresher.promise = null
         dispatch(authActions.logoutUser())
         return null
       }
     })()
-    return refreshPromise
+    return tokenRefresher.promise
   } else {
     console.log('Refresh already in progress, waiting...')
-    return refreshPromise
+    return tokenRefresher.promise
   }
 }
 
@@ -131,7 +177,15 @@ const request = async <T>(
   isRetry: boolean = false
 ): Promise<T> => {
   if (!API_URL) throw new Error('API base URL not configured.')
-  const dt = deviceToken || (await initializeDeviceToken()) || 'missing'
+  // Use the getter. Assumes initializeDeviceToken was called at app startup.
+  const currentDeviceToken = getDeviceToken()
+  if (!currentDeviceToken) {
+    console.warn(
+      'Device token not yet initialized when making API request. This might lead to issues if X-Device-Token is strictly required by backend for all requests OR if called too early in app lifecycle.'
+    )
+    // Depending on backend requirements, you might throw an error here or proceed.
+    // For now, let's proceed but log a warning. The backend might allow some initial calls without it.
+  }
 
   const state = store.getState()
   let token = authSelectors.selectAuthToken(state)
@@ -149,7 +203,7 @@ const request = async <T>(
   const headers: HeadersInit = {
     ...options.headers,
     'Content-Type': 'application/json',
-    'X-Device-Token': dt
+    'X-Device-Token': currentDeviceToken || 'uninitialized'
   }
   if (token) {
     headers['Authorization'] = `Bearer ${token}`
@@ -176,11 +230,8 @@ const request = async <T>(
         } else {
           showAuthDebugToast(
             'error',
-            'Session Invalidated',
-            `API returned 401 and refresh failed for ${url}.`
-          )
-          throw new Error(
-            `Authentication failed after refresh attempt. Status: ${response.status}`
+            'Authentication Error',
+            `Session invalid or refresh failed for ${url}. Please log in again.`
           )
         }
       }
@@ -191,9 +242,14 @@ const request = async <T>(
         errorData = await response.text()
       }
       console.error('API Error:', response.status, errorData)
-      const error = new Error(`HTTP error! status: ${response.status}`) as any
-      error.status = response.status
-      error.data = errorData
+      const errorMessage =
+        typeof errorData === 'string'
+          ? errorData
+          : // Attempt to get a message from a common error structure
+            errorData?.message ||
+            errorData?.error ||
+            `HTTP error! status: ${response.status}`
+      const error = new ApiError(errorMessage, response.status, errorData)
       throw error
     }
     if (response.status === 204) return null as T
@@ -204,7 +260,17 @@ const request = async <T>(
     return response.text() as any as Promise<T>
   } catch (error) {
     console.error(`Network or other error during fetch to ${url}:`, error)
-    throw error
+    // If it's not already an ApiError, wrap it for consistency upstream
+    // though thunks will likely catch and re-throw with specific messages.
+    if (!(error instanceof ApiError)) {
+      throw new ApiError(
+        error.message || 'A network error occurred.',
+        undefined,
+        error
+      )
+    } else {
+      throw error
+    }
   }
 }
 

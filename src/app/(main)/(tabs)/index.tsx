@@ -1,66 +1,34 @@
-import React, { useCallback, useEffect, useState } from 'react'
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  FlatList,
-  Image,
-  RefreshControl,
-  ActivityIndicator
-} from 'react-native'
+import React, { useCallback, useEffect } from 'react'
+import { StyleSheet, ScrollView, RefreshControl } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import {
-  ChevronRight,
-  Star,
-  TrendingUp,
-  Trophy,
-  LogIn
-} from 'lucide-react-native'
-import { Link, useRouter } from 'expo-router'
 import { useSelector, useDispatch } from 'react-redux'
 
-import { DailyGoalChart } from '@components/home/DailyGoalChart'
-import { ProgressCard } from '@components/home/ProgressCard'
-import { ArticleCardWithThumbnail } from '@components/reader/ArticleCardWithThumbnail' // Adjust path if needed
 import { Colors } from '@constants/Colors'
 import { useResponsiveDimensions } from '@hooks/useResponsiveDimensions'
 import { selectIsAuthenticated, selectUser } from '@features/auth/authSelectors'
-import { fetchArticles } from '@features/articles/articlesActions' // Adjust path if needed
+import { fetchArticles } from '@features/articles/articlesActions'
 import { AppDispatch, RootState } from '@store/store'
-import { selectPaginatedData } from '@pagination/selectors' // Adjust path if needed
+import { selectPaginatedData } from '@pagination/selectors'
 import { useRequireAuthAction } from '@hooks/useRequireAuthAction'
-import { nameParser } from '@utils/string' // Adjust path if needed
-import { useRefresh } from '@hooks/useRefresh' // Adjust path if needed
-// --- Import Progress Actions and Selectors ---
-import { fetchProgressThunk } from '@features/progress/progressActions' // Adjust path
+import { useRefresh } from '@hooks/useRefresh'
+import { fetchProgressThunk } from '@features/progress/progressActions'
 import {
   selectProgressSummary,
   selectProgressStatus
-} from '@features/progress/progressSlice' // Adjust path
+} from '@features/progress/progressSlice'
 
-// Mock data - replace or remove once progress data is fetched
-const weeklyProgress = [
-  { day: 'Mon', minutes: 12 },
-  { day: 'Tue', minutes: 18 },
-  { day: 'Wed', minutes: 8 },
-  { day: 'Thu', minutes: 22 },
-  { day: 'Fri', minutes: 15 },
-  { day: 'Sat', minutes: 10 },
-  { day: 'Sun', minutes: 5 }
-]
+import { HomeHeader } from '@/components/home/HomeHeader'
+import { UserProgressSummary } from '@/components/home/UserProgressSummary'
+import { FeaturedArticles } from '@/components/home/FeaturedArticles'
+import { DailyChallenge } from '@/components/home/DailyChallenge'
 
 export default function HomeScreen() {
-  const router = useRouter()
   const dispatch = useDispatch<AppDispatch>()
   const { isDesktop } = useResponsiveDimensions()
 
-  // Auth State
   const isAuthenticated = useSelector(selectIsAuthenticated)
   const userState = useSelector((state: RootState) => selectUser(state))
 
-  // Article Pagination State
   const paginationKey = isAuthenticated
     ? `${userState?.id}-articles-feed`
     : 'articlesPublic'
@@ -69,22 +37,28 @@ export default function HomeScreen() {
       'articles',
       'articlePagination',
       paginationKey,
-      true
+      false
     )(state)
   )
 
-  // --- Progress State ---
   const progressSummary = useSelector(selectProgressSummary)
   const progressStatus = useSelector(selectProgressStatus)
-  // --- End Progress State ---
 
-  // Fetch initial data
   useEffect(() => {
-    // Fetch articles if needed
-    if (!pagination.isLoading && !pagination.error && articles.length < 5) {
+    // Fetch initial articles if not loading, no error, and list is empty or too short
+    if (
+      (pagination.currentPage === 0 &&
+        !pagination.isLoading &&
+        !pagination.error &&
+        articles.length === 0) ||
+      (!pagination.isLoading &&
+        !pagination.error &&
+        articles.length < 5 &&
+        pagination.currentPage > 0 &&
+        !pagination.hasReachedEnd) // Fetch more if initial fetch was small
+    ) {
       dispatch(fetchArticles(paginationKey, { reset: true }))
     }
-    // Fetch progress only if authenticated and not already fetched/loading
     if (isAuthenticated && progressStatus === 'idle') {
       dispatch(fetchProgressThunk())
     }
@@ -92,39 +66,32 @@ export default function HomeScreen() {
     dispatch,
     paginationKey,
     articles.length,
+    pagination,
     isAuthenticated,
     progressStatus
-  ]) // Added progress dependencies
+  ])
 
-  // --- Refresh Logic (Fetches both Articles and Progress if authenticated) ---
   const handleRefreshAction = useCallback(async () => {
-    // Make async
     console.log('HomeScreen: Refreshing...')
     const promises: Promise<any>[] = [
-      dispatch(fetchArticles(paginationKey, { reset: true })).unwrap() // Fetch articles
+      dispatch(fetchArticles(paginationKey, { reset: true }))
     ]
     if (isAuthenticated) {
-      promises.push(dispatch(fetchProgressThunk()).unwrap()) // Fetch progress if logged in
+      promises.push(dispatch(fetchProgressThunk()))
     }
-    await Promise.all(promises) // Wait for all fetches to complete
-  }, [dispatch, paginationKey, isAuthenticated]) // Added isAuthenticated dependency
+    await Promise.all(promises)
+  }, [dispatch, paginationKey, isAuthenticated])
 
   const [isRefreshing, handleRefresh] = useRefresh(handleRefreshAction)
-  // --- End Refresh Logic ---
 
-  // Challenge Handler
-  const startChallengeAction = (challengeId: string) => {
+  const startChallengeAction = useCallback((challengeId: string) => {
     alert(`Starting challenge ${challengeId} (Not Implemented)`)
-  }
+  }, [])
+
   const handleStartChallenge = useRequireAuthAction(
     startChallengeAction,
     'Login to start the daily challenge.'
   )
-
-  const showArticleLoading = pagination.isLoading && articles.length === 0
-  // Loading state for progress section (only show if authenticated)
-  const showProgressLoading =
-    isAuthenticated && progressStatus === 'loading' && !progressSummary
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -142,196 +109,16 @@ export default function HomeScreen() {
           />
         }
       >
-        {/* --- Profile Section --- */}
+        <HomeHeader isAuthenticated={isAuthenticated} user={userState} />
 
-        <View style={styles.profileSection}>
-          <View style={styles.headerTextContainer}>
-            {isAuthenticated && userState ? (
-              <>
-                <Text style={styles.headerTitle}>
-                  Hei{' '}
-                  {nameParser(userState?.displayName || 'Duy Khanh Le', {
-                    ellipsis: ''
-                  })}
-                  ! 👋
-                </Text>
-                <Text style={styles.headerSubtitle}>
-                  Let's learn some Finnish today
-                </Text>
-              </>
-            ) : (
-              <>
-                <Text style={styles.headerTitle}>Tervetuloa! 👋</Text>
-                <Text style={styles.headerSubtitle}>
-                  Login to track your progress
-                </Text>
-              </>
-            )}
-          </View>
-          {isAuthenticated && userState ? (
-            <TouchableOpacity
-              onPress={() => router.push('/(main)/(tabs)/profile')}
-            >
-              <Image
-                source={{
-                  uri: `https://picsum.photos/seed/${userState.id}/80/80`
-                }}
-                style={styles.profileImage}
-              />
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              onPress={() => router.push('/(auth)/login')}
-              style={styles.loginButton}
-            >
-              <LogIn size={20} color={Colors.light.primary} />
-              <Text style={styles.loginButtonText}>Login</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+        <UserProgressSummary
+          progressSummary={progressSummary}
+          progressStatus={progressStatus}
+          isDesktop={isDesktop}
+        />
+        <FeaturedArticles articles={articles} pagination={pagination} />
 
-        {/* --- Streak & Progress (Conditional) --- */}
-        {isAuthenticated && (
-          <>
-            {/* Show loading indicator for progress if needed */}
-            {showProgressLoading && (
-              <View style={styles.centeredSection}>
-                <ActivityIndicator color={Colors.light.primary} />
-              </View>
-            )}
-            {/* Show progress summary if loaded */}
-            {progressSummary && progressStatus === 'succeeded' && (
-              <>
-                <View style={[styles.streakContainer, { marginBottom: 24 }]}>
-                  <View style={styles.streakInfo}>
-                    <Trophy size={20} color={Colors.light.accent} />
-                    <Text style={styles.streakText}>
-                      {/* Use fetched streak */}
-                      {progressSummary.streak.current_streak_days} day streak!
-                      Keep it up!
-                    </Text>
-                  </View>
-                  {/* TODO: Pass real streak data to DailyGoalChart if needed */}
-                  <DailyGoalChart data={weeklyProgress} />
-                </View>
-
-                <View
-                  style={[
-                    styles.section,
-                    isDesktop && styles.wideScreenSection
-                  ]}
-                >
-                  <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>Your Progress</Text>
-                    <Link href="/(main)/progress-details" asChild>
-                      <TouchableOpacity style={styles.seeAllButton}>
-                        <Text style={styles.seeAllText}>See all</Text>
-                        <ChevronRight
-                          size={16}
-                          color={Colors.light.textSecondary}
-                        />
-                      </TouchableOpacity>
-                    </Link>
-                  </View>
-                  <View style={styles.progressCardsContainer}>
-                    <ProgressCard
-                      icon={<Star size={20} color={Colors.light.primary} />}
-                      title="Vocabulary"
-                      // Use fetched count
-                      subtitle={`${progressSummary.learned_words_count} words learned`}
-                      // TODO: Calculate progress based on goals if available
-                      progress={0.45} // Placeholder
-                      color={Colors.light.primary}
-                    />
-                    <ProgressCard
-                      icon={
-                        <TrendingUp size={20} color={Colors.light.accent} />
-                      }
-                      title="Reading"
-                      // Use fetched count
-                      subtitle={`${progressSummary.articles_read_count} articles completed`}
-                      // TODO: Calculate progress based on goals if available
-                      progress={0.7} // Placeholder
-                      color={Colors.light.accent}
-                    />
-                  </View>
-                </View>
-              </>
-            )}
-            {/* Optional: Show progress fetch error */}
-            {progressStatus === 'failed' && !progressSummary && (
-              <View style={styles.centeredSection}>
-                <Text style={styles.errorText}>Could not load progress.</Text>
-              </View>
-            )}
-          </>
-        )}
-
-        {/* --- Featured Articles (Public) --- */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Featured Articles</Text>
-            <Link href="/(main)/(tabs)/reader" asChild>
-              <TouchableOpacity style={styles.seeAllButton}>
-                <Text style={styles.seeAllText}>See all</Text>
-                <ChevronRight size={16} color={Colors.light.textSecondary} />
-              </TouchableOpacity>
-            </Link>
-          </View>
-
-          {showArticleLoading ? (
-            <View style={styles.centeredSection}>
-              <ActivityIndicator size="large" color={Colors.light.primary} />
-            </View>
-          ) : (
-            <FlatList
-              data={articles}
-              keyExtractor={item => item.id}
-              horizontal
-              // showsHorizontalScrollIndicator={false}
-              renderItem={({ item }) => (
-                <ArticleCardWithThumbnail article={item} />
-              )}
-              ListEmptyComponent={
-                pagination.isLoading ? null : (
-                  <Text style={styles.emptyText}>
-                    No featured articles found.
-                  </Text>
-                )
-              }
-              contentContainerStyle={styles.articleList}
-              style={{ marginTop: 16 }}
-            />
-          )}
-        </View>
-
-        {/* --- Daily Challenge --- */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Daily Challenge</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.challengeCard}
-            onPress={() => handleStartChallenge('news_article_challenge')}
-          >
-            <View style={styles.challengeContent}>
-              <View style={styles.challengeIconContainer}>
-                <Trophy size={24} color={Colors.light.white} />
-              </View>
-              <View style={styles.challengeTextContainer}>
-                <Text style={styles.challengeTitle}>
-                  Complete a News Article
-                </Text>
-                <Text style={styles.challengeSubtitle}>
-                  Read and learn 5 new words
-                </Text>
-              </View>
-            </View>
-            <View style={styles.challengeContentRight}>
-              <ChevronRight size={20} color={Colors.light.textSecondary} />
-            </View>
-          </TouchableOpacity>
-        </View>
+        <DailyChallenge onStartChallenge={handleStartChallenge} />
       </ScrollView>
     </SafeAreaView>
   )
@@ -343,28 +130,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.light.background
   },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20
-  },
   centeredSection: {
     // Style for centering loading/error within a section
     height: 150, // Give it some height
     justifyContent: 'center',
     alignItems: 'center'
-  },
-  errorText: {
-    // Reusable error text
-    color: Colors.light.error,
-    fontSize: 14,
-    textAlign: 'center'
-  },
-  emptyText: {
-    textAlign: 'center',
-    marginTop: 50,
-    color: Colors.light.textSecondary
   },
   scrollContent: {
     padding: 20,
@@ -373,148 +143,6 @@ const styles = StyleSheet.create({
   wideScreenContent: {
     maxWidth: 1200,
     alignSelf: 'center',
-    width: '100%',
-    flexDirection: 'column'
-  },
-  profileSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24
-  },
-  headerTextContainer: { flex: 1, marginRight: 16 }, // Adjusted for spacing
-  headerTitle: {
-    fontFamily: 'Inter-Bold',
-    fontSize: 28,
-    color: Colors.light.text,
-    marginBottom: 4
-  },
-  headerSubtitle: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 16,
-    color: Colors.light.textSecondary
-  },
-  profileImage: { width: 50, height: 50, borderRadius: 25 }, // Adjusted size
-  loginButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.light.cardBackground,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: Colors.light.border
-  },
-  loginButtonText: {
-    marginLeft: 6,
-    color: Colors.light.primary,
-    fontWeight: '500',
-    fontFamily: 'Inter-Medium'
-  },
-  streakContainer: {
-    backgroundColor: Colors.light.cardBackground,
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: Colors.light.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 2
-  },
-  streakInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16
-  },
-  streakText: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 16,
-    color: Colors.light.text,
-    marginLeft: 8
-  },
-  section: {
-    marginBottom: 28
-  },
-  wideScreenSection: {
-    flexDirection: 'column'
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8
-  },
-  sectionTitle: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 18,
-    color: Colors.light.text
-  },
-  seeAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center'
-  },
-  seeAllText: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 14,
-    color: Colors.light.primary, // Changed color
-    marginRight: 2
-  },
-  progressCardsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 12,
-    gap: 12
-  },
-  articleList: {
-    paddingRight: 20 // Ensures last item isn't cut off visually
-  },
-  challengeCard: {
-    backgroundColor: Colors.light.cardBackground,
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: Colors.light.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 2,
     width: '100%'
-  },
-  challengeContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexShrink: 1,
-    marginRight: 8
-  },
-  challengeContentRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 'auto',
-    gap: 8
-  },
-  challengeIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.light.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12
-  },
-  challengeTextContainer: {
-    flex: 1
-  },
-  challengeTitle: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 16,
-    color: Colors.light.text,
-    marginBottom: 4
-  },
-  challengeSubtitle: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 14,
-    color: Colors.light.textSecondary
   }
 })

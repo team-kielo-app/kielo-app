@@ -2,7 +2,8 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { ProgressState, ProgressSummary } from './types'
 import { fetchProgressThunk } from './progressActions'
-import { Status } from '@types'
+import { RootState } from '@/store/store'
+import { ApiStatusType } from '@lib/api.d'
 
 const initialState: ProgressState = {
   summary: null,
@@ -48,5 +49,5 @@ export default progressSlice.reducer
 export const selectProgressSummary = (
   state: RootState
 ): ProgressSummary | null => state.progress.summary
-export const selectProgressStatus = (state: RootState): Status =>
+export const selectProgressStatus = (state: RootState): ApiStatusType =>
   state.progress.status

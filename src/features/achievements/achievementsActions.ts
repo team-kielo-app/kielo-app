@@ -2,6 +2,7 @@
 import { createAsyncThunk } from '@reduxjs/toolkit'
 import { apiClient } from '@lib/api'
 import { AppDispatch } from '@store/store'
+import { ApiError } from '@lib/ApiError'
 import { EarnedAchievement, AchievementListResponse } from './types'
 
 // Thunk for fetching earned achievements list
@@ -18,10 +19,13 @@ export const fetchEarnedAchievementsThunk = createAsyncThunk<
     )
     return response.achievements
   } catch (error: any) {
-    const message =
-      error?.data?.error ||
-      error?.message ||
-      'Failed to fetch earned achievements'
+    let message = 'Failed to fetch earned achievements. Please try again.'
+    if (error instanceof ApiError) {
+      message =
+        error.data?.detail || error.data?.message || error.message || message
+    } else if (error.message) {
+      message = error.message
+    }
     return rejectWithValue(message)
   }
 })

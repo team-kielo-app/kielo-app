@@ -5,7 +5,8 @@ import {
   fetchVocabularyThunk,
   updateVocabularyStatusThunk
 } from './vocabularyActions'
-import { Status } from '@types'
+import { ApiStatusType } from '@lib/api.d'
+import { RootState } from '@/store/store'
 
 const initialState: VocabularyState = {
   entries: [],
@@ -84,12 +85,12 @@ export default vocabularySlice.reducer
 // Selectors
 export const selectAllVocabulary = (state: RootState): UserVocabularyEntry[] =>
   state.vocabulary.entries
-export const selectVocabularyListStatus = (state: RootState): Status =>
+export const selectVocabularyListStatus = (state: RootState): ApiStatusType =>
   state.vocabulary.status
 export const selectVocabularyUpdateStatus = (
   state: RootState,
   baseWordId: string
-): Status | undefined => state.vocabulary.updateStatus[baseWordId]
+): StaApiStatusTypetus | undefined => state.vocabulary.updateStatus[baseWordId]
 export const selectVocabularyEntry = (
   state: RootState,
   baseWordId: string

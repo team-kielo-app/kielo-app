@@ -2,7 +2,8 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { ReadsState, ReadArticle } from './types'
 import { fetchReadsThunk, markArticleReadThunk } from './readsActions'
-import { Status } from '@types'
+import { RootState } from '@/store/store'
+import { ApiStatusType } from '@lib/api.d'
 
 const initialState: ReadsState = {
   readArticles: [],
@@ -73,7 +74,7 @@ export default readsSlice.reducer
 // Selectors
 export const selectAllReadArticles = (state: RootState): ReadArticle[] =>
   state.reads.readArticles
-export const selectReadsListStatus = (state: RootState): Status =>
+export const selectReadsListStatus = (state: RootState): ApiStatusType =>
   state.reads.status
 export const selectIsArticleRead = (
   state: RootState,
@@ -86,4 +87,4 @@ export const selectIsArticleRead = (
 export const selectMarkReadStatus = (
   state: RootState,
   articleVersionId: string
-): Status | undefined => state.reads.markReadStatus[articleVersionId]
+): ApiStatusType | undefined => state.reads.markReadStatus[articleVersionId]

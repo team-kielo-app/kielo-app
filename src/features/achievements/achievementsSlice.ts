@@ -2,7 +2,8 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { AchievementsState, EarnedAchievement } from './types'
 import { fetchEarnedAchievementsThunk } from './achievementsActions'
-import { Status } from '@types'
+import { ApiStatusType } from '@lib/api.d'
+import { RootState } from '@/store/store'
 
 const initialState: AchievementsState = {
   earnedAchievements: [],
@@ -48,5 +49,5 @@ export default achievementsSlice.reducer
 export const selectEarnedAchievements = (
   state: RootState
 ): EarnedAchievement[] => state.achievements.earnedAchievements
-export const selectAchievementsStatus = (state: RootState): Status =>
+export const selectAchievementsStatus = (state: RootState): ApiStatusType =>
   state.achievements.status

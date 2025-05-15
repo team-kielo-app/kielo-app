@@ -1,29 +1,37 @@
-// src/pagination/apiRequestThunkFactory.ts
-// --- NEW FILE: Optional extraction of the thunk factory ---
 import { seq } from 'transducers.js'
 import { apiClient } from '@lib/api'
-import { normalize } from 'normalizr'
-import { AppDispatch, RootState } from '@store/store' // Assuming types
-import { ThunkAction } from 'redux-thunk'
-import { PaginationMeta, EntityMeta } from './constants'
+import { normalize, Schema } from 'normalizr'
+import type { AppDispatch, RootState } from '@store/store'
+import type { ThunkAction } from 'redux-thunk'
+import type { PaginationMeta, EntityMeta } from './types'
 
 type ApiVerb = 'GET' | 'POST' | 'PUT' | 'DELETE'
 
 // Type for the parameters passed INTO the generated thunk
 interface ApiRequestParams {
   queryString?: string
-  body?: any
+  body?: Record<string, unknown> | unknown[] | undefined
   meta: PaginationMeta | EntityMeta
 }
+
+// Generic types for transform functions
+type TransformFunction<Input = any, Output = any> = (data: Input) => Output
+type BeforeTransform = TransformFunction
+type XfTransform = any
+type AfterTransform = TransformFunction
 
 // Type for the configuration of the factory itself
 interface ApiThunkConfig {
   types: [string, string, string] // Request, Success, Failure
   endpoint: string
   verb: ApiVerb
-  schema?: any // normalizr schema
-  transform?: [any?, any?, any?] // Optional transform function
-  cb?: (err: Error | null, res?: any) => void // Optional callback
+  schema?: Schema
+  transform?: [
+    before?: BeforeTransform,
+    xf?: XfTransform,
+    after?: AfterTransform
+  ]
+  cb?: (err: Error | null, res?: any) => void
 }
 
 // Extracted Factory Function (~80 lines)
@@ -75,38 +83,17 @@ export function createApiRequestThunk({
         // 2. Normalize Data (if schema provided)
         let normalizedData: {
           result?: any
-          entities?: any
+          entities?: Record<string, Record<string, any>> // More specific type
           [key: string]: any
         } = {}
         if (schema && dataToProcess) {
           normalizedData = normalize(dataToProcess, schema)
         } else {
-          // Fallback structure if no schema: try to extract common fields
-          normalizedData.result = Array.isArray(dataToProcess)
-            ? dataToProcess.map((item: any) => item?.id ?? item?.key) // Extract IDs
-            : dataToProcess?.id ?? dataToProcess?.key // Single item ID?
-
-          // Pass through common pagination/response fields if they exist on raw response
-          if (response) {
-            if (response.nextPageKey !== undefined)
-              normalizedData.nextPageKey = response.nextPageKey
-            if (response.prevPageKey !== undefined)
-              normalizedData.prevPageKey = response.prevPageKey
-            if (response.totalCount !== undefined)
-              normalizedData.totalCount = response.totalCount
-            // If data was nested (e.g., response.items) and no transform/schema handled it:
-            if (
-              !normalizedData.result &&
-              response.items &&
-              Array.isArray(response.items)
-            ) {
-              normalizedData.result = response.items.map(
-                (item: any) => item?.id ?? item?.key
-              )
-            }
-          }
-          // Ensure entities field exists, even if empty
-          if (!normalizedData.entities) normalizedData.entities = {}
+          // If no schema, pass dataToProcess through, primarily for non-entity responses
+          // The `result` field will be based on dataToProcess itself.
+          // Ensure entities is an empty object if no schema.
+          normalizedData.result = dataToProcess // Or handle as needed if dataToProcess is not the "result"
+          normalizedData.entities = {}
         }
 
         // Ensure pagination fields exist on the final response object for the reducer

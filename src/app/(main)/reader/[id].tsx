@@ -1,26 +1,15 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
-  Animated,
-  Pressable,
   ActivityIndicator
 } from 'react-native'
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
-import {
-  ArrowLeft,
-  Bookmark,
-  Share,
-  BookmarkCheck,
-  X,
-  PlayCircle,
-  Volume2
-} from 'lucide-react-native'
+import { ArrowLeft, X, Volume2 } from 'lucide-react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useSelector, useDispatch } from 'react-redux'
 
@@ -31,21 +20,28 @@ import { AppDispatch, RootState } from '@store/store'
 import { selectEntityById } from '@pagination/selectors'
 import { useRequireAuthAction } from '@hooks/useRequireAuthAction'
 import { format } from 'date-fns'
-import { ParagraphRenderer } from '@components/ParagraphRenderer'
-import { selectIsItemSaved } from '@features/savedItems/savedItemsSlice' // Import selector
+import { selectIsItemSaved } from '@features/savedItems/savedItemsSlice'
 import {
   saveItemThunk,
   unsaveItemThunk
-} from '@features/savedItems/savedItemsActions' // Import actions
+} from '@features/savedItems/savedItemsActions'
 import { showAuthDebugToast } from '@lib/debugToast'
-import { useRefresh } from '@hooks/useRefresh' // --- Import useRefresh ---
+import { ArticleHeaderControls } from '@/components/reader/ArticleHeaderControls'
+import { ArticleMetadataDisplay } from '@/components/reader/ArticleMetadataDisplay'
+import { ArticleAudioPlayer } from '@/components/reader/ArticleAudioPlayer'
+import { ArticleParagraphsList } from '@/components/reader/ArticleParagraphsList'
+import { ArticleVocabularySection } from '@/components/reader/ArticleVocabularySection'
+import { TranslationModal } from '@/components/reader/TranslationModal'
+import { useRefresh } from '@hooks/useRefresh'
 import { RefreshControl } from 'react-native'
+import type { ArticleParagraph } from '@/features/articles/types'
 
 export default function ArticleScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const dispatch = useDispatch<AppDispatch>()
   const { isDesktop } = useResponsiveDimensions()
+  const insets = useSafeAreaInsets()
 
   const [isFetching, setIsFetching] = useState(false)
 
@@ -83,7 +79,6 @@ export default function ArticleScreen() {
   const [selectedParagraph, setSelectedParagraph] = useState<null | object>(
     null
   )
-  const translateAnimation = useRef(new Animated.Value(0)).current
 
   const handleGoBack = () => {
     if (router.canGoBack()) router.back()
@@ -113,9 +108,7 @@ export default function ArticleScreen() {
     setIsOptimisticallySaved(true) // Optimistic update
     showAuthDebugToast('info', 'Saving article...')
     try {
-      await dispatch(
-        saveItemThunk({ item_type: itemType, item_id: itemId })
-      ).unwrap()
+      await dispatch(saveItemThunk({ item_type: itemType, item_id: itemId }))
       showAuthDebugToast('success', 'Article Saved')
       // No need to setIsOptimisticallySaved(true) again, store will update eventually
     } catch (err: any) {
@@ -137,9 +130,7 @@ export default function ArticleScreen() {
     setIsOptimisticallySaved(false) // Optimistic update
     showAuthDebugToast('info', 'Unsacing article...')
     try {
-      await dispatch(
-        unsaveItemThunk({ item_type: itemType, item_id: itemId })
-      ).unwrap()
+      await dispatch(unsaveItemThunk({ item_type: itemType, item_id: itemId }))
       showAuthDebugToast('success', 'Article Unsaved')
       // Reducer handles removing from list, selector will update
     } catch (err: any) {
@@ -166,27 +157,11 @@ export default function ArticleScreen() {
 
   const handleTextSelection = (paragraph: object) => {
     if (!paragraph.translation_en) return
-
     setSelectedParagraph(paragraph)
-    Animated.timing(translateAnimation, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: true
-    }).start()
   }
   const closeTranslationModal = () => {
-    Animated.timing(translateAnimation, {
-      toValue: 0,
-      duration: 200,
-      useNativeDriver: true
-    }).start(() => {
-      setSelectedParagraph(null)
-    })
+    setSelectedParagraph(null)
   }
-  const translateY = translateAnimation.interpolate({
-    inputRange: [0, 1],
-    outputRange: [300, 0]
-  })
 
   const saveVocabularyAction = (word: string) => {
     closeTranslationModal()
@@ -201,6 +176,17 @@ export default function ArticleScreen() {
     // router.push({ pathname: '/(main)/brand/[id]', params: { id: article.brand.source_identifier } });
     alert(`Brand page for ${article?.brand?.display_name} not implemented yet.`)
   }
+
+  const handleShare = () => {
+    // TODO: Implement actual sharing logic (e.g., using Share from react-native)
+    alert('Share action not implemented')
+  }
+
+  const handlePlayArticleAudio = () => {
+    // TODO: Implement actual audio playback logic for the full article
+    alert('Full article audio playback not implemented yet.')
+  }
+
   const isLoadingArticle = isFetching && !article
 
   if (isLoadingArticle) {
@@ -254,39 +240,17 @@ export default function ArticleScreen() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View
           style={[
-            styles.articleHeaderControls,
-            isDesktop
-              ? styles.wideScreenHeaderControls
-              : styles.mobileHeaderControls
+            styles.articleHeaderControlsContainer,
+            { top: insets.top } // Position below status bar
           ]}
         >
-          <TouchableOpacity
-            style={styles.backButtonContainer}
-            onPress={handleGoBack}
-          >
-            <ArrowLeft size={22} color={Colors.light.white} />
-          </TouchableOpacity>
-          <View style={styles.headerRightButtons}>
-            <TouchableOpacity
-              style={styles.headerButton}
-              onPress={handleToggleSave}
-              disabled={isSaveLoading || !itemId} // Disable while loading or if no ID
-            >
-              {isSaveLoading ? (
-                <ActivityIndicator size="small" color={Colors.light.white} />
-              ) : isOptimisticallySaved ? ( // Use optimistic state for icon
-                <BookmarkCheck size={22} color={Colors.light.primary} /> // Indicate saved
-              ) : (
-                <Bookmark size={22} color={Colors.light.white} />
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.headerButton}
-              onPress={() => alert('Share action not implemented')}
-            >
-              <Share size={22} color={Colors.light.white} />
-            </TouchableOpacity>
-          </View>
+          <ArticleHeaderControls
+            onGoBack={handleGoBack}
+            onShare={handleShare} // Pass the new handler
+            isSaveLoading={isSaveLoading || !itemId} // Combined disabled state
+            isArticleSaved={isOptimisticallySaved}
+            isDesktop={isDesktop}
+          />
         </View>
 
         <ScrollView
@@ -316,150 +280,51 @@ export default function ArticleScreen() {
               isDesktop && styles.wideScreenArticleContainer
             ]}
           >
-            <View style={styles.articleMetadata}>
-              <Text style={styles.articleCategory}>
-                {article?.category?.toUpperCase()}
-              </Text>
-              <Text style={styles.articleDate}>{article?.date}</Text>
-            </View>
-            <Text style={styles.articleTitle}>{article?.title}</Text>
-            {article?.subtitle && (
-              <Text style={styles.articleSubtitle}>{article.subtitle}</Text>
+            <ArticleMetadataDisplay
+              article={article}
+              publicationDateFormatted={publicationDateFormatted}
+              onBrandPress={handleBrandPress}
+              isDesktop={isDesktop}
+            />
+
+            {/* Conditionally render if audio is available for the article */}
+            {article?.id && ( // Assuming audio availability is tied to article ID or a specific field
+              <ArticleAudioPlayer
+                articleId={article.id}
+                onPlayPress={handlePlayArticleAudio}
+              />
             )}
 
-            <View style={styles.tagsContainer}>
-              {article?.tags &&
-                article?.tags?.map(tag => (
-                  <Text key={tag} style={styles.tag}>
-                    {tag}
-                  </Text>
-                ))}
-            </View>
-
-            <View style={styles.metaContainer}>
-              <Pressable onPress={handleBrandPress}>
-                <Text style={styles.brand}>{article?.brand?.display_name}</Text>
-              </Pressable>
-              <Text style={styles.date}>{publicationDateFormatted}</Text>
-            </View>
-
-            {/* Optional Audio Player */}
-            <TouchableOpacity
-              style={styles.audioPlayerContainer}
-              onPress={() => alert('Audio Player (Not Implemented)')}
-            >
-              <View style={styles.audioPlayerContent}>
-                <PlayCircle size={24} color={Colors.light.primary} />
-                <Text style={styles.audioPlayerText}>Listen to Article</Text>
-              </View>
-              <View style={styles.audioDuration}>
-                <Text style={styles.audioDurationText}>4:32</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Paragraphs */}
-            <View style={styles.articleContent}>
-              {article?.paragraphs &&
-                article.paragraphs
-                  .sort((a, b) => a.paragraph_index - b.paragraph_index)
-                  .map(paragraph => (
-                    <ParagraphRenderer
-                      key={paragraph.paragraph_id || paragraph.paragraph_index}
-                      paragraph={paragraph}
-                      onShowTranslation={() => handleTextSelection(paragraph)}
-                    />
-                  ))}
-            </View>
+            <ArticleParagraphsList
+              paragraphs={article?.paragraphs}
+              onParagraphSelect={handleTextSelection} // Pass the selection handler
+            />
             <View style={styles.sourceContainer}>
               <Text style={styles.sourceText}>
-                Source: {article?.brand?.display_name}
+                Source: {article?.brand?.display_name || 'Unknown Source'}
               </Text>
             </View>
           </View>
 
-          {/* Vocabulary Section */}
-          {article?.vocabulary && article?.vocabulary.length > 0 && (
-            <View
-              style={[
-                styles.vocabularySection,
-                isDesktop && styles.wideScreenVocabularySection
-              ]}
-            >
-              <Text style={styles.vocabularySectionTitle}>Key Vocabulary</Text>
-              {article?.vocabulary.map((item, index) => (
-                <View key={index} style={styles.vocabularyItem}>
-                  <View style={styles.vocabularyWord}>
-                    <Text style={styles.finnishWord}>{item.word}</Text>
-                    <TouchableOpacity
-                      style={styles.audioButton}
-                      onPress={() => alert(`Play audio for ${item.word}`)}
-                    >
-                      <Volume2 size={16} color={Colors.light.primary} />
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={styles.englishTranslation}>
-                    {item.translation}
-                  </Text>
-                  <Text style={styles.exampleText}>"{item.example}"</Text>
-                </View>
-              ))}
-            </View>
-          )}
+          <ArticleVocabularySection
+            vocabulary={article?.vocabulary}
+            isDesktop={isDesktop}
+          />
         </ScrollView>
 
         {/* Translation Modal */}
-        {selectedParagraph && (
-          <View style={styles.modalOverlay}>
-            <TouchableOpacity
-              style={styles.modalBackdrop}
-              onPress={closeTranslationModal}
-            />
-            <Animated.View
-              style={[
-                styles.translationModal,
-                { transform: [{ translateY }] },
-                isDesktop && styles.wideScreenModal
-              ]}
-            >
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Translate</Text>
-                <TouchableOpacity onPress={closeTranslationModal}>
-                  <X size={20} color={Colors.light.text} />
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView showsVerticalScrollIndicator={true} bounces={false}>
-                <View style={styles.originalTextContainer}>
-                  <Text style={styles.originalText}>
-                    {selectedParagraph.original_text_fi}
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.audioButton}
-                    onPress={() => alert(`Play audio for selection`)}
-                  >
-                    <Volume2 size={18} color={Colors.light.primary} />
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.translationContainer}>
-                  <Text style={styles.translationText}>
-                    {selectedParagraph.translation_en}
-                  </Text>
-                </View>
-              </ScrollView>
-
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={styles.actionButton}
-                  onPress={() => handleSaveVocabulary(selectedParagraph || '')}
-                >
-                  <Text style={styles.actionButtonText}>
-                    Save to Vocabulary
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </Animated.View>
-          </View>
-        )}
+        <TranslationModal
+          isVisible={selectedParagraph !== null}
+          selectedParagraph={selectedParagraph as ArticleParagraph | null} // Cast because state can be generic object initially
+          onClose={closeTranslationModal}
+          onSaveVocabulary={(original, translated) => {
+            // Adapt handleSaveVocabulary if you need original and translated text
+            // For now, it expects a single 'word' string.
+            // We might need to adjust how 'saveVocabularyAction' works or what it expects.
+            handleSaveVocabulary(original) // Passing original text for now
+          }}
+          isDesktop={isDesktop}
+        />
       </SafeAreaView>
     </>
   )
@@ -491,7 +356,8 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 40 // Ensure space at the bottom
+    paddingBottom: 40, // Ensure space at the bottom
+    zIndex: 1
   },
   wideScreenContent: {
     alignItems: 'center'
@@ -504,23 +370,11 @@ const styles = StyleSheet.create({
     height: 100,
     zIndex: 2
   },
-  articleHeaderControls: {
+  articleHeaderControlsContainer: {
     position: 'absolute',
-    top: 0,
     left: 0,
     right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
     zIndex: 3
-  },
-  mobileHeaderControls: {
-    marginTop: 50
-  },
-  wideScreenHeaderControls: {
-    marginTop: 10,
-    marginHorizontal: 20
   },
   backButtonContainer: {
     width: 40,
@@ -549,52 +403,14 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: Colors.light.background,
     marginTop: 40, // Pull content up slightly over image bottom
-    borderTopLeftRadius: 20, // Rounded corners
-    borderTopRightRadius: 20,
     zIndex: 1 // Ensure content is above image if overlap occurs
   },
   wideScreenArticleContainer: {
-    maxWidth: 760,
+    // This style applies to the main content container in ArticleScreen
+    maxWidth: 760, // Max width for the content area on desktop
     width: '100%',
-    marginTop: 0, // No overlap needed on wide screen
-    borderRadius: 0
-  },
-  articleMetadata: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-    marginTop: 10 // Add margin after pulling up
-  },
-  articleCategory: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 14,
-    color: Colors.light.primary
-  },
-  articleDate: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 14,
-    color: Colors.light.textSecondary
-  },
-  articleTitle: {
-    fontFamily: 'Inter-Bold',
-    fontSize: 24,
-    color: Colors.light.text,
-    marginBottom: 8,
-    lineHeight: 32
-  },
-  articleSubtitle: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 16,
-    color: Colors.light.textSecondary,
-    marginBottom: 20,
-    lineHeight: 24
-  },
-  metaContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-    gap: 10 // Spacing between brand and date
+    borderRadius: 0, // No rounding needed if not visually distinct from background
+    paddingTop: 20 // Add padding at the top if marginTop is 0
   },
   brand: {
     fontSize: 15,
@@ -614,34 +430,6 @@ const styles = StyleSheet.create({
     gap: 6
   },
   tag: {
-    backgroundColor: Colors.light.backgroundLight,
-    color: Colors.light.textSecondary,
-    fontSize: 11,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    overflow: 'hidden', // Ensure text respects padding
-    fontFamily: 'Inter-Medium'
-  },
-  audioPlayerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.light.cardBackground,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 24,
-    shadowColor: Colors.light.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1
-  },
-  audioPlayerContent: {
-    flexDirection: 'row',
-    alignItems: 'center'
-  },
-  audioPlayerText: {
     fontFamily: 'Inter-Medium',
     fontSize: 14,
     color: Colors.light.text,
@@ -649,24 +437,7 @@ const styles = StyleSheet.create({
   },
   audioDuration: {
     backgroundColor: Colors.light.backgroundLight,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4
-  },
-  audioDurationText: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 12,
-    color: Colors.light.textSecondary
-  },
-  articleContent: {
     marginBottom: 24
-  },
-  paragraph: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 16,
-    color: Colors.light.text,
-    lineHeight: 26, // Slightly increase line height for readability
-    marginBottom: 16
   },
   sourceContainer: {
     borderTopWidth: 1,
@@ -678,167 +449,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.light.textSecondary,
     fontStyle: 'italic'
-  },
-  vocabularySection: {
-    padding: 20,
-    backgroundColor: Colors.light.cardBackground
-    // borderTopWidth: 1, // Removed top border for cleaner look
-    // borderTopColor: Colors.light.border,
-  },
-  wideScreenVocabularySection: {
-    maxWidth: 760,
-    width: '100%',
-    borderRadius: 12,
-    marginTop: 24,
-    marginBottom: 40,
-    borderTopWidth: 0, // Ensure no top border on wide screen either
-    padding: 20 // Ensure padding on wide screen
-  },
-  vocabularySectionTitle: {
-    fontFamily: 'Inter-Bold',
-    fontSize: 18,
-    color: Colors.light.text,
-    marginBottom: 16
-  },
-  vocabularyItem: {
-    marginBottom: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
-    // Remove border from last item
-    '&:last-child': {
-      borderBottomWidth: 0,
-      marginBottom: 0,
-      paddingBottom: 0
-    }
-  },
-  vocabularyWord: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-    justifyContent: 'space-between' // Space out word and button
-  },
-  finnishWord: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 16,
-    color: Colors.light.text,
-    marginRight: 8,
-    flexShrink: 1 // Allow word to wrap
-  },
-  audioButton: {
-    padding: 4
-  },
-  englishTranslation: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 14,
-    color: Colors.light.primary,
-    marginBottom: 4
-  },
-  exampleText: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 14,
-    color: Colors.light.textSecondary,
-    fontStyle: 'italic'
-  },
-  modalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'flex-end', // Modal appears at bottom
-    alignItems: 'center'
-  },
-  modalBackdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)'
-  },
-  translationModal: {
-    backgroundColor: Colors.light.background,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 20,
-    paddingBottom: 30, // Add padding at the bottom
-    width: '100%',
-    maxHeight: '60%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    flex: 1,
-    elevation: 10
-  },
-  wideScreenModal: {
-    maxWidth: 600,
-    borderRadius: 16,
-    marginBottom: 40 // Add margin from bottom on wide screens
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-    borderBottomWidth: 1, // Add separator
-    borderBottomColor: Colors.light.border,
-    paddingBottom: 10
-  },
-  modalTitle: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 18,
-    color: Colors.light.text
-  },
-  originalTextContainer: {
-    backgroundColor: Colors.light.cardBackground,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    flexDirection: 'row',
-    alignItems: 'flex-start', // Align items to top for multi-line text
-    justifyContent: 'space-between' // Space out text and button
-  },
-  originalText: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 16,
-    color: Colors.light.text,
-    flex: 1, // Allow text to take space
-    marginRight: 8,
-    lineHeight: 24
-  },
-  translationContainer: {
-    backgroundColor: Colors.light.backgroundLight,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    minHeight: 60 // Ensure some minimum height
-  },
-  translationText: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 16,
-    color: Colors.light.text,
-    lineHeight: 24
-  },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'center' // Center button
-  },
-  actionButton: {
-    backgroundColor: Colors.light.primary,
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1, // Make button take full width
-    maxWidth: 300, // Max width for button
-    alignSelf: 'center'
-  },
-  actionButtonText: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 14,
-    color: Colors.light.white
   }
 })

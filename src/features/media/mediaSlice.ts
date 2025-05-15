@@ -3,7 +3,7 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit'
 import { MediaState, MediaMetadata } from './types'
 import { apiClient } from '@lib/api' // Your API client
 import { AppDispatch, RootState } from '@store/store' // Your store types
-import { Status } from '@types'
+import { ApiStatusType } from '@/lib/api.d'
 
 const initialState: MediaState = {
   metadataById: {},
@@ -111,7 +111,7 @@ export const selectMediaMetadata = (
 export const selectMediaStatus = (
   state: RootState,
   mediaId: string
-): Status | undefined => state.media.statusById[mediaId]
+): ApiStatusType | undefined => state.media.statusById[mediaId]
 export const selectMediaError = (
   state: RootState,
   mediaId: string

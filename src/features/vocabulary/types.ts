@@ -1,5 +1,4 @@
-// src/features/vocabulary/types.ts
-import { Status } from '@types'
+import { ApiStatusType } from '@lib/api.d'
 
 // Assuming a structure for BaseWord included in the response
 interface BaseWordSnippet {
@@ -35,7 +34,7 @@ export interface UpdateVocabularyPayload {
 // Redux state for this slice
 export interface VocabularyState {
   entries: UserVocabularyEntry[] // The list of vocabulary entries
-  status: Status // Status for LISTING entries
+  status: ApiStatusType
   error: string | null
   // Optional: Track status for individual word updates
   updateStatus: { [baseWordId: string]: Status }

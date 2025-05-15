@@ -1,12 +1,12 @@
-// src/features/vocabulary/vocabularyActions.ts
 import { createAsyncThunk } from '@reduxjs/toolkit'
 import { apiClient } from '@lib/api'
-import { AppDispatch, RootState } from '@store/store'
+import { AppDispatch } from '@store/store'
 import {
   UserVocabularyEntry,
   VocabularyListResponse,
   UpdateVocabularyPayload
 } from './types'
+import { ApiError } from '@lib/ApiError'
 
 // Thunk for fetching vocabulary list
 export const fetchVocabularyThunk = createAsyncThunk<
@@ -25,8 +25,13 @@ export const fetchVocabularyThunk = createAsyncThunk<
     )
     return response.vocabulary
   } catch (error: any) {
-    const message =
-      error?.data?.error || error?.message || 'Failed to fetch vocabulary'
+    let message = 'Failed to fetch vocabulary. Please try again.'
+    if (error instanceof ApiError) {
+      message =
+        error.data?.detail || error.data?.message || error.message || message
+    } else if (error.message) {
+      message = error.message
+    }
     return rejectWithValue(message)
   }
 })
@@ -49,10 +54,13 @@ export const updateVocabularyStatusThunk = createAsyncThunk<
     )
     return updatedEntry
   } catch (error: any) {
-    const message =
-      error?.data?.error ||
-      error?.message ||
-      'Failed to update vocabulary status'
+    let message = 'Failed to update vocabulary status. Please try again.'
+    if (error instanceof ApiError) {
+      message =
+        error.data?.detail || error.data?.message || error.message || message
+    } else if (error.message) {
+      message = error.message
+    }
     return rejectWithValue({ message, base_word_id: payload.base_word_id })
   }
 })

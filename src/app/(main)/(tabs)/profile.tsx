@@ -7,8 +7,7 @@ import {
   Image,
   TouchableOpacity,
   FlatList,
-  ActivityIndicator,
-  useWindowDimensions // Import dimension hook
+  ActivityIndicator
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import {
@@ -17,7 +16,9 @@ import {
   CheckCircle,
   BarChart,
   Award,
-  Calendar
+  Calendar,
+  Zap,
+  Clock
 } from 'lucide-react-native'
 import { Colors } from '@constants/Colors'
 import { ArticleCardWithThumbnail } from '@/components/reader/ArticleCardWithThumbnail'
@@ -184,6 +185,12 @@ export default function ProfileScreen() {
           label: 'Day Streak',
           value: progressSummary.streak.current_streak_days,
           icon: <Calendar size={18} color={Colors.light.warning} />
+        },
+        {
+          id: 'exercises',
+          label: 'Exercises Done',
+          value: progressSummary.exercises_completed_count,
+          icon: <Zap size={18} color={Colors.light.success} />
         }
       ]
     : [] // Empty array if summary not loaded
@@ -227,14 +234,28 @@ export default function ProfileScreen() {
             <View style={styles.learningStatus}>
               <View style={styles.progressContainer}>
                 <ProgressRing
-                  progress={0.32}
+                  progress={progressSummary?.progress_to_next_level ?? 0}
                   size={60}
                   strokeWidth={6}
                   color={Colors.light.primary}
                 />
                 <View style={styles.progressTextContainer}>
-                  <Text style={styles.progressPercentage}>32%</Text>
-                  <Text style={styles.progressLabel}>Level 1</Text>
+                  {/* Display level and percentage */}
+                  {progressSummary ? (
+                    <>
+                      <Text style={styles.progressPercentage}>
+                        {Math.round(
+                          (progressSummary.progress_to_next_level ?? 0) * 100
+                        )}
+                        %
+                      </Text>
+                      <Text style={styles.progressLabel}>
+                        Level {progressSummary.level}
+                      </Text>
+                    </>
+                  ) : progressStatus === 'loading' ? (
+                    <ActivityIndicator size="small" />
+                  ) : null}
                 </View>
               </View>
               <View style={styles.divider} />
@@ -270,6 +291,50 @@ export default function ProfileScreen() {
             <Text style={styles.errorTextSmall}>Failed to load stats</Text>
           )}
         </View>
+
+        {/* --- Category Progress --- */}
+        {progressSummary?.category_progress &&
+          progressSummary.category_progress.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Time Spent by Category</Text>
+              </View>
+              <View style={styles.categoryProgressContainer}>
+                {progressSummary.category_progress.map(catProg => (
+                  <View key={catProg.category} style={styles.categoryItem}>
+                    <Text style={styles.categoryName}>{catProg.category}</Text>
+                    <View style={styles.categoryBarContainer}>
+                      {/* Simple bar representation, could use a library */}
+                      <View
+                        style={[
+                          styles.categoryBar,
+                          {
+                            width: `${Math.min(
+                              100,
+                              (catProg.time_spent_minutes /
+                                (progressSummary.total_study_time_minutes ||
+                                  1)) *
+                                100
+                            )}%`
+                          }
+                        ]}
+                      />
+                    </View>
+                    <Text style={styles.categoryTime}>
+                      {catProg.time_spent_minutes} min
+                    </Text>
+                  </View>
+                ))}
+                <View style={styles.totalTimeContainer}>
+                  <Clock size={16} color={Colors.light.textSecondary} />
+                  <Text style={styles.totalTimeText}>
+                    Total Study Time: {progressSummary.total_study_time_minutes}{' '}
+                    minutes
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
 
         {/* Saved Articles Section */}
         <View style={styles.section}>
@@ -615,5 +680,61 @@ const styles = StyleSheet.create({
     marginTop: 10,
     textAlign: 'center',
     fontFamily: 'Inter-Regular'
+  },
+  categoryProgressContainer: {
+    backgroundColor: Colors.light.cardBackground,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: Colors.light.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 2
+  },
+  categoryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10
+  },
+  categoryName: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 14,
+    color: Colors.light.text,
+    width: 100 // Fixed width for category name
+  },
+  categoryBarContainer: {
+    flex: 1,
+    height: 8,
+    backgroundColor: Colors.light.backgroundLight,
+    borderRadius: 4,
+    marginHorizontal: 10,
+    overflow: 'hidden'
+  },
+  categoryBar: {
+    height: '100%',
+    backgroundColor: Colors.light.primary, // Use a consistent or category-specific color
+    borderRadius: 4
+  },
+  categoryTime: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+    minWidth: 50, // Ensure space for time
+    textAlign: 'right'
+  },
+  totalTimeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 15,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border,
+    justifyContent: 'center'
+  },
+  totalTimeText: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+    marginLeft: 6
   }
 })

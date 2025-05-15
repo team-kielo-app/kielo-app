@@ -20,6 +20,7 @@ import { Colors } from '@constants/Colors'
 
 import { DashboardSkeletonDesktop } from '@components/skeletons/DashboardSkeletonDesktop'
 import { DashboardSkeletonMobile } from '@components/skeletons/DashboardSkeletonMobile'
+import ErrorBoundary from '@/components/common/ErrorBoundary'
 
 import { useResponsiveDimensions } from '@hooks/useResponsiveDimensions'
 import useDeviceOrientation from './_hooks/useDeviceOrientation'
@@ -82,8 +83,10 @@ export default function RootLayout() {
 
   return (
     <Provider store={store}>
-      <RootLayoutNav />
-      <Toast />
+      <ErrorBoundary>
+        <RootLayoutNav />
+        <Toast />
+      </ErrorBoundary>
     </Provider>
   )
 }

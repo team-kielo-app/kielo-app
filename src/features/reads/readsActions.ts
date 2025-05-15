@@ -1,7 +1,7 @@
-// src/features/reads/readsActions.ts
 import { createAsyncThunk } from '@reduxjs/toolkit'
 import { apiClient } from '@lib/api'
 import { AppDispatch } from '@store/store'
+import { ApiError } from '@lib/ApiError'
 import { ReadArticle, ReadArticleListResponse, MarkReadPayload } from './types'
 
 // Thunk for fetching read articles list
@@ -18,8 +18,13 @@ export const fetchReadsThunk = createAsyncThunk<
     )
     return response.articles
   } catch (error: any) {
-    const message =
-      error?.data?.error || error?.message || 'Failed to fetch read articles'
+    let message = 'Failed to fetch read articles. Please try again.'
+    if (error instanceof ApiError) {
+      message =
+        error.data?.detail || error.data?.message || error.message || message
+    } else if (error.message) {
+      message = error.message
+    }
     return rejectWithValue(message)
   }
 })
@@ -41,9 +46,13 @@ export const markArticleReadThunk = createAsyncThunk<
     )
     return { ...response, article_version_id: payload.article_version_id }
   } catch (error: any) {
-    // Handle potential errors like already marked read (maybe API returns 4xx?)
-    const message =
-      error?.data?.error || error?.message || 'Failed to mark article as read'
+    let message = 'Failed to mark article as read. Please try again.'
+    if (error instanceof ApiError) {
+      message =
+        error.data?.detail || error.data?.message || error.message || message
+    } else if (error.message) {
+      message = error.message
+    }
     return rejectWithValue({
       message,
       article_version_id: payload.article_version_id

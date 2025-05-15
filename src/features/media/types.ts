@@ -1,5 +1,5 @@
 // src/features/media/types.ts
-import { Status } from '@types' // Your global Status type
+import { ApiStatusType } from '@lib/api.d'
 
 export interface MediaVariant {
   h: number
@@ -31,6 +31,6 @@ export interface MediaMetadata {
 
 export interface MediaState {
   metadataById: { [mediaId: string]: MediaMetadata | undefined }
-  statusById: { [mediaId: string]: Status }
+  statusById: { [mediaId: string]: ApiStatusType }
   errorById: { [mediaId: string]: string | null }
 }

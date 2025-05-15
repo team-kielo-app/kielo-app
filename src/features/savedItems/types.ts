@@ -1,22 +1,44 @@
-// src/features/savedItems/types.ts
-import { Status } from '@types'
-import { Article } from '@features/articles/types' // Import other item types if needed (BaseWord, etc.)
+import { ApiStatusType } from '@lib/api.d'
+import { Article } from '@features/articles/types'
 
-// Type for the 'item_details' which varies
-// Using Article for now, expand with BaseWordSnippet etc. as needed
-type SavedItemDetails =
-  | Article
-  | { id: string; word_fi?: string /* other word details*/ }
-  | null
+// Define snippet types if they are different from full entity types
+export interface BaseWordSnippet {
+  id: string // This would be the base_word_id
+  word_fi: string
+  basic_definition_en?: string
+  part_of_speech?: string
+}
 
-// Structure of a single saved item from the API list endpoint
-export interface SavedItem {
-  item_type: 'ArticleVersion' | 'BaseWord' | string // Be specific or allow string
+// type SavedItemDetails =
+//   | Article // Full article details
+//   | BaseWordSnippet // Snippet for base words
+//   | null // If details might be missing
+
+// Base interface for common SavedItem properties
+interface SavedItemBase {
   item_id: string
   saved_at: string // ISO Date string
   notes?: string | null
-  item_details?: SavedItemDetails // Populated by the list endpoint
 }
+
+// Structure of a single saved item from the API list endpoint
+export interface SavedArticleItem extends SavedItemBase {
+  item_type: 'ArticleVersion'
+  item_details?: Article | null // Assuming full article for now
+}
+
+export interface SavedBaseWordItem extends SavedItemBase {
+  item_type: 'BaseWord'
+  item_details?: BaseWordSnippet | null
+}
+
+// Add other item types like SavedGrammarConceptItem if needed
+// export interface SavedGrammarConceptItem extends SavedItemBase {
+//   item_type: 'GrammarConcept';
+//   item_details?: GrammarConceptSnippet | null;
+// }
+
+export type SavedItem = SavedArticleItem | SavedBaseWordItem // | SavedGrammarConceptItem;
 
 // Structure for POST request
 export interface SaveItemPayload {
@@ -34,9 +56,16 @@ export interface UnsaveItemPayload {
 // Redux state for this slice
 export interface SavedItemsState {
   items: SavedItem[]
-  status: Status // Status for LISTING items
+  status: ApiStatusType // Status for LISTING items
   error: string | null
   // Status tracking for individual save/unsave operations (optional, can be local state)
   // operationStatus: { [itemId: string]: Status };
   // operationError: { [itemId: string]: string | null };
+}
+
+export interface BaseWordSnippet {
+  id: string // This would be the base_word_id
+  word_fi: string
+  basic_definition_en?: string // Example field
+  part_of_speech?: string // Example field
 }

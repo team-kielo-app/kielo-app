@@ -14,7 +14,15 @@ export const useAppInitialization = (authStatus: ApiStatusType): void => {
 
   useEffect(() => {
     initializeDeviceToken()
-    console.log('Device token initialization triggered.')
+      .then(token => {
+        console.log(
+          'Device token initialization attempted from useAppInitialization. Token:',
+          token
+        )
+      })
+      .catch(err =>
+        console.error('Error during initial device token init:', err)
+      )
 
     if (authStatus === 'idle') {
       console.log('Auth status is idle, dispatching initializeAuthThunk...')

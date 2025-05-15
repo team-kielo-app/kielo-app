@@ -1,132 +1,68 @@
-// Helper utilities (assuming they are correctly placed in `src/pagination/utils.js`)
-export function sliceAdd(array, to, item) {
-  return item instanceof Array
-    ? [...array.slice(0, to), ...item, ...array.slice(to, array.length)]
-    : [...array.slice(0, to), item, ...array.slice(to, array.length)];
+/**
+ * Merges two arrays of strings, ensuring uniqueness.
+ * New items from arr2 are appended to arr1. Order of existing items in arr1 is preserved.
+ * Order of new items from arr2 (relative to each other) is preserved.
+ *
+ * @param {string[]} arr1 - The base array.
+ * @param {string[]} arr2 - The array to merge.
+ * @returns {string[]} The merged array with unique strings.
+ */
+export const uniqueStringsConcatOrder = (arr1 = [], arr2 = []) => {
+  if (!Array.isArray(arr1)) arr1 = []
+  if (!Array.isArray(arr2)) arr2 = []
+
+  if (!arr1.length) return [...new Set(arr2)] // Ensure arr2 is unique if arr1 is empty
+  if (!arr2.length) return [...arr1]
+
+  // Create a Set from arr1 for efficient `has` checks
+  const set1 = new Set(arr1)
+  // Filter items from arr2 that are not already in arr1
+  const newUniqueItems = arr2.filter(item => !set1.has(item))
+
+  return [...arr1, ...newUniqueItems]
 }
 
-const mapExistence = (arr1, arr2, keyGetter) =>
-  arr2.map((item2) => {
-    const existingIndex = arr1.findIndex(
-      (item1) => keyGetter(item1) === keyGetter(item2)
-    );
-    return {
-      key: keyGetter(item2),
-      exist: existingIndex !== -1,
-      index: existingIndex,
-    };
-  });
-
-const calculateAffectedRange = (updatedArr1, existenceMap, firstExistIndex) => {
-  const firstCommonIndex = updatedArr1.findIndex(
-    (item) => item === existenceMap[firstExistIndex]?.key // Adjust if comparing objects
-  );
-  const start =
-    firstCommonIndex >= 0 &&
-    firstExistIndex >= 0 &&
-    firstCommonIndex - firstExistIndex >= 0
-      ? firstCommonIndex - firstExistIndex
-      : updatedArr1.length;
-
-  return { start, end: start + existenceMap.length };
-};
-
-export const uniqueStringsConcatOrder = (arr1 = [], arr2 = []) => {
-  if (!arr1?.length) return [...arr2];
-  if (!arr2?.length) return [...arr1];
-
-  let updatedArr1 = [...arr1];
-  const existenceMap = mapExistence(updatedArr1, arr2, (item) => item);
-  const firstExistIndex = existenceMap.findIndex(({ exist }) => exist);
-
-  if (firstExistIndex === -1) {
-    // No common elements, simple concat based on intended order (assume arr2 comes after arr1)
-    return [...arr1, ...arr2];
-  }
-
-  const { start, end } = calculateAffectedRange(
-    updatedArr1,
-    existenceMap,
-    firstExistIndex
-  );
-
-  // Ensure indices are valid before looping
-  const safeStart = Math.max(0, start);
-  const safeEnd = Math.min(updatedArr1.length + arr2.length, end); // Estimate max possible length
-
-  for (let i = safeStart; i < safeEnd; i++) {
-    const normalizedIndex = i - safeStart;
-    if (normalizedIndex >= existenceMap.length) break; // Boundary check
-
-    const { key, exist } = existenceMap[normalizedIndex] || {};
-
-    if (!exist && normalizedIndex < arr2.length) {
-      // Ensure arr2[normalizedIndex] is valid
-      updatedArr1 = sliceAdd(updatedArr1, i, arr2[normalizedIndex]);
-    } else if (
-      key !== updatedArr1[i] &&
-      i > safeStart &&
-      i < updatedArr1.length
-    ) {
-      // If the existing item at this position doesn't match the expected key from arr2,
-      // and it's not the first common element, remove the misplaced item from updatedArr1.
-      // This handles cases where arr1 might have had items interleaved incorrectly.
-      updatedArr1.splice(i, 1);
-      i--; // Adjust loop counter after removal
-    }
-  }
-
-  return updatedArr1;
-};
-
+/**
+ * Merges two arrays of objects, ensuring uniqueness based on an identifier key.
+ * New items from arr2 are appended to arr1. Order of existing items in arr1 is preserved.
+ * Order of new items from arr2 (relative to each other) is preserved.
+ *
+ * @param {object[]} arr1 - The base array of objects.
+ * @param {object[]} arr2 - The array of objects to merge.
+ * @param {string} identifier - The key to use for identifying unique objects (e.g., "id", "key").
+ * @returns {object[]} The merged array with unique objects.
+ */
 export const uniqueObjectsConcatOrder = (
   arr1 = [],
   arr2 = [],
-  identifier = "key"
+  identifier = 'id' // Default to "id"
 ) => {
-  if (!arr1?.length) return [...arr2];
-  if (!arr2?.length) return [...arr1];
+  if (!Array.isArray(arr1)) arr1 = []
+  if (!Array.isArray(arr2)) arr2 = []
 
-  const keyGetter = (item) => item[identifier];
-  let updatedArr1 = [...arr1];
-  const existenceMap = mapExistence(updatedArr1, arr2, keyGetter);
-  const firstExistIndex = existenceMap.findIndex(({ exist }) => exist);
-
-  if (firstExistIndex === -1) {
-    // No common elements
-    return [...arr1, ...arr2];
-  }
-
-  const { start, end } = calculateAffectedRange(
-    updatedArr1,
-    existenceMap,
-    firstExistIndex
-  );
-
-  // Ensure indices are valid before looping
-  const safeStart = Math.max(0, start);
-  const safeEnd = Math.min(updatedArr1.length + arr2.length, end);
-
-  for (let i = safeStart; i < safeEnd; i++) {
-    const normalizedIndex = i - safeStart;
-    if (normalizedIndex >= existenceMap.length) break; // Boundary check
-
-    const { key, exist } = existenceMap[normalizedIndex] || {};
-
-    if (!exist && normalizedIndex < arr2.length) {
-      // Ensure arr2[normalizedIndex] is valid
-      updatedArr1 = sliceAdd(updatedArr1, i, arr2[normalizedIndex]);
-    } else if (
-      exist &&
-      i < updatedArr1.length &&
-      keyGetter(updatedArr1[i]) !== key &&
-      i > safeStart
-    ) {
-      // If the existing item at this position doesn't match the expected key from arr2, remove it.
-      updatedArr1.splice(i, 1);
-      i--; // Adjust loop counter
+  if (!arr1.length) {
+    // If arr1 is empty, ensure arr2 is unique before returning
+    const uniqueArr2 = []
+    const seenIds = new Set()
+    for (const item of arr2) {
+      const itemId = item?.[identifier]
+      if (itemId !== undefined && !seenIds.has(itemId)) {
+        uniqueArr2.push(item)
+        seenIds.add(itemId)
+      }
     }
+    return uniqueArr2
   }
+  if (!arr2.length) return [...arr1]
 
-  return updatedArr1;
-};
+  const arr1Ids = new Set(
+    arr1.map(item => item?.[identifier]).filter(id => id !== undefined)
+  )
+
+  const newUniqueItems = arr2.filter(item2 => {
+    const item2Id = item2?.[identifier]
+    return item2Id !== undefined && !arr1Ids.has(item2Id)
+  })
+
+  return [...arr1, ...newUniqueItems]
+}

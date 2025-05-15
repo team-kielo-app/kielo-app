@@ -14,6 +14,7 @@ import { RootState, AppDispatch, AppThunk } from '@store/store'
 import * as tokenStorage from '@lib/tokenStorage'
 import { showAuthDebugToast } from '@lib/debugToast'
 import { router } from 'expo-router'
+import { ApiError } from '@lib/ApiError'
 import { GoogleSignin } from '@react-native-google-signin/google-signin'
 
 export const loginRequest = (): actionTypes.LoginRequestAction => ({
@@ -165,11 +166,13 @@ export const loginUserThunk =
         })
       )
     } catch (error: any) {
-      const message =
-        error?.data?.error ||
-        error?.data?.message ||
-        error.message ||
-        'Login failed'
+      let message = 'Login failed. Please check your credentials.'
+      if (error instanceof ApiError) {
+        message =
+          error.data?.detail || error.data?.message || error.message || message
+      } else if (error.message) {
+        message = error.message
+      }
       dispatch(loginFailure(message))
       throw error
     }
@@ -200,11 +203,13 @@ export const loginWithSocialThunk =
         })
       )
     } catch (error: any) {
-      const message =
-        error?.data?.error ||
-        error?.data?.message ||
-        error.message ||
-        'Social login failed'
+      let message = 'Social login failed. Please try again.'
+      if (error instanceof ApiError) {
+        message =
+          error.data?.detail || error.data?.message || error.message || message
+      } else if (error.message) {
+        message = error.message
+      }
       dispatch(socialLoginFailure(message))
       throw error
     }
@@ -237,11 +242,13 @@ export const registerUserThunk =
         })
       )
     } catch (error: any) {
-      const message =
-        error?.data?.error ||
-        error?.data?.message ||
-        error.message ||
-        'Registration failed'
+      let message = 'Registration failed. Please try again.'
+      if (error instanceof ApiError) {
+        message =
+          error.data?.detail || error.data?.message || error.message || message
+      } else if (error.message) {
+        message = error.message
+      }
       dispatch(registerFailure(message))
       throw error
     }
@@ -260,11 +267,13 @@ export const requestPasswordResetThunk =
       dispatch(forgotPasswordSuccess(response.message))
       return response
     } catch (error: any) {
-      const message =
-        error?.data?.error ||
-        error?.data?.message ||
-        error.message ||
-        'Forgot password request failed'
+      let message = 'Could not send reset instructions. Please try again later.'
+      if (error instanceof ApiError) {
+        message =
+          error.data?.detail || error.data?.message || error.message || message
+      } else if (error.message) {
+        message = error.message
+      }
       dispatch(forgotPasswordFailure(message))
       throw error
     }
@@ -278,11 +287,13 @@ export const verifyResetTokenThunk =
       await apiClient.post<void>('/auth/verify-reset-token', payload, dispatch)
       dispatch(verifyResetTokenSuccess())
     } catch (error: any) {
-      const message =
-        error?.data?.error ||
-        error?.data?.message ||
-        error.message ||
-        'Invalid or expired token.'
+      let message = 'Invalid or expired verification code.'
+      if (error instanceof ApiError) {
+        message =
+          error.data?.detail || error.data?.message || error.message || message
+      } else if (error.message) {
+        message = error.message
+      }
       dispatch(verifyResetTokenFailure(message))
       throw error
     }
@@ -301,11 +312,13 @@ export const executePasswordResetThunk =
       dispatch(resetPasswordSuccess(response.message))
       return response
     } catch (error: any) {
-      const message =
-        error?.data?.error ||
-        error?.data?.message ||
-        error.message ||
-        'Password reset failed'
+      let message = 'Password reset failed. Please try again.'
+      if (error instanceof ApiError) {
+        message =
+          error.data?.detail || error.data?.message || error.message || message
+      } else if (error.message) {
+        message = error.message
+      }
       dispatch(resetPasswordFailure(message))
       throw error
     }
@@ -352,12 +365,18 @@ export const initializeAuthThunk =
         console.log('InitializeAuth: /auth/me fetch successful.')
         const currentState = getState().auth
         dispatch(
-          initializeAuthSuccess({
-            token: currentState.token!,
-            refreshToken: currentState.refreshToken!,
-            user: user,
-            expiresAt: currentState.expiresAt!
-          })
+          initializeAuthSuccess(
+            currentState.token &&
+              currentState.refreshToken &&
+              currentState.expiresAt
+              ? {
+                  token: currentState.token!,
+                  refreshToken: currentState.refreshToken!,
+                  user: user,
+                  expiresAt: currentState.expiresAt!
+                }
+              : null
+          )
         )
         showAuthDebugToast(
           'success',
@@ -367,10 +386,16 @@ export const initializeAuthThunk =
         console.log('InitializeAuth: Auth initialized successfully.')
       } catch (error: any) {
         console.error('InitializeAuth: /auth/me fetch failed.', error)
-        const message =
-          error?.data?.error ||
-          error?.data?.message ||
-          'Session invalid or expired.'
+        let message = 'Session invalid or expired.'
+        if (error instanceof ApiError) {
+          message =
+            error.data?.detail ||
+            error.data?.message ||
+            error.message ||
+            message
+        } else if (error.message) {
+          message = error.message
+        }
         showAuthDebugToast(
           'error',
           'Session Validation Failed',
