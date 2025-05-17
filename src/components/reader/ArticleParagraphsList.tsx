@@ -1,16 +1,42 @@
 import React from 'react'
 import { View, StyleSheet, Text } from 'react-native'
-import { ArticleParagraph } from '@features/articles/types'
+import {
+  ArticleParagraph,
+  WordOccurrence,
+  GrammarOccurrence
+} from '@features/articles/types'
 import { ParagraphRenderer } from '@components/ParagraphRenderer' // Assuming this is the correct path
 
 interface ArticleParagraphsListProps {
   paragraphs: ArticleParagraph[] | undefined | null
-  onParagraphSelect: (paragraph: ArticleParagraph) => void // Callback when a paragraph is selected for translation
+  onWordSelect: (
+    occurrence: WordOccurrence,
+    paragraph: ArticleParagraph,
+    layout: {
+      pageX: number
+      pageY: number
+      width: number
+      height: number
+    } | null
+  ) => void
+  onGrammarSelect: (
+    occurrence: GrammarOccurrence,
+    paragraph: ArticleParagraph,
+    layout: {
+      pageX: number
+      pageY: number
+      width: number
+      height: number
+    } | null
+  ) => void
+  focusedOccurrenceId?: string | null
 }
 
 export const ArticleParagraphsList: React.FC<ArticleParagraphsListProps> = ({
   paragraphs,
-  onParagraphSelect
+  onWordSelect,
+  onGrammarSelect,
+  focusedOccurrenceId
 }) => {
   if (!paragraphs || paragraphs.length === 0) {
     // Optionally, render a message or skeleton if paragraphs are loading/empty
@@ -35,9 +61,9 @@ export const ArticleParagraphsList: React.FC<ArticleParagraphsListProps> = ({
         <ParagraphRenderer
           key={paragraph.paragraph_id || paragraph.paragraph_index.toString()} // Ensure key is a string
           paragraph={paragraph}
-          onShowTranslation={() => onParagraphSelect(paragraph)}
-          // showTranslation prop was removed from ParagraphRenderer previously,
-          // the onPress directly triggers the modal in ArticleScreen
+          onWordSelect={onWordSelect}
+          onGrammarSelect={onGrammarSelect}
+          focusedOccurrenceId={focusedOccurrenceId}
         />
       ))}
     </View>

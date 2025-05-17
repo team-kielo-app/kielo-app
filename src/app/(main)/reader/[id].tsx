@@ -1,11 +1,17 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator
+  ActivityIndicator,
+  UIManager,
+  Pressable,
+  StyleSheet as RNStyleSheet,
+  findNodeHandle,
+  Platform,
+  StatusBar
 } from 'react-native'
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -32,9 +38,19 @@ import { ArticleAudioPlayer } from '@/components/reader/ArticleAudioPlayer'
 import { ArticleParagraphsList } from '@/components/reader/ArticleParagraphsList'
 import { ArticleVocabularySection } from '@/components/reader/ArticleVocabularySection'
 import { TranslationModal } from '@/components/reader/TranslationModal'
+import {
+  InteractiveDetailPopup,
+  PopupContentMode
+} from '@/components/reader/InteractiveDetailPopup' // New Popup
+import {
+  ArticleParagraph,
+  WordOccurrence,
+  GrammarOccurrence,
+  BaseWordDetail,
+  GrammarDetail // Import types
+} from '@features/articles/types'
 import { useRefresh } from '@hooks/useRefresh'
 import { RefreshControl } from 'react-native'
-import type { ArticleParagraph } from '@/features/articles/types'
 
 export default function ArticleScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -75,10 +91,27 @@ export default function ArticleScreen() {
 
   const [isRefreshing, handleRefresh] = useRefresh(handleRefreshAction)
 
-  const [isSavedLocally, setIsSavedLocally] = useState(false)
-  const [selectedParagraph, setSelectedParagraph] = useState<null | object>(
+  // State for the new InteractiveDetailPopup
+  const [popupVisible, setPopupVisible] = useState(false)
+  const [popupContentMode, setPopupContentMode] =
+    useState<PopupContentMode>(null)
+  const [currentWordOccForPopup, setCurrentWordOccForPopup] =
+    useState<WordOccurrence | null>(null)
+  const [currentGrammarOccForPopup, setCurrentGrammarOccForPopup] =
+    useState<GrammarOccurrence | null>(null)
+  const [focusedOccurrenceId, setFocusedOccurrenceId] = useState<string | null>(
     null
   )
+
+  const [popupPosition, setPopupPosition] = useState<{
+    screenY: number
+    screenX: number
+    width: number
+    height: number
+  } | null>(null)
+  const [isScrollLocked, setIsScrollLocked] = useState(false)
+
+  const scrollViewRef = useRef<ScrollView>(null)
 
   const handleGoBack = () => {
     if (router.canGoBack()) router.back()
@@ -145,7 +178,6 @@ export default function ArticleScreen() {
       setIsSaveLoading(false)
     }
   }
-
   const handleToggleSave = useRequireAuthAction(() => {
     if (isOptimisticallySaved) {
       // Check optimistic state for action
@@ -155,20 +187,137 @@ export default function ArticleScreen() {
     }
   }, 'Login to save this article?.')
 
-  const handleTextSelection = (paragraph: object) => {
-    if (!paragraph.translation_en) return
-    setSelectedParagraph(paragraph)
-  }
-  const closeTranslationModal = () => {
-    setSelectedParagraph(null)
-  }
+  const showPopupForOccurrence = useCallback(
+    (
+      layout: {
+        pageX: number
+        pageY: number
+        width: number
+        height: number
+      } | null,
+      mode: 'word' | 'grammar',
+      occurrenceId: string
+    ) => {
+      if (layout && (layout.width > 0 || layout.height > 0)) {
+        let finalPageY = layout.pageY
+        let finalPageX = layout.pageX
 
-  const saveVocabularyAction = (word: string) => {
-    closeTranslationModal()
-  }
-  const handleSaveVocabulary = useRequireAuthAction(
-    saveVocabularyAction,
+        // Attempt to subtract Android status bar height from pageY
+        // This assumes measureInWindow on Android includes the status bar
+        const statusBarHeight = StatusBar.currentHeight || 0
+        finalPageY += statusBarHeight
+
+        // It's also possible iOS includes safeArea.top in its pageY and Android doesn't,
+        // or vice-versa. This requires more experimentation.
+        // For now, let's focus on the Android status bar.
+
+        const newPopupPosition = {
+          screenY: finalPageY,
+          screenX: finalPageX,
+          width: layout.width,
+          height: layout.height
+        }
+
+        setPopupPosition(newPopupPosition)
+        setPopupContentMode(mode)
+        setFocusedOccurrenceId(occurrenceId)
+        setPopupVisible(true)
+        setIsScrollLocked(true)
+      } else {
+        console.warn('Could not get layout for popup.')
+        // Fallback or do nothing
+      }
+    },
+    []
+  )
+
+  const handleWordSelect = useCallback(
+    (
+      occurrence: WordOccurrence,
+      paragraph: ArticleParagraph,
+      layout: {
+        pageX: number
+        pageY: number
+        width: number
+        height: number
+      } | null
+    ) => {
+      setCurrentWordOccForPopup(occurrence)
+      setCurrentGrammarOccForPopup(null)
+      showPopupForOccurrence(layout, 'word', occurrence.occurrence_id)
+    },
+    [showPopupForOccurrence]
+  )
+
+  const handleGrammarSelect = useCallback(
+    (
+      occurrence: GrammarOccurrence,
+      paragraph: ArticleParagraph,
+      layout: {
+        pageX: number
+        pageY: number
+        width: number
+        height: number
+      } | null
+    ) => {
+      setCurrentWordOccForPopup(null)
+      setCurrentGrammarOccForPopup(occurrence)
+      showPopupForOccurrence(layout, 'grammar', occurrence.occurrence_id)
+    },
+    [showPopupForOccurrence]
+  )
+
+  const handleClosePopup = useCallback(() => {
+    setPopupVisible(false)
+    setFocusedOccurrenceId(null)
+    setPopupPosition(null)
+    setIsScrollLocked(false)
+    // Optional: Delay resetting data if needed for animations, but usually not necessary
+    // if the popup correctly handles null data.
+    // setCurrentWordOccForPopup(null);
+  }, [])
+
+  const saveWordAction = useCallback(
+    (baseWord: BaseWordDetail) => {
+      // TODO: Implement actual saving logic. This might involve:
+
+      console.log(
+        'Save Word action triggered for:',
+        baseWord.word_fi,
+        baseWord.base_word_id
+      )
+      showAuthDebugToast('info', 'Save Word', `Word: ${baseWord.word_fi}`)
+      // dispatch(addWordToVocabularyThunk(baseWord.base_word_id, ...));
+      // handleClosePopup(); // Or let user close manually
+    },
+    [handleClosePopup]
+  )
+
+  const handleSaveWord = useRequireAuthAction(
+    saveWordAction,
     'Login to save vocabulary.'
+  )
+
+  const saveGrammarAction = useCallback(
+    (grammarItem: GrammarDetail) => {
+      console.log(
+        'Save Grammar action triggered for:',
+        grammarItem.name_en,
+        grammarItem.grammar_id
+      )
+      showAuthDebugToast(
+        'info',
+        'Save Grammar Note',
+        `Note: ${grammarItem.name_en}`
+      )
+      // dispatch(addGrammarNoteThunk(grammarItem.grammar_id, ...));
+      // handleClosePopup();
+    },
+    [handleClosePopup]
+  )
+  const handleSaveGrammar = useRequireAuthAction(
+    saveGrammarAction,
+    'Login to save grammar notes.'
   )
 
   const handleBrandPress = () => {
@@ -246,6 +395,7 @@ export default function ArticleScreen() {
         >
           <ArticleHeaderControls
             onGoBack={handleGoBack}
+            onToggleSave={handleToggleSave}
             onShare={handleShare} // Pass the new handler
             isSaveLoading={isSaveLoading || !itemId} // Combined disabled state
             isArticleSaved={isOptimisticallySaved}
@@ -254,6 +404,7 @@ export default function ArticleScreen() {
         </View>
 
         <ScrollView
+          ref={scrollViewRef}
           // showsVerticalScrollIndicator={false}
           contentContainerStyle={[
             styles.scrollContent,
@@ -272,7 +423,6 @@ export default function ArticleScreen() {
             colors={['rgba(0,0,0,0.25)', 'transparent']}
             style={styles.headerGradient}
           />
-
           {/* Article Content Area */}
           <View
             style={[
@@ -287,8 +437,7 @@ export default function ArticleScreen() {
               isDesktop={isDesktop}
             />
 
-            {/* Conditionally render if audio is available for the article */}
-            {article?.id && ( // Assuming audio availability is tied to article ID or a specific field
+            {article?.id && (
               <ArticleAudioPlayer
                 articleId={article.id}
                 onPlayPress={handlePlayArticleAudio}
@@ -297,7 +446,9 @@ export default function ArticleScreen() {
 
             <ArticleParagraphsList
               paragraphs={article?.paragraphs}
-              onParagraphSelect={handleTextSelection} // Pass the selection handler
+              onWordSelect={handleWordSelect}
+              onGrammarSelect={handleGrammarSelect}
+              focusedOccurrenceId={focusedOccurrenceId}
             />
             <View style={styles.sourceContainer}>
               <Text style={styles.sourceText}>
@@ -312,19 +463,42 @@ export default function ArticleScreen() {
           />
         </ScrollView>
 
-        {/* Translation Modal */}
-        <TranslationModal
-          isVisible={selectedParagraph !== null}
-          selectedParagraph={selectedParagraph as ArticleParagraph | null} // Cast because state can be generic object initially
-          onClose={closeTranslationModal}
-          onSaveVocabulary={(original, translated) => {
-            // Adapt handleSaveVocabulary if you need original and translated text
-            // For now, it expects a single 'word' string.
-            // We might need to adjust how 'saveVocabularyAction' works or what it expects.
-            handleSaveVocabulary(original) // Passing original text for now
-          }}
-          isDesktop={isDesktop}
-        />
+        {/* Click-outside catcher and Popup */}
+        {popupVisible && (
+          <>
+            <Pressable
+              style={RNStyleSheet.absoluteFill} // Covers the whole screen
+              onPress={handleClosePopup}
+              accessibilityLabel="Close popup"
+              accessibilityRole="button"
+            />
+            {/* Render specific popup based on contentMode */}
+            {currentWordOccForPopup && popupContentMode === 'word' && (
+              <InteractiveDetailPopup
+                isVisible={popupVisible} // Controls animation within popup
+                contentMode={popupContentMode}
+                wordOccurrenceData={currentWordOccForPopup}
+                grammarOccurrenceData={null}
+                popupPosition={popupPosition}
+                onClose={handleClosePopup}
+                onSaveWord={handleSaveWord}
+                isDesktop={isDesktop}
+              />
+            )}
+            {currentGrammarOccForPopup && popupContentMode === 'grammar' && (
+              <InteractiveDetailPopup
+                isVisible={popupVisible}
+                contentMode={popupContentMode}
+                wordOccurrenceData={null}
+                grammarOccurrenceData={currentGrammarOccForPopup}
+                popupPosition={popupPosition}
+                onClose={handleClosePopup}
+                onSaveGrammar={handleSaveGrammar}
+                isDesktop={isDesktop}
+              />
+            )}
+          </>
+        )}
       </SafeAreaView>
     </>
   )
@@ -375,29 +549,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 3
-  },
-  backButtonContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backdropFilter: 'blur(10px)'
-  },
-  headerRightButtons: {
-    flexDirection: 'row',
-    gap: 12 // Use gap for spacing
-  },
-  headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backdropFilter: 'blur(10px)'
-    // marginLeft: 12, // Use gap instead
   },
   articleContainer: {
     padding: 20,

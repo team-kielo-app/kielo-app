@@ -33,12 +33,14 @@ export const ArticleHeaderControls: React.FC<ArticleHeaderControlsProps> = ({
           ? styles.wideScreenHeaderControls
           : styles.mobileHeaderControls
       ]}
+      pointerEvents="box-none"
     >
       <TouchableOpacity
         style={styles.backButtonContainer}
         onPress={onGoBack}
         accessibilityLabel="Go back"
         accessibilityRole="button"
+        pointerEvents="auto"
       >
         <ArrowLeft size={22} color={Colors.light.white} />
       </TouchableOpacity>
@@ -51,6 +53,7 @@ export const ArticleHeaderControls: React.FC<ArticleHeaderControlsProps> = ({
             isArticleSaved ? 'Unsave article' : 'Save article'
           }
           accessibilityRole="button"
+          pointerEvents="auto"
         >
           {isSaveLoading ? (
             <ActivityIndicator size="small" color={Colors.light.white} />
@@ -65,6 +68,7 @@ export const ArticleHeaderControls: React.FC<ArticleHeaderControlsProps> = ({
           onPress={onShare}
           accessibilityLabel="Share article"
           accessibilityRole="button"
+          pointerEvents="auto"
         >
           <Share size={22} color={Colors.light.white} />
         </TouchableOpacity>

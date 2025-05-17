@@ -45,31 +45,13 @@ export default function HomeScreen() {
   const progressStatus = useSelector(selectProgressStatus)
 
   useEffect(() => {
-    // Fetch initial articles if not loading, no error, and list is empty or too short
-    if (
-      (pagination.currentPage === 0 &&
-        !pagination.isLoading &&
-        !pagination.error &&
-        articles.length === 0) ||
-      (!pagination.isLoading &&
-        !pagination.error &&
-        articles.length < 5 &&
-        pagination.currentPage > 0 &&
-        !pagination.hasReachedEnd) // Fetch more if initial fetch was small
-    ) {
+    if (!pagination.isLoading && !pagination.error && articles.length < 5) {
       dispatch(fetchArticles(paginationKey, { reset: true }))
     }
     if (isAuthenticated && progressStatus === 'idle') {
       dispatch(fetchProgressThunk())
     }
-  }, [
-    dispatch,
-    paginationKey,
-    articles.length,
-    pagination,
-    isAuthenticated,
-    progressStatus
-  ])
+  }, [dispatch, paginationKey, progressStatus])
 
   const handleRefreshAction = useCallback(async () => {
     console.log('HomeScreen: Refreshing...')

@@ -56,6 +56,7 @@ export interface BaseWordDetail {
   cefr_level?: string // Optional as not all words might have it
   pronunciation_ipa?: string
   secondary_translations_en?: string[]
+  frequency_score?: number | null
   related_lemmas?: {
     antonyms?: string[]
     synonyms?: string[]
@@ -81,7 +82,6 @@ export interface WordOccurrence {
   start_char_offset: number
   end_char_offset: number
   sentence_text_fi: string
-  sentence_translation_en: string
   inflected_form_details?: InflectedFormDetails | null
   specific_explanation_en?: string | null
   is_kpt_change_example?: boolean
@@ -97,8 +97,7 @@ export interface GrammarDetail {
   example_translation_en?: string
   category: string
   cefr_level?: string
-  rule_summary_en?: string
-  example_structures?: Array<{ en_meaning: string; fi_pattern: string }>
+  example_structures?: string[]
   common_mistakes_en?: string
   related_concepts?: {
     contrasts_with?: string[]
@@ -127,18 +126,6 @@ export interface ArticleParagraph {
   original_text_fi: string
   translation_en: string
   audio_url?: string | null
-  word_occurrences?: WordOccurrence[] // Added
-  grammar_occurrences?: GrammarOccurrence[] // Added
-}
-
-export type ArticleType = {
-  id: string
-  title: string
-  publication_date: string
-  difficulty_score: ArticleDifficulty
-  thumbnail?: MediaMetadata
-  brand: ArticleBrand
-  tags: string[]
-  paragraphs: ArticleParagraph[] // Ensure this uses the updated ArticleParagraph
-  vocabulary?: VocabularyType[] // This was for the bottom-of-article list
+  word_occurrences?: WordOccurrence[]
+  grammar_occurrences?: GrammarOccurrence[]
 }

@@ -11,6 +11,7 @@ import { Link } from 'expo-router'
 import { ChevronRight } from 'lucide-react-native'
 import { Colors } from '@constants/Colors'
 import { ArticleCardWithThumbnail } from '@components/reader/ArticleCardWithThumbnail'
+import { CustomFlatList } from '@/components/common/CustomFlatList'
 import { Article } from '@features/articles/types' // Your Article type
 import { PaginationStateType } from '@pagination/types' // Your PaginationStateType
 
@@ -26,6 +27,9 @@ export const FeaturedArticles: React.FC<FeaturedArticlesProps> = ({
   pagination
 }) => {
   const showArticleLoading = pagination.isLoading && articles.length === 0
+  const renderItem = ({ item }: { item: Article }) => (
+    <ArticleCardWithThumbnail article={item} size="medium" />
+  )
 
   return (
     <View style={styles.section}>
@@ -48,25 +52,15 @@ export const FeaturedArticles: React.FC<FeaturedArticlesProps> = ({
           <ActivityIndicator size="large" color={Colors.light.primary} />
         </View>
       ) : (
-        <FlatList
-          data={articles}
-          keyExtractor={item => item.id}
+        <CustomFlatList
           horizontal
-          // showsHorizontalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <ArticleCardWithThumbnail article={item} size="medium" /> // Example size
-          )}
-          ListEmptyComponent={
-            pagination.isLoading ? null : ( // Don't show empty if still loading more
-              <Text style={styles.emptyText}>No featured articles found.</Text>
-            )
-          }
-          contentContainerStyle={styles.articleList}
-          style={{ marginTop: 16 }}
-          // If this component handles its own pagination fetching in the future:
-          // onEndReached={onEndReached}
-          // onEndReachedThreshold={0.5}
-          // ListFooterComponent={pagination.isLoadingMore ? <ActivityIndicator /> : null}
+          data={articles}
+          renderItem={renderItem} // Your existing renderItem
+          keyExtractor={item => item.id}
+          showScrollShadows={false}
+          // You can pass other FlatList props directly:
+          // initialNumToRender={5}
+          // windowSize={11}
         />
       )}
     </View>
