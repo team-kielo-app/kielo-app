@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react'
 import { Slot, SplashScreen } from 'expo-router'
 import { Provider, useSelector } from 'react-redux'
-import { ActivityIndicator, View, StyleSheet, Text } from 'react-native'
+import { View, StyleSheet, Text } from 'react-native'
+import { PersistGate } from 'redux-persist/integration/react'
 import Toast from 'react-native-toast-message'
 import {
   useFonts,
@@ -11,7 +12,7 @@ import {
   Inter_700Bold
 } from '@expo-google-fonts/inter'
 
-import { store } from '@store/store'
+import { store, persistor } from '@store/store'
 import {
   selectIsAuthenticated,
   selectAuthStatus
@@ -41,7 +42,7 @@ function RootLayoutNav() {
 
   useDeviceOrientation()
   useAppInitialization(authStatus)
-  useAuthRedirect(isAuthenticated, isLoadingAuth)
+  useAuthRedirect(isAuthenticated)
 
   useEffect(() => {
     if (!isLoadingAuth) {
@@ -82,12 +83,14 @@ export default function RootLayout() {
   }
 
   return (
-    <Provider store={store}>
-      <ErrorBoundary>
-        <RootLayoutNav />
-        <Toast />
-      </ErrorBoundary>
-    </Provider>
+    <ErrorBoundary>
+      <Provider store={store}>
+        <PersistGate loading={<CustomSplashScreen />} persistor={persistor}>
+          <RootLayoutNav />
+          <Toast />
+        </PersistGate>
+      </Provider>
+    </ErrorBoundary>
   )
 }
 

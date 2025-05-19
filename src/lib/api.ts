@@ -1,6 +1,6 @@
-import { store, AppDispatch } from '@store/store'
+import { store, AppDispatch } from '@store/store' // store is needed for isInitialized check
 import * as authActions from '@features/auth/authActions'
-import * as authSelectors from '@features/auth/authSelectors'
+// No longer importing authSelectors here for tokens
 import * as Device from 'expo-device'
 import { Platform } from 'react-native'
 import * as tokenStorage from '@lib/tokenStorage'
@@ -9,8 +9,77 @@ import { showAuthDebugToast } from './debugToast'
 import { ApiError } from './ApiError'
 import { API_URL } from './apiRoot'
 
+// --- Auth Initialization State Management ---
+let _isAuthInitialized = false
+let _authInitializationPromise: Promise<void> | null = null
+const _requestQueue: Array<{
+  resolve: (value: any) => void
+  reject: (reason?: any) => void
+  url: string
+  options: RequestInit
+  dispatch: AppDispatch
+}> = []
+
 const DEVICE_TOKEN_KEY = 'kielo_device_token'
 let _deviceToken: string | null = null
+
+/**
+ * Called by initializeAuthThunk when it completes (successfully or not).
+ * This will process any queued API requests.
+ */
+export const signalAuthInitialized = () => {
+  console.log(
+    'Auth has been initialized (or initialization attempt completed). Processing request queue.'
+  )
+  _isAuthInitialized = true
+  _processRequestQueue()
+}
+
+// This function is for initializeAuthThunk to await if needed,
+// though direct signaling is often better.
+// Not strictly necessary if signalAuthInitialized is reliably called.
+const ensureAuthInitialized = (): Promise<void> => {
+  if (_isAuthInitialized) {
+    return Promise.resolve()
+  }
+  if (!_authInitializationPromise) {
+    // This promise should ideally be the one returned by initializeAuthThunk,
+    // or a new one that gets resolved by signalAuthInitialized.
+    // For simplicity, let's create a new promise that signalAuthInitialized resolves.
+    _authInitializationPromise = new Promise(resolve => {
+      const check = () => {
+        if (_isAuthInitialized) {
+          resolve()
+        } else {
+          setTimeout(check, 100) // Check every 100ms
+        }
+      }
+      check()
+    })
+  }
+  return _authInitializationPromise
+}
+
+const _processRequestQueue = async () => {
+  while (_requestQueue.length > 0) {
+    const queuedRequest = _requestQueue.shift()
+    if (queuedRequest) {
+      console.log('Processing queued request for:', queuedRequest.url)
+      try {
+        // Re-call the internal _executeRequest function for queued items
+        const result = await _executeRequest(
+          queuedRequest.url,
+          queuedRequest.options,
+          queuedRequest.dispatch,
+          false // A queued request is not an initial retry for 401
+        )
+        queuedRequest.resolve(result)
+      } catch (error) {
+        queuedRequest.reject(error)
+      }
+    }
+  }
+}
 
 export const initializeDeviceToken = async (): Promise<string | null> => {
   if (_deviceToken) return _deviceToken
@@ -76,6 +145,7 @@ export const resetTokenRefreshFailure = () => {
 }
 
 const handleRefreshToken = async (
+  token: string | null,
   dispatch: AppDispatch
 ): Promise<string | null> => {
   // Use the tokenRefresher state
@@ -90,9 +160,8 @@ const handleRefreshToken = async (
     tokenRefresher.isRefreshing = true
     // tokenRefresher.hasFailedRecently = false; // Reset this at the start of an attempt
 
-    const currentRefreshToken =
-      authSelectors.selectRefreshToken(store.getState()) ||
-      (await tokenStorage.getStoredTokens()).refreshToken
+    const currentRefreshToken = (await tokenStorage.getStoredTokens())
+      .refreshToken
     if (!currentRefreshToken) {
       tokenRefresher.isRefreshing = false
       return null
@@ -113,7 +182,8 @@ const handleRefreshToken = async (
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Device-Token': currentDeviceToken || 'missing'
+            Authorization: `Bearer ${token}`,
+            ...(currentDeviceToken && { 'X-Device-Token': currentDeviceToken })
           },
           body: JSON.stringify({ refresh_token: currentRefreshToken })
         })
@@ -125,7 +195,6 @@ const handleRefreshToken = async (
           refresh_token?: string
           expires_in: number
         } = await response.json()
-        showAuthDebugToast('success', 'Token Refreshed')
         const newAccessToken = data.access_token
         const newRefreshToken = data.refresh_token
         const newExpiresAt = Date.now() + data.expires_in * 1000
@@ -148,14 +217,7 @@ const handleRefreshToken = async (
         tokenRefresher.hasFailedRecently = false // Successful refresh, clear failure flag
         return newAccessToken
       } catch (error) {
-        console.error('Failed to refresh token:', error)
-        showAuthDebugToast(
-          'error',
-          'Token Refresh Failed',
-          `Status: ${
-            (error as ApiError)?.status || 'Network Error'
-          }. Logging out.`
-        )
+        console.error('Failed to refresh token:', JSON.stringify(error))
         tokenRefresher.isRefreshing = false
         tokenRefresher.hasFailedRecently = true // Mark that refresh failed
         tokenRefresher.promise = null
@@ -170,7 +232,7 @@ const handleRefreshToken = async (
   }
 }
 
-const request = async <T>(
+const _executeRequest = async <T>(
   url: string,
   options: RequestInit = {},
   dispatch: AppDispatch,
@@ -187,16 +249,24 @@ const request = async <T>(
     // For now, let's proceed but log a warning. The backend might allow some initial calls without it.
   }
 
-  const state = store.getState()
-  let token = authSelectors.selectAuthToken(state)
-  const expiresAt = authSelectors.selectTokenExpiresAt(state)
+  const storedTokenData = await tokenStorage.getStoredTokens()
+  let token = storedTokenData.token
+  const expiresAt = storedTokenData.expiresAt
   const bufferSeconds = 60
 
   if (token && expiresAt && expiresAt - bufferSeconds * 1000 < Date.now()) {
-    console.log('Token expired or nearing expiry, attempting refresh...')
-    token = await handleRefreshToken(dispatch)
+    console.log(
+      `Token for ${url} expired or nearing expiry, attempting refresh...`
+    )
+    token = await handleRefreshToken(token, dispatch) // handleRefreshToken uses tokenStorage for refresh token
     if (!token && !url.includes('/auth/')) {
-      throw new Error('Authentication required or refresh failed.')
+      // Only throw if not an auth URL itself
+      // If refresh failed, handleRefreshToken would have dispatched logout or set failedRefresh state
+      // No need to throw "Authentication required" here if logout is already happening.
+      // The original request will fail due to lack of token if it's a protected route.
+      console.warn(
+        `Authentication token refresh failed or token is null for ${url}. Request might fail if token is required.`
+      )
     }
   }
 
@@ -210,61 +280,57 @@ const request = async <T>(
   }
 
   try {
-    const response = await fetch(`${API_URL}${url}`, {
-      ...options,
-      headers: headers
-    })
+    const response = await fetch(`${API_URL}${url}`, { ...options, headers })
+
     if (!response.ok) {
       if (
         response.status === 401 &&
         !isRetry &&
         !url.includes('/auth/refresh')
       ) {
-        console.log('Received 401 Unauthorized, attempting token refresh...')
-        const newToken = await handleRefreshToken(dispatch)
+        console.log(`Received 401 for ${url}, attempting token refresh...`)
+        const newToken = await handleRefreshToken(token, dispatch)
         if (newToken) {
           console.log(
-            'Refresh successful after 401, retrying original request...'
+            `Refresh successful after 401 for ${url}, retrying original request...`
           )
-          return request<T>(url, options, dispatch, true)
+          // Pass original options, not modified headers
+          return _executeRequest<T>(url, options, dispatch, true)
         } else {
-          showAuthDebugToast(
-            'error',
-            'Authentication Error',
-            `Session invalid or refresh failed for ${url}. Please log in again.`
+          // Refresh failed or no new token, error will be thrown below or logout handled
+          console.warn(
+            `Token refresh failed after 401 for ${url}. Original request will likely fail.`
           )
+          // Don't throw here, let the original error handling proceed.
+          // If logout happened, subsequent calls will fail until re-auth.
         }
       }
+      // Standard error processing
       let errorData
       try {
         errorData = await response.json()
       } catch (e) {
         errorData = await response.text()
       }
-      console.error('API Error:', response.status, errorData)
       const errorMessage =
         typeof errorData === 'string'
           ? errorData
-          : // Attempt to get a message from a common error structure
-            errorData?.message ||
+          : errorData?.message ||
             errorData?.error ||
             `HTTP error! status: ${response.status}`
-      const error = new ApiError(errorMessage, response.status, errorData)
-      throw error
+      throw new ApiError(errorMessage, response.status, errorData)
     }
+
     if (response.status === 204) return null as T
     const contentType = response.headers.get('content-type')
-    if (contentType && contentType.includes('application/json')) {
+    if (contentType?.includes('application/json'))
       return response.json() as Promise<T>
-    }
     return response.text() as any as Promise<T>
-  } catch (error) {
-    console.error(`Network or other error during fetch to ${url}:`, error)
-    // If it's not already an ApiError, wrap it for consistency upstream
-    // though thunks will likely catch and re-throw with specific messages.
+  } catch (error: any) {
+    console.error(`Error during _executeRequest to ${url}:`, error.message)
     if (!(error instanceof ApiError)) {
       throw new ApiError(
-        error.message || 'A network error occurred.',
+        error.message || 'A network or execution error occurred.',
         undefined,
         error
       )
@@ -272,6 +338,33 @@ const request = async <T>(
       throw error
     }
   }
+}
+
+const request = async <T>(
+  url: string,
+  options: RequestInit = {},
+  dispatch: AppDispatch
+): Promise<T> => {
+  // Check Redux state directly here for initialization status
+  // This creates a dependency on the store instance.
+  const authState = store.getState().auth
+  const initialCheckDone = authState.initialAuthChecked
+  const isCurrentlyLoadingAuth = authState.status === 'loading'
+
+  if (
+    !initialCheckDone ||
+    (isCurrentlyLoadingAuth && !url.startsWith('/auth/'))
+  ) {
+    console.log(
+      `Auth not yet initialized or loading. Queuing request for: ${url}`
+    )
+    return new Promise((resolve, reject) => {
+      _requestQueue.push({ resolve, reject, url, options, dispatch })
+    })
+  }
+  // If auth is initialized (even if session is invalid), proceed directly.
+  // _executeRequest will handle token presence and refresh if needed.
+  return _executeRequest(url, options, dispatch)
 }
 
 export const apiClient = {

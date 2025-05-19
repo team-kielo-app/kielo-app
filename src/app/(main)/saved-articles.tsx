@@ -18,21 +18,26 @@ import {
   unsaveItemThunk
 } from '@features/savedItems/savedItemsActions'
 import {
-  selectAllSavedItems,
-  selectSavedItemsStatus
+  selectSavedItemsStatus,
+  selectHydratedSavedArticles, // Use new selector for hydrated articles
+  selectSavedItemReferences // If you need to display other types or just the refs
 } from '@features/savedItems/savedItemsSlice'
-import { SavedItem, BaseWordSnippet } from '@features/savedItems/types'
 import { useRefresh } from '@hooks/useRefresh'
 import { Colors } from '@constants/Colors'
 import { showAuthDebugToast } from '@lib/debugToast'
 import { ArticleCardWithThumbnail } from '@components/reader/ArticleCardWithThumbnail'
 import { XCircle } from 'lucide-react-native'
 import { useResponsiveDimensions } from '@/hooks/useResponsiveDimensions'
+import type { Article } from '@/features/articles/types'
+import { CustomFlatList } from '@/components/common/CustomFlatList'
 
 export default function LibraryScreen() {
   const dispatch = useDispatch<AppDispatch>()
   const { isDesktop } = useResponsiveDimensions()
-  const savedItems = useSelector(selectAllSavedItems)
+  // Get hydrated articles. For other types, you'll need similar selectors or a combined one.
+  const savedArticles = useSelector(selectHydratedSavedArticles)
+  // If you need to display a mix or just the raw references:
+  // const savedItemReferences = useSelector(selectSavedItemReferences);
   const status = useSelector(selectSavedItemsStatus)
   const error = useSelector((state: RootState) => state.savedItems.error) // Get error state
 
@@ -40,7 +45,7 @@ export default function LibraryScreen() {
   // Using useEffect for simplicity, consider useFocusEffect for real navigation
   useEffect(() => {
     // Fetch only if idle or if data is empty (e.g., after logout/clear)
-    if (status === 'idle') {
+    if (status === 'idle' || savedArticles.length === 0) {
       console.log('LibraryScreen: Fetching saved items...')
       dispatch(fetchSavedItemsThunk())
     }
@@ -54,6 +59,18 @@ export default function LibraryScreen() {
     return dispatch(fetchSavedItemsThunk())
   }, [dispatch])
   const [isRefreshing, handleRefresh] = useRefresh(handleRefreshAction)
+
+  const refreshControlElement = React.useMemo(
+    () => (
+      <RefreshControl
+        refreshing={isRefreshing}
+        onRefresh={handleRefresh}
+        colors={[Colors.light.primary]}
+        tintColor={Colors.light.primary}
+      />
+    ),
+    [isRefreshing, handleRefresh]
+  )
 
   // --- Unsave Handler ---
   const handleUnsave = useCallback(
@@ -78,82 +95,34 @@ export default function LibraryScreen() {
   )
 
   // --- Render Item Logic ---
-  const renderSavedItem = useCallback(
-    ({ item }: { item: SavedItem }) => {
-      // Type narrowing for item_details is now handled by discriminated union
-      if (item.item_type === 'ArticleVersion') {
-        // item is now inferred as SavedArticleItem
-        return (
-          <View style={styles.itemContainer}>
-            {item.item_details && ( // Check if details exist
-              <ArticleCardWithThumbnail
-                article={item.item_details} // No 'as any' needed
-                size="small"
-              />
-            )}
-            {/* Consider a placeholder or message if item.item_details is null/undefined */}
-            {!item.item_details && (
-              <View style={styles.itemDetailMissing}>
-                <Text style={styles.itemDetailMissingText}>
-                  Article details loading or unavailable.
-                </Text>
-              </View>
-            )}
-            <TouchableOpacity
-              style={styles.unsaveButton}
-              onPress={() => handleUnsave(item.item_type, item.item_id)}
-            >
-              <XCircle size={22} color={Colors.light.error} />
-            </TouchableOpacity>
-          </View>
-        )
-      }
-      // Example for BaseWord
-      else if (item.item_type === 'BaseWord') {
-        // item is now inferred as SavedBaseWordItem
-        // You would render a specific WordCard component here
-        return (
-          <View style={[styles.itemContainer, styles.unknownItem]}>
-            {item.item_details && (
-              <Text style={styles.unknownText}>
-                Word: {item.item_details.word_fi} (
-                {item.item_details.basic_definition_en || 'No definition'})
-              </Text>
-            )}
-            {!item.item_details && (
-              <Text style={styles.unknownText}>Word details missing.</Text>
-            )}
-            <TouchableOpacity
-              style={styles.unsaveButton}
-              onPress={() => handleUnsave(item.item_type, item.item_id)}
-            >
-              <XCircle size={22} color={Colors.light.textSecondary} />
-            </TouchableOpacity>
-          </View>
-        )
-      }
-    },
-    [
-      handleUnsave,
-      styles.itemContainer,
-      styles.unsaveButton,
-      styles.unknownItem,
-      styles.unknownText,
-      styles.itemDetailMissing,
-      styles.itemDetailMissingText
-    ]
-  )
+  const renderSavedArticle = ({ item }: { item: Article }) => {
+    // item is now inferred as SavedArticleItem
+    return (
+      <View style={styles.itemContainer}>
+        <ArticleCardWithThumbnail
+          article={item} // Pass the full article object
+          size="small"
+        />
+        <TouchableOpacity
+          style={styles.unsaveButton}
+          onPress={() => handleUnsave('ArticleVersion', item.id)}
+        >
+          <XCircle size={22} color={Colors.light.error} />
+        </TouchableOpacity>
+      </View>
+    )
+  }
 
   // --- Loading / Error / Empty States ---
   const renderContent = () => {
-    if (status === 'loading' && savedItems.length === 0) {
+    if (status === 'loading' && savedArticles.length === 0) {
       return (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={Colors.light.primary} />
         </View>
       )
     }
-    if (status === 'failed' && savedItems.length === 0) {
+    if (status === 'failed' && savedArticles.length === 0) {
       return (
         <View style={styles.centered}>
           <Text style={styles.errorText}>
@@ -165,7 +134,7 @@ export default function LibraryScreen() {
         </View>
       )
     }
-    if (savedItems.length === 0 && status !== 'loading') {
+    if (savedArticles.length === 0 && status !== 'loading') {
       return (
         <ScrollView
           contentContainerStyle={styles.centered}
@@ -188,20 +157,17 @@ export default function LibraryScreen() {
 
     // Render the list if data exists
     return (
-      <FlatList
-        data={savedItems}
-        renderItem={renderSavedItem}
-        keyExtractor={item => `${item.item_type}-${item.item_id}`}
+      <CustomFlatList
+        flatListData={savedArticles}
+        renderFlatListItem={renderSavedArticle}
+        keyExtractor={item => item.id}
+        containerStyle={styles.flatListContainer}
         contentContainerStyle={styles.listContent}
-        numColumns={isDesktop ? 2 : 1} // Example responsive layout
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            colors={[Colors.light.primary]} // Android
-            tintColor={Colors.light.primary} // iOS
-          />
-        }
+        numColumns={isDesktop ? 2 : 1}
+        refreshControl={refreshControlElement}
+        ListEmptyComponent={ListEmptyComponentContent}
+        showScrollArrows={false}
+        showScrollShadows={true}
       />
     )
   }
@@ -222,6 +188,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20
   },
+  flatListContainer: { flex: 1 },
   listContent: { padding: 15 }, // Adjust padding for list
   itemContainer: {
     position: 'relative', // For positioning the unsave button
@@ -275,3 +242,12 @@ const styles = StyleSheet.create({
     fontStyle: 'italic'
   }
 })
+
+const ListEmptyComponentContent = (
+  <View style={styles.centered}>
+    <Text style={styles.emptyText}>No saved items yet.</Text>
+    <Text style={styles.emptySubText}>
+      Save articles or words to find them here.
+    </Text>
+  </View>
+)

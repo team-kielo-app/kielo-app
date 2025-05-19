@@ -9,7 +9,13 @@ import type {
   RawSignupApiResponse,
   VerifyResetTokenPayload
 } from './types'
-import { apiClient } from '@lib/api'
+import { normalize } from 'normalizr'
+import { USER_SCHEMA } from '@entities/schemas'
+import {
+  apiClient,
+  resetTokenRefreshFailure,
+  signalAuthInitialized
+} from '@lib/api'
 import { RootState, AppDispatch, AppThunk } from '@store/store'
 import * as tokenStorage from '@lib/tokenStorage'
 import { showAuthDebugToast } from '@lib/debugToast'
@@ -157,14 +163,16 @@ export const loginUserThunk =
         loginData.refresh_token,
         expiresAt
       )
+      const normalizedUser = normalize(loginData.user, USER_SCHEMA)
       dispatch(
         loginSuccess({
-          token: loginData.access_token,
-          refreshToken: loginData.refresh_token,
-          user: loginData.user,
-          expiresAt: expiresAt
+          userId: loginData.user.id,
+          entities: normalizedUser.entities as {
+            users: { [key: string]: User }
+          }
         })
       )
+      resetTokenRefreshFailure()
     } catch (error: any) {
       let message = 'Login failed. Please check your credentials.'
       if (error instanceof ApiError) {
@@ -194,14 +202,16 @@ export const loginWithSocialThunk =
         loginData.refresh_token,
         expiresAt
       )
+      const normalizedUser = normalize(loginData.user, USER_SCHEMA)
       dispatch(
         socialLoginSuccess({
-          token: loginData.access_token,
-          refreshToken: loginData.refresh_token,
-          user: loginData.user,
-          expiresAt: expiresAt
+          userId: loginData.user.id,
+          entities: normalizedUser.entities as {
+            users: { [key: string]: User }
+          }
         })
       )
+      resetTokenRefreshFailure()
     } catch (error: any) {
       let message = 'Social login failed. Please try again.'
       if (error instanceof ApiError) {
@@ -232,15 +242,16 @@ export const registerUserThunk =
         response.refresh_token,
         expiresAt
       )
-
+      const normalizedUser = normalize(response.user, USER_SCHEMA)
       dispatch(
         loginSuccess({
-          token: response.access_token,
-          refreshToken: response.refresh_token,
-          user: response.user,
-          expiresAt: expiresAt
+          userId: response.user.id,
+          entities: normalizedUser.entities as {
+            users: { [key: string]: User }
+          }
         })
       )
+      resetTokenRefreshFailure()
     } catch (error: any) {
       let message = 'Registration failed. Please try again.'
       if (error instanceof ApiError) {
@@ -331,21 +342,11 @@ export const logoutUser = (): AppThunk => async dispatch => {
       await GoogleSignin.signOut()
     } catch (error) {
       console.error('Error during Google Sign-out:', error)
-      showAuthDebugToast(
-        'error',
-        'Google Sign-out Failed',
-        'Could not sign out from Google. Please try again.'
-      )
     }
   }
   await tokenStorage.removeStoredTokens()
 
   dispatch(logoutUserSuccess())
-  showAuthDebugToast(
-    'info',
-    'Logout Initiated',
-    'Clearing tokens and session data...'
-  )
 
   router.replace('/(auth)/login')
 }
@@ -353,67 +354,30 @@ export const logoutUser = (): AppThunk => async dispatch => {
 export const initializeAuthThunk =
   (): AppThunk<Promise<void>> =>
   async (dispatch: AppDispatch, getState: () => RootState) => {
-    dispatch(initializeAuthRequest())
-    const storedData = await tokenStorage.getStoredTokens()
-    const { token, refreshToken, expiresAt } = storedData
+    try {
+      dispatch(initializeAuthRequest())
+      const storedData = await tokenStorage.getStoredTokens()
+      const { token, refreshToken, expiresAt } = storedData
 
-    if (token && refreshToken && expiresAt && expiresAt > Date.now()) {
-      console.log('InitializeAuth: Tokens found, validating...')
-      dispatch(setInitialTokens({ token, refreshToken, expiresAt }))
-      try {
-        const user = await apiClient.get<User>('/auth/me', dispatch)
-        console.log('InitializeAuth: /auth/me fetch successful.')
-        const currentState = getState().auth
-        dispatch(
-          initializeAuthSuccess(
-            currentState.token &&
-              currentState.refreshToken &&
-              currentState.expiresAt
-              ? {
-                  token: currentState.token!,
-                  refreshToken: currentState.refreshToken!,
-                  user: user,
-                  expiresAt: currentState.expiresAt!
-                }
-              : null
-          )
+      if (token && refreshToken && expiresAt && expiresAt > Date.now()) {
+        console.log(
+          'InitializeAuth: Auth initialized successfully (tokens valid).'
         )
-        showAuthDebugToast(
-          'success',
-          'Session Initialized',
-          `User: ${user.email}`
-        )
-        console.log('InitializeAuth: Auth initialized successfully.')
-      } catch (error: any) {
-        console.error('InitializeAuth: /auth/me fetch failed.', error)
-        let message = 'Session invalid or expired.'
-        if (error instanceof ApiError) {
-          message =
-            error.data?.detail ||
-            error.data?.message ||
-            error.message ||
-            message
-        } else if (error.message) {
-          message = error.message
+        dispatch(initializeAuthSuccess())
+      } else {
+        let reason = 'No valid tokens found in storage.'
+        if (token || refreshToken) {
+          reason = 'Stored tokens found but invalid/expired.'
+          await tokenStorage.removeStoredTokens()
+          dispatch(initializeAuthFailure(reason))
+          console.log(`InitializeAuth: ${reason}`)
+          return
         }
-        showAuthDebugToast(
-          'error',
-          'Session Validation Failed',
-          `Error: ${message}. Logging out.`
-        )
-        dispatch(initializeAuthFailure(message))
-        dispatch(logoutUser())
-        console.log('InitializeAuth: Failure, logged out.')
+
+        // User have not logged in
+        dispatch(initializeAuthFailure(null))
       }
-    } else {
-      let reason = 'No tokens found.'
-      if (token || refreshToken) {
-        reason = 'Tokens found but invalid/expired.'
-        await tokenStorage.removeStoredTokens()
-      }
-      console.log(`InitializeAuth: ${reason}`)
-      showAuthDebugToast('info', 'No Active Session', reason)
-      dispatch(initializeAuthFailure())
-      console.log('InitializeAuth: Finished (no valid session).')
+    } finally {
+      signalAuthInitialized()
     }
   }

@@ -35,19 +35,12 @@ export const CLEAR_AUTH_ERROR = 'auth/CLEAR_AUTH_ERROR'
 
 export const SET_INITIAL_TOKENS = 'auth/SET_INITIAL_TOKENS'
 
-interface LoginSuccessPayload {
-  token: string
-  refreshToken: string
-  user: User
-  expiresAt: number
+interface UserAuthenticationSuccessPayload {
+  userId: string
+  entities: { users: { [key: string]: User } }
 }
 interface SetRefreshedTokensPayload {
   accessToken: string
-  refreshToken: string
-  expiresAt: number
-}
-interface SetInitialTokensPayload {
-  token: string
   refreshToken: string
   expiresAt: number
 }
@@ -57,7 +50,7 @@ export interface LoginRequestAction {
 }
 export interface LoginSuccessAction {
   type: typeof LOGIN_SUCCESS
-  payload: LoginSuccessPayload
+  payload: UserAuthenticationSuccessPayload
 }
 export interface LoginFailureAction {
   type: typeof LOGIN_FAILURE
@@ -69,7 +62,7 @@ export interface SocialLoginRequestAction {
 }
 export interface SocialLoginSuccessAction {
   type: typeof SOCIAL_LOGIN_SUCCESS
-  payload: LoginSuccessPayload
+  payload: UserAuthenticationSuccessPayload
 }
 export interface SocialLoginFailureAction {
   type: typeof SOCIAL_LOGIN_FAILURE
@@ -124,7 +117,7 @@ export interface InitializeAuthRequestAction {
 }
 export interface InitializeAuthSuccessAction {
   type: typeof INITIALIZE_AUTH_SUCCESS
-  payload?: LoginSuccessPayload | null
+  payload?: { newUserData?: UserAuthenticationSuccessPayload } | null
 }
 export interface InitializeAuthFailureAction {
   type: typeof INITIALIZE_AUTH_FAILURE
@@ -140,10 +133,6 @@ export interface LogoutUserAction {
 }
 export interface ClearAuthErrorAction {
   type: typeof CLEAR_AUTH_ERROR
-}
-export interface SetInitialTokensAction {
-  type: typeof SET_INITIAL_TOKENS
-  payload: SetInitialTokensPayload
 }
 
 export type AuthAction =
@@ -161,4 +150,3 @@ export type AuthAction =
   | SetRefreshedTokensAction
   | LogoutUserAction
   | ClearAuthErrorAction
-  | SetInitialTokensAction

@@ -1,10 +1,11 @@
-import { useEffect } from "react";
-import { useSelector } from "react-redux";
-import { useRouter, usePathname } from "expo-router";
+import { useEffect } from 'react'
+import { useSelector } from 'react-redux'
+import { useRouter, usePathname } from 'expo-router'
 import {
   selectIsAuthenticated,
   selectAuthStatus,
-} from "@features/auth/authSelectors";
+  selectInitialAuthChecked
+} from '@features/auth/authSelectors'
 
 /**
  * Hook to protect a route. If the user is not authenticated
@@ -13,30 +14,25 @@ import {
  * including a redirect query parameter.
  */
 export function useProtectedRoute() {
-  const router = useRouter();
-  const pathname = usePathname(); // Get the current path (will be like /main/profile)
-  const isAuthenticated = useSelector(selectIsAuthenticated);
-  const authStatus = useSelector(selectAuthStatus); // 'idle', 'loading', 'succeeded', 'failed'
+  const router = useRouter()
+  const pathname = usePathname() // Get the current path (will be like /main/profile)
+  const isAuthenticated = useSelector(selectIsAuthenticated)
+  const authStatus = useSelector(selectAuthStatus)
+  const initialAuthChecked = useSelector(selectInitialAuthChecked)
 
   useEffect(() => {
-    // Wait until the initial auth check is done
-    if (authStatus === "idle" || authStatus === "loading") {
-      return;
+    if (!initialAuthChecked || authStatus === 'loading') {
+      // Wait for init check or loading
+      return
     }
-
-    // If auth check finished and user is not authenticated, redirect to login
     if (!isAuthenticated) {
-      console.log(
-        `[useProtectedRoute] Not authenticated on ${pathname}, redirecting to login.`
-      );
-      router.replace(`/(auth)/login?redirect=${encodeURIComponent(pathname)}`);
+      // If not authenticated after check
+      router.replace(`/(auth)/login?redirect=${encodeURIComponent(pathname)}`)
     }
-  }, [isAuthenticated, authStatus, router, pathname]);
+  }, [isAuthenticated, authStatus, initialAuthChecked, router, pathname])
 
-  // Return loading/auth state, useful for conditionally rendering a loading spinner
-  // while the check is happening or before redirection occurs.
   return {
-    isLoading: authStatus === "loading" || authStatus === "idle",
-    isAuthenticated: isAuthenticated, // Pass auth status back if needed
-  };
+    isLoading: !initialAuthChecked || authStatus === 'loading',
+    isAuthenticated: isAuthenticated
+  }
 }

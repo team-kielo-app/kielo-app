@@ -139,19 +139,14 @@ const LoginView = () => {
   )
 
   const handleGoBack = () => {
-    // if (router.canGoBack()) {
-    //   router.back()
-    // } else {
     const defaultRedirect = '/(main)/(tabs)/'
     const redirectParams =
       params.redirect && decodeURIComponent(params.redirect)
-    console.log('redirectParams:', params)
     const redirectPath =
       redirectParams && !redirectParams.startsWith('/(auth)/')
         ? redirectParams
         : defaultRedirect
     router.replace(redirectPath)
-    // }
   }
 
   const renderSocialButton = useCallback(

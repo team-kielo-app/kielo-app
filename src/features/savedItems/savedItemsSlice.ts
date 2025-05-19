@@ -1,11 +1,13 @@
-// src/features/savedItems/savedItemsSlice.ts
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { SavedItemsState, SavedItem } from './types'
+import type { SavedItemsState, SavedItemReference, ApiSavedItem } from './types'
 import {
   fetchSavedItemsThunk,
   saveItemThunk,
   unsaveItemThunk
 } from './savedItemsActions'
+import type { RootState } from '@/store/store'
+import type { ApiStatusType } from '@lib/api.d'
+import { Article } from '@features/articles/types'
 
 const initialState: SavedItemsState = {
   items: [],
@@ -33,9 +35,12 @@ const savedItemsSlice = createSlice({
       })
       .addCase(
         fetchSavedItemsThunk.fulfilled,
-        (state, action: PayloadAction<SavedItem[]>) => {
+        (
+          state,
+          action: PayloadAction<{ result: SavedItemReference[]; entities: any }>
+        ) => {
           state.status = 'succeeded'
-          state.items = action.payload
+          state.items = action.payload.result
         }
       )
       .addCase(fetchSavedItemsThunk.rejected, (state, action) => {
@@ -49,9 +54,21 @@ const savedItemsSlice = createSlice({
       })
       .addCase(saveItemThunk.fulfilled, (state, action) => {
         console.log('Item saved:', action.payload.item_id)
-        // Option 1: Do nothing, rely on manual refetch of list later
-        // Option 2: Add placeholder to list (complex if details needed immediately)
-        // Option 3: Mark item as saved if details already exist (e.g., in article view) - Requires modification
+        const newItemRef: SavedItemReference = {
+          item_id: action.payload.item_id,
+          item_type: action.payload.item_type,
+          saved_at: new Date().toISOString() // Placeholder, ideally from server
+        }
+        // Add if not already present (idempotency)
+        if (
+          !state.items.find(
+            i =>
+              i.item_id === newItemRef.item_id &&
+              i.item_type === newItemRef.item_type
+          )
+        ) {
+          state.items.unshift(newItemRef) // Add to beginning
+        }
       })
       .addCase(saveItemThunk.rejected, (state, action) => {
         console.error('Save item failed:', action.payload)
@@ -83,9 +100,10 @@ export const { clearSavedItems } = savedItemsSlice.actions
 export default savedItemsSlice.reducer
 
 // Add Selectors
-export const selectAllSavedItems = (state: RootState): SavedItem[] =>
-  state.savedItems.items
-export const selectSavedItemsStatus = (state: RootState): Status =>
+export const selectSavedItemReferences = (
+  state: RootState
+): SavedItemReference[] => state.savedItems.items
+export const selectSavedItemsStatus = (state: RootState): ApiStatusType =>
   state.savedItems.status
 export const selectIsItemSaved = (
   state: RootState,
@@ -93,6 +111,16 @@ export const selectIsItemSaved = (
   itemId: string
 ): boolean => {
   return state.savedItems.items.some(
+    // This correctly checks if the reference exists
     item => item.item_type === itemType && item.item_id === itemId
   )
+}
+export const selectHydratedSavedArticles = (state: RootState): Article[] => {
+  const savedArticleRefs = state.savedItems.items.filter(
+    ref => ref.item_type === 'ArticleVersion'
+  )
+  const articlesById = state.entities.articles || {}
+  return savedArticleRefs
+    .map(ref => articlesById[ref.item_id])
+    .filter(article => !!article) as Article[] // Filter out undefined and cast
 }

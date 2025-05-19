@@ -16,7 +16,8 @@ import {
   NativeScrollEvent,
   LayoutChangeEvent,
   ViewStyle,
-  FlatListProps // Changed from ScrollViewProps
+  FlatListProps,
+  RefreshControlProps
 } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import {
@@ -49,7 +50,8 @@ interface CustomFlatListProps<ItemT>
   showScrollArrows?: boolean
   showScrollShadows?: boolean
   // horizontal is already a FlatList prop
-  onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void // Allow forwarding native onScroll
+  onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void
+  refreshControl?: React.ReactElement<RefreshControlProps>
 }
 
 export function CustomFlatList<ItemT>({
@@ -60,7 +62,7 @@ export function CustomFlatList<ItemT>({
   horizontal = false, // Default from FlatListProps might be different, ensure consistency
   showScrollArrows = true,
   showScrollShadows = true,
-  onScroll: nativeOnScrollFromProps, // Renamed to avoid conflict
+  onScroll: nativeOnScrollFromProps,
   ...flatListNativeProps
 }: CustomFlatListProps<ItemT>) {
   const internalScrollRef = useRef<FlatList<ItemT>>(null)

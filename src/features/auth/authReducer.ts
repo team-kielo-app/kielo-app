@@ -3,10 +3,8 @@ import { AuthState } from './types'
 import { AuthAction } from './authActionTypes'
 
 const initialState: AuthState = {
-  user: null,
-  token: null,
-  refreshToken: null,
-  expiresAt: null,
+  userId: null,
+  initialAuthChecked: false,
   status: 'idle',
   error: null
 }
@@ -16,42 +14,43 @@ const authReducer = (state = initialState, action: AuthAction): AuthState => {
     case actionTypes.LOGIN_REQUEST:
     case actionTypes.SOCIAL_LOGIN_REQUEST:
     case actionTypes.REGISTER_REQUEST:
-    case actionTypes.INITIALIZE_AUTH_REQUEST:
       return {
+        ...initialState,
         ...state,
         status: 'loading',
         error: null
       }
 
-    case actionTypes.SET_INITIAL_TOKENS:
+    case actionTypes.INITIALIZE_AUTH_REQUEST:
       return {
         ...state,
-        token: action.payload.token,
-        refreshToken: action.payload.refreshToken,
-        expiresAt: action.payload.expiresAt,
         status: 'loading',
+        initialAuthChecked: false,
         error: null
       }
 
     case actionTypes.LOGIN_SUCCESS:
     case actionTypes.SOCIAL_LOGIN_SUCCESS:
+      return {
+        ...state,
+        userId: action.payload.userId,
+        status: 'succeeded',
+        initialAuthChecked: true,
+        error: null
+      }
+
     case actionTypes.INITIALIZE_AUTH_SUCCESS:
       return {
         ...state,
+        userId: action.payload?.newUserData?.userId || state.userId,
+        initialAuthChecked: true,
         status: 'succeeded',
-        user: action.payload.user,
-        token: action.payload.token,
-        refreshToken: action.payload.refreshToken,
-        expiresAt: action.payload.expiresAt,
         error: null
       }
 
     case actionTypes.SET_REFRESHED_TOKENS:
       return {
         ...state,
-        token: action.payload.accessToken,
-        refreshToken: action.payload.refreshToken,
-        expiresAt: action.payload.expiresAt,
         status: 'succeeded',
         error: null
       }
@@ -61,15 +60,19 @@ const authReducer = (state = initialState, action: AuthAction): AuthState => {
     case actionTypes.REGISTER_FAILURE:
     case actionTypes.INITIALIZE_AUTH_FAILURE:
       return {
-        ...initialState,
-        status: 'failed',
+        ...state,
+        status:
+          action.type === actionTypes.INITIALIZE_AUTH_FAILURE
+            ? 'sessionInvalid'
+            : 'failed',
+        initialAuthChecked: true,
         error: action.payload
       }
 
     case actionTypes.LOGOUT_USER:
       return {
         ...initialState,
-        status: 'failed'
+        initialAuthChecked: true
       }
 
     case actionTypes.CLEAR_AUTH_ERROR:

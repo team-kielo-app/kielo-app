@@ -3,32 +3,41 @@ import { useDispatch } from 'react-redux'
 import { AppDispatch } from '@store/store'
 import { initializeAuthThunk } from '@features/auth/authActions'
 import type { ApiStatusType } from '@lib/api.d'
-import { initializeDeviceToken } from '@lib/api'
+import { initializeDeviceToken, getDeviceToken } from '@lib/api'
 
-/**
- * @param authStatus Current authentication status
- * @returns {boolean | null} `true` if login should be forced, `false` otherwise, `null` while checking.
- */
-export const useAppInitialization = (authStatus: ApiStatusType): void => {
+export const useAppInitialization = (
+  authStatus: ApiStatusType | 'sessionInvalid'
+): void => {
   const dispatch = useDispatch<AppDispatch>()
 
   useEffect(() => {
-    initializeDeviceToken()
-      .then(token => {
+    let isMounted = true
+
+    const initApp = async () => {
+      try {
+        const token = await initializeDeviceToken()
+        if (!isMounted) return
         console.log(
-          'Device token initialization attempted from useAppInitialization. Token:',
+          'Device token initialization completed from useAppInitialization. Token:',
           token
         )
-      })
-      .catch(err =>
-        console.error('Error during initial device token init:', err)
-      )
 
-    if (authStatus === 'idle') {
-      console.log('Auth status is idle, dispatching initializeAuthThunk...')
-      dispatch(initializeAuthThunk())
+        if (authStatus === 'idle') {
+          dispatch(initializeAuthThunk())
+        }
+      } catch (err) {
+        console.error('Error during app initialization sequence:', err)
+      }
     }
-  }, [dispatch])
+
+    if (!getDeviceToken() || authStatus === 'idle') {
+      initApp()
+    }
+
+    return () => {
+      isMounted = false
+    }
+  }, [dispatch, authStatus])
 }
 
 export default useAppInitialization

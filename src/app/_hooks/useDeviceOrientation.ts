@@ -16,10 +16,8 @@ const useDeviceOrientation = () => {
         const deviceType = await getDeviceTypeAsync()
         if (deviceType === DeviceType.TABLET) {
           await lockAsync(OrientationLock.LANDSCAPE)
-          console.log('Orientation locked to LANDSCAPE for Tablet')
         } else {
           await lockAsync(OrientationLock.PORTRAIT_UP)
-          console.log('Orientation locked to PORTRAIT_UP for Phone')
         }
       } catch (error) {
         console.error('Failed to set screen orientation:', error)

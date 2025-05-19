@@ -1,29 +1,39 @@
 import { useEffect } from 'react'
 import { useRouter, useSegments } from 'expo-router'
+import {
+  selectAuthStatus,
+  selectInitialAuthChecked
+} from '@features/auth/authSelectors'
+import { useSelector } from 'react-redux'
 
-/**
- * Hook to handle redirection based on authentication status and first open/post-logout state.
- * @param isAuthenticated - Whether the user is currently authenticated.
- * @param isLoadingAuth - Whether the initial authentication check has finished.
- */
-const useAuthRedirect = (isAuthenticated: boolean, isLoadingAuth: boolean) => {
+const useAuthRedirect = (isAuthenticated: boolean) => {
+  // isLoadingAuth could be !initialAuthChecked || authStatus === 'loading'
   const router = useRouter()
   const segments = useSegments()
+  const initialAuthChecked = useSelector(selectInitialAuthChecked) // Get this
+  const authStatus = useSelector(selectAuthStatus)
 
   useEffect(() => {
-    if (isLoadingAuth) return
+    // Wait for the initial check to complete and not be in an intermediate loading state
+    if (!initialAuthChecked || authStatus === 'loading') {
+      return
+    }
 
     const isAuthRoute = segments[0] === '(auth)'
-    const isRootRoute = segments.filter(Boolean).length === 0
+    const isEffectivelyRoot = segments.filter(Boolean).length === 0
 
     if (isAuthenticated) {
-      if (isRootRoute || isAuthRoute) {
+      // User is properly authenticated and session is valid
+      if (isAuthRoute || isEffectivelyRoot) {
         router.replace('/(main)/(tabs)/')
       }
-    } else if (isRootRoute) {
-      router.replace('/(auth)/login')
+    } else {
+      if (isEffectivelyRoot) {
+        // If truly at root and not due to a failed session revalidation, go to login
+        router.replace('/(auth)/login')
+      }
     }
-  }, [isAuthenticated, isLoadingAuth])
+  }, [isAuthenticated, authStatus, initialAuthChecked, segments, router])
 }
 
 export default useAuthRedirect
