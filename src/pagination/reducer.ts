@@ -167,7 +167,8 @@ function updateSinglePaginationState(
       totalCount: totalCount,
       hasReachedEnd: hasReachedEnd,
       isLoading: false, // Mark as not loading
-      error: null // Clear error on success
+      error: null,
+      lastSuccessfulFetchAt: Date.now()
     }
   }
 

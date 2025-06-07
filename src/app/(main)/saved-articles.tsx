@@ -9,8 +9,9 @@ import {
   RefreshControl,
   ScrollView
 } from 'react-native'
-import { Stack } from 'expo-router'
+import { Stack, useRouter } from 'expo-router'
 import { useDispatch, useSelector } from 'react-redux'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { AppDispatch, RootState } from '@store/store'
 import {
@@ -19,14 +20,14 @@ import {
 } from '@features/savedItems/savedItemsActions'
 import {
   selectSavedItemsStatus,
-  selectHydratedSavedArticles, // Use new selector for hydrated articles
-  selectSavedItemReferences // If you need to display other types or just the refs
+  selectHydratedSavedArticles,
+  selectSavedItemReferences
 } from '@features/savedItems/savedItemsSlice'
 import { useRefresh } from '@hooks/useRefresh'
 import { Colors } from '@constants/Colors'
 import { showAuthDebugToast } from '@lib/debugToast'
 import { ArticleCardWithThumbnail } from '@components/reader/ArticleCardWithThumbnail'
-import { XCircle } from 'lucide-react-native'
+import { XCircle, ArrowLeft } from 'lucide-react-native'
 import { useResponsiveDimensions } from '@/hooks/useResponsiveDimensions'
 import type { Article } from '@/features/articles/types'
 import { CustomFlatList } from '@/components/common/CustomFlatList'
@@ -34,28 +35,27 @@ import { CustomFlatList } from '@/components/common/CustomFlatList'
 export default function LibraryScreen() {
   const dispatch = useDispatch<AppDispatch>()
   const { isDesktop } = useResponsiveDimensions()
-  // Get hydrated articles. For other types, you'll need similar selectors or a combined one.
   const savedArticles = useSelector(selectHydratedSavedArticles)
-  // If you need to display a mix or just the raw references:
-  // const savedItemReferences = useSelector(selectSavedItemReferences);
+  const router = useRouter()
+  const insets = useSafeAreaInsets()
   const status = useSelector(selectSavedItemsStatus)
-  const error = useSelector((state: RootState) => state.savedItems.error) // Get error state
+  const error = useSelector((state: RootState) => state.savedItems.error)
 
-  // --- Initial Fetch & Refetch on Focus ---
-  // Using useEffect for simplicity, consider useFocusEffect for real navigation
   useEffect(() => {
-    // Fetch only if idle or if data is empty (e.g., after logout/clear)
-    if (status === 'idle' || savedArticles.length === 0) {
-      console.log('LibraryScreen: Fetching saved items...')
+    if (status === 'idle') {
       dispatch(fetchSavedItemsThunk())
     }
-    // Optional: Refetch periodically or on focus using useFocusEffect
   }, [dispatch, status])
 
-  // --- Refresh Logic ---
+  const handleGoBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back()
+    } else {
+      router.replace('/(main)/(tabs)/') // Fallback to home if no back history
+    }
+  }, [router])
+
   const handleRefreshAction = useCallback(() => {
-    console.log('LibraryScreen: Refreshing saved items...')
-    // Always refetch on pull-to-refresh
     return dispatch(fetchSavedItemsThunk())
   }, [dispatch])
   const [isRefreshing, handleRefresh] = useRefresh(handleRefreshAction)
@@ -72,16 +72,31 @@ export default function LibraryScreen() {
     [isRefreshing, handleRefresh]
   )
 
-  // --- Unsave Handler ---
+  const handleLoadMore = useCallback(() => {
+    // Check if currently loading, if already at the end, or if status is not 'succeeded'
+    // This logic depends on how your pagination state from savedItemsSlice or a dedicated pagination slice for it looks
+    // For now, assuming fetchSavedItemsThunk can handle fetching "next page" if it were designed for it.
+    // If fetchSavedItemsThunk always resets, you'd need a different thunk for "load more".
+
+    // Let's assume your `fetchSavedItemsThunk` is currently for initial/refresh.
+    // For "load more", you'd typically have:
+    // 1. Pagination state in Redux for saved items (nextPageKey, isLoadingMore, etc.)
+    // 2. A `fetchMoreSavedItemsThunk`
+    // For now, this is a placeholder:
+    if (status === 'succeeded' && !isRefreshing /* && hasMoreSavedItems */) {
+      console.log('LibraryScreen: Load more triggered...')
+      // dispatch(fetchMoreSavedItemsThunk()); // Hypothetical thunk
+    }
+  }, [status, isRefreshing, dispatch /*, hasMoreSavedItems */])
+
   const handleUnsave = useCallback(
     async (itemType: string, itemId: string) => {
-      showAuthDebugToast('info', `Unsacing ${itemType} ${itemId}...`) // Immediate feedback
+      showAuthDebugToast('info', `Unsacing ${itemType} ${itemId}...`)
       try {
         await dispatch(
           unsaveItemThunk({ item_type: itemType, item_id: itemId })
         )
         showAuthDebugToast('success', 'Item Unsaved')
-        // List updates automatically via Redux slice reducer on success
       } catch (err: any) {
         console.error('Unsave failed:', err)
         showAuthDebugToast(
@@ -94,15 +109,10 @@ export default function LibraryScreen() {
     [dispatch]
   )
 
-  // --- Render Item Logic ---
   const renderSavedArticle = ({ item }: { item: Article }) => {
-    // item is now inferred as SavedArticleItem
     return (
       <View style={styles.itemContainer}>
-        <ArticleCardWithThumbnail
-          article={item} // Pass the full article object
-          size="small"
-        />
+        <ArticleCardWithThumbnail article={item} size="small" />
         <TouchableOpacity
           style={styles.unsaveButton}
           onPress={() => handleUnsave('ArticleVersion', item.id)}
@@ -113,7 +123,6 @@ export default function LibraryScreen() {
     )
   }
 
-  // --- Loading / Error / Empty States ---
   const renderContent = () => {
     if (status === 'loading' && savedArticles.length === 0) {
       return (
@@ -145,7 +154,7 @@ export default function LibraryScreen() {
               colors={[Colors.light.primary]}
               tintColor={Colors.light.primary}
             />
-          } // Allow refresh on empty screen
+          }
         >
           <Text style={styles.emptyText}>No saved items yet.</Text>
           <Text style={styles.emptySubText}>
@@ -155,19 +164,26 @@ export default function LibraryScreen() {
       )
     }
 
-    // Render the list if data exists
     return (
       <CustomFlatList
-        flatListData={savedArticles}
-        renderFlatListItem={renderSavedArticle}
+        data={savedArticles}
+        renderItem={renderSavedArticle}
         keyExtractor={item => item.id}
         containerStyle={styles.flatListContainer}
         contentContainerStyle={styles.listContent}
-        numColumns={isDesktop ? 2 : 1}
+        numColumns={isDesktop ? 3 : 1}
         refreshControl={refreshControlElement}
         ListEmptyComponent={ListEmptyComponentContent}
         showScrollArrows={false}
         showScrollShadows={true}
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5} // Adjust as needed
+        ListFooterComponent={() => {
+          // Render a loading indicator if status indicates loading more
+          if (status === 'loading')
+            return <ActivityIndicator style={{ marginVertical: 20 }} />
+          return null
+        }}
       />
     )
   }
@@ -175,7 +191,21 @@ export default function LibraryScreen() {
   return (
     <>
       <Stack.Screen options={{ title: 'Library' }} />
-      <View style={styles.container}>{renderContent()}</View>
+      <View style={styles.container}>
+        {renderContent()}
+
+        {/* Floating Back Button - similar to reader screen's style */}
+        {/* Position it respecting safe area, typically top-left */}
+        <TouchableOpacity
+          style={[styles.floatingBackButton, { top: insets.top + 10 }]} // Adjust top offset as needed
+          onPress={handleGoBack}
+          accessibilityLabel="Go back"
+          accessibilityRole="button"
+        >
+          <ArrowLeft size={22} color={Colors.light.text} />
+          {/* Color can be white if on a dark background, or theme text color */}
+        </TouchableOpacity>
+      </View>
     </>
   )
 }
@@ -189,20 +219,20 @@ const styles = StyleSheet.create({
     padding: 20
   },
   flatListContainer: { flex: 1 },
-  listContent: { padding: 15 }, // Adjust padding for list
+  listContent: { padding: 15 },
   itemContainer: {
-    position: 'relative', // For positioning the unsave button
+    position: 'relative',
     marginBottom: 15,
-    paddingHorizontal: 5 // Add horizontal padding if using numColumns > 1
+    paddingHorizontal: 5
   },
   unsaveButton: {
     position: 'absolute',
     top: 8,
-    right: 8, // Adjust position as needed
-    backgroundColor: 'rgba(255, 255, 255, 0.7)', // Make button visible
+    right: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
     padding: 6,
     borderRadius: 15,
-    zIndex: 1 // Ensure it's above the card content
+    zIndex: 1
   },
   errorText: {
     color: Colors.light.error,
@@ -235,11 +265,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: Colors.light.backgroundLight,
     borderRadius: 8,
-    minHeight: 100 // Ensure it has some height
+    minHeight: 100
   },
   itemDetailMissingText: {
     color: Colors.light.textSecondary,
     fontStyle: 'italic'
+  },
+  floatingBackButton: {
+    position: 'absolute',
+    // top: is handled by insets + offset
+    left: 15,
+    zIndex: 10, // Ensure it's above other content
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)', // Semi-transparent white
+    // Or use Colors.light.cardBackground with opacity if preferred
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 3 // Android shadow
   }
 })
 

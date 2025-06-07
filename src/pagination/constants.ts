@@ -10,4 +10,5 @@ export const DEFAULT_PAGINATION_STATE = {
   // hasFetched: false, // Redundant - can be inferred from currentPage > 0 or ids.length > 0
   // pageDirection: 'idle', // Overly complex - isLoading + pageFetched meta is enough
   error: null as string | null, // Store specific pagination errors
-};
+  lastSuccessfulFetchAt: null
+}

@@ -17,7 +17,13 @@
       "@store/*": ["store/*"]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts",
+    "src/entities/reducer.js"
+  ],
   "exclude": [
     "node_modules",
     "babel.config.js",

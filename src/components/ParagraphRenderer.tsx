@@ -4,13 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Animated,
-  LayoutAnimation,
-  Platform,
-  UIManager,
-  NativeSyntheticEvent,
-  NativeTouchEvent,
-  findNodeHandle
+  Animated
 } from 'react-native'
 import {
   ArticleParagraph,
@@ -397,7 +391,7 @@ export const ParagraphRenderer: React.FC<ParagraphRendererProps> = React.memo(
           </View>
         </TouchableOpacity>
 
-        {true && (
+        {isTranslatedViewOpen && (
           <Animated.View
             style={[styles.translationPanel, animatedTranslationStyle]}
           >
@@ -486,19 +480,16 @@ const styles = StyleSheet.create({
     borderRadius: 3
   },
   paragraphOuterContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'flex-start',
+    flexDirection: 'column',
     marginBottom: 16, // Spacing between paragraphs
     lineHeight: 28 // Ensure consistent line height for mixed content
   },
   touchableParagraphWrapper: {
-    // Retains its purpose
-    // backgroundColor: Colors.light.background, // Moved to paragraphSegmentsContainer
-    // borderRadius: 6, // Moved to paragraphSegmentsContainer
+    flex: 1
   },
   // New styles for the TranslationPanel look
   translationPanel: {
+    flex: 1,
     backgroundColor: '#F9FAFB', // bg-gray-50
     borderRadius: 6,
     borderWidth: 1,

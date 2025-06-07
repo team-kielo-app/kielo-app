@@ -158,6 +158,7 @@ export const loginUserThunk =
         dispatch
       )
       const expiresAt = Date.now() + loginData.expires_in * 1000
+      console.log('Login Data:', expiresAt)
       await tokenStorage.setStoredTokens(
         loginData.access_token,
         loginData.refresh_token,
@@ -197,6 +198,7 @@ export const loginWithSocialThunk =
         dispatch
       )
       const expiresAt = Date.now() + loginData.expires_in * 1000
+      console.log('Login Data:', expiresAt)
       await tokenStorage.setStoredTokens(
         loginData.access_token,
         loginData.refresh_token,
@@ -237,6 +239,7 @@ export const registerUserThunk =
       )
 
       const expiresAt = Date.now() + response.expires_in * 1000
+      console.log('Login Data:', expiresAt)
       await tokenStorage.setStoredTokens(
         response.access_token,
         response.refresh_token,
@@ -358,6 +361,14 @@ export const initializeAuthThunk =
       dispatch(initializeAuthRequest())
       const storedData = await tokenStorage.getStoredTokens()
       const { token, refreshToken, expiresAt } = storedData
+
+      console.log({ token, refreshToken, expiresAt, now: Date.now() })
+
+      showAuthDebugToast(
+        'info',
+        'Auth Debug',
+        `Expires At: ${expiresAt}\n Now: ${Date.now()}`
+      )
 
       if (token && refreshToken && expiresAt && expiresAt > Date.now()) {
         console.log(

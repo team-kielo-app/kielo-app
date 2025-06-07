@@ -8,8 +8,13 @@ import { RootState } from '@store/store'
 
 // --- Action Creator for fetching Article LIST ---
 export const fetchArticles = (
-  ownerId: string,
-  options?: { reset?: boolean; fetchNext?: boolean }
+  paginationKey: string, // Renamed from ownerId for clarity if it's a general key
+  options?: {
+    reset?: boolean
+    fetchNext?: boolean
+    fetchPolicy?: FetchPolicy // Add fetchPolicy
+    forceRefresh?: boolean // Add forceRefresh
+  }
 ) => {
   // Create the specific API request thunk for articles
   const apiRequestThunk = createApiRequestThunk({
@@ -28,9 +33,9 @@ export const fetchArticles = (
   // Use the HOC
   return withPaginationList<RootState>({
     apiRequestFunction: apiRequestThunk,
-    getStatePaginationData: selectArticlePagination, // Selector for state.pagination
-    paginationKey: ownerId,
-    pageSize: 25 // Specific page size for articles
+    getStatePaginationData: selectArticlePagination,
+    paginationKey: paginationKey, // Use the dynamic key
+    pageSize: 10 // Specific page size for articles
   })(options) // Pass options like { reset: true } or { fetchNext: true }
 }
 

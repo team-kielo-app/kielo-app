@@ -71,7 +71,8 @@ export const createPaginatedData = <T>(
     hasFetched = false,
     nextPageToken = null,
     prevPageToken = null,
-    error = null
+    error = null,
+    lastSuccessfulFetchAt = null
   } = paginationState
 
   let data: T[] = []
@@ -101,7 +102,8 @@ export const createPaginatedData = <T>(
       isLoading,
       hasMore,
       hasFetched,
-      error
+      error,
+      lastSuccessfulFetchAt
     }
   }
 }
@@ -126,29 +128,80 @@ const createErrorResponse = (errorMessage: string): PaginatedData => ({
 /**
  * Selects paginated data for a collection of entities
  */
-export const selectPaginatedData = <T>(
-  entityName: string,
-  paginationType: string,
+export const selectPaginatedData = <T extends { _lastFetchedAt?: number }>( // T now has _lastFetchedAt
+  entityName: string, // e.g., 'articles'
+  paginationType: string, // e.g., 'articlePagination'
   paginationKey: string,
-  isAccumulated: boolean = false
+  isAccumulated: boolean = false // Keep this for flexibility
 ) =>
   createSelector(
-    [selectEntityCollection(entityName), selectPaginationType(paginationType)],
-    (entityCollection, paginationByType): PaginatedData => {
-      // Validate required parameters
-      if (!entityName || !paginationType || !paginationKey) {
-        return createErrorResponse('Missing required parameters')
+    [
+      (state: RootState) => state.entities[entityName as string] || {}, // Entity collection
+      (state: RootState) =>
+        state.pagination[paginationType]?.[paginationKey] ||
+        DEFAULT_PAGINATION_STATE
+    ],
+    (
+      entityCollection: Record<string, T>,
+      paginationState: PaginationStateType
+    ): PaginatedData<T> => {
+      // Ensure return type matches generic
+      // console.log(`Selector for ${entityName} - ${paginationKey} recomputing. PS LastFetch: ${paginationState.lastSuccessfulFetchAt}`);
+
+      const {
+        ids = [],
+        currentPage = 1,
+        pageSize = DEFAULT_PAGINATION_STATE.pageSize,
+        totalCount = 0,
+        isLoading = false,
+        // hasFetched removed, will derive
+        nextPageKey = null, // Renamed from nextPageToken for consistency with pagination state
+        prevPageKey = null, // Renamed from prevPageToken
+        error = null,
+        lastSuccessfulFetchAt = null
+      } = paginationState
+
+      let resolvedData: T[] = []
+      const idArrayToProcess = ids || [] // Ensure ids is an array
+
+      if (isAccumulated && idArrayToProcess.length > 0 && currentPage >= 1) {
+        const startIndex = (currentPage - 1) * pageSize
+        const endIndex = startIndex + pageSize
+        const pageIds = idArrayToProcess.slice(startIndex, endIndex)
+        resolvedData = pageIds
+          .map(
+            id => entityCollection[typeof id === 'object' ? (id as any).id : id]
+          ) // Handle if IDs are objects
+          .filter(Boolean) as T[]
+      } else {
+        resolvedData = idArrayToProcess
+          .map(
+            id => entityCollection[typeof id === 'object' ? (id as any).id : id]
+          )
+          .filter(Boolean) as T[]
       }
 
-      // Get pagination state for the requested key
-      const paginationState: PaginationStateType =
-        paginationByType[paginationKey] || DEFAULT_PAGINATION_STATE
+      const totalPages = pageSize > 0 ? Math.ceil(totalCount / pageSize) : 0
+      // hasMorePages function might need to use nextPageKey/prevPageKey from paginationState
+      const hasMore = !!nextPageKey // Simpler, based on next cursor
+      const hasFetched = currentPage > 0 || idArrayToProcess.length > 0
 
-      return createPaginatedData<T>(
-        paginationState,
-        entityCollection as Record<string, T>,
-        isAccumulated
-      )
+      return {
+        data: resolvedData,
+        pagination: {
+          currentPage,
+          pageSize,
+          totalCount,
+          totalPages,
+          isLoading,
+          hasMore,
+          hasFetched,
+          error,
+          lastSuccessfulFetchAt // Include this
+          // prevPageKey, // Optionally include if UI needs it
+          // nextPageKey, // Optionally include if UI needs it
+        }
+      }
     }
   )
 

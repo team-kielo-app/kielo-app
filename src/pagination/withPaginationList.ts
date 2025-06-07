@@ -4,10 +4,11 @@ import { AppDispatch, RootState } from '@store/store'
 import { makeQueryString } from '@utils/url'
 import { assertInvariant } from '@utils/assert'
 import { DEFAULT_PAGINATION_STATE } from './constants'
-import type { PaginationMeta, PaginationStateType } from './types'
+import type { PaginationMeta, PaginationStateType, FetchPolicy } from './types'
 import { ThunkAction } from 'redux-thunk'
 
-// Type for the API request function expected by this HOC
+const LIST_STALE_THRESHOLD_MS = 5 * 60 * 1000
+
 type ApiRequestThunkCreator = (params: {
   queryString?: string
   body?: Record<string, unknown> | unknown[] | undefined
@@ -15,18 +16,21 @@ type ApiRequestThunkCreator = (params: {
 }) => ThunkAction<Promise<any>, RootState, unknown, any>
 
 interface WithPaginationListConfig<S extends RootState> {
-  apiRequestFunction: ApiRequestThunkCreator
+  apiRequestFunction: ApiRequestThunkCreator // From previous refactor
   getStatePaginationData: (state: S) => Record<string, PaginationStateType>
   paginationKey: string
   pageSize?: number
-  fetchPolicy?: 'fetchIfNeeded' | 'forceFetch'
+  // fetchPolicy is now part of options passed to the returned thunk creator
+  // fetchPolicy?: FetchPolicy; // REMOVE from HOC config if passed in options
   additionalQueryParams?: Record<string, any>
 }
 
-interface FetchOptions {
+interface FetchListOptions {
   reset?: boolean
   fetchNext?: boolean
   fetchPrevious?: boolean
+  fetchPolicy?: FetchPolicy // Add fetchPolicy here
+  forceRefresh?: boolean // To explicitly bypass cache checks for this call
 }
 
 // Extracted HOC (~90 lines)
@@ -35,7 +39,6 @@ export function withPaginationList<S extends RootState>({
   getStatePaginationData,
   paginationKey,
   pageSize = 20,
-  fetchPolicy = 'fetchIfNeeded',
   additionalQueryParams = {}
 }: WithPaginationListConfig<S>) {
   // --- Initial validation of HOC configuration ---
@@ -53,78 +56,126 @@ export function withPaginationList<S extends RootState>({
   )
 
   // Return the thunk action creator that takes fetch options
-  return (options: FetchOptions = {}) =>
+  return (
+      options: FetchListOptions = {} // Options now include fetchPolicy
+    ) =>
     (dispatch: AppDispatch, getState: () => S): Promise<any> => {
-      // Explicitly return Promise
       const {
         reset = false,
         fetchNext = false,
-        fetchPrevious = false
+        fetchPrevious = false,
+        fetchPolicy = 'cache-first', // Default fetch policy for this specific call
+        forceRefresh = false
       } = options
 
       const state = getState()
       const paginationStateMap = getStatePaginationData(state)
-      // Ensure default state is used if key doesn't exist yet
       const currentPagination =
         paginationStateMap[paginationKey] || DEFAULT_PAGINATION_STATE
 
-      const { isLoading, nextPageKey, prevPageKey, currentPage } =
-        currentPagination
+      const {
+        isLoading,
+        nextPageKey,
+        prevPageKey,
+        currentPage,
+        ids,
+        lastSuccessfulFetchAt
+      } = currentPagination
 
-      // --- Determine fetch feasibility and parameters ---
       let pageToFetch: 'first' | 'next' | 'prev' = 'first'
       let cursor: string | null = null
-      let canFetch = true
+      let shouldProceedWithApiCall = true // Renamed from canFetch for clarity
 
-      if (!reset) {
+      const isListStale =
+        !lastSuccessfulFetchAt ||
+        Date.now() - lastSuccessfulFetchAt > LIST_STALE_THRESHOLD_MS
+      const listHasData = ids && ids.length > 0
+
+      if (forceRefresh) {
+        console.log(`Pagination [${paginationKey}]: Force refresh requested.`)
+        // Proceed with API call, reset will handle 'first' page logic
+      } else if (!reset) {
+        // Not a reset, consider existing state and policy
         if (fetchNext) {
           if (nextPageKey) {
             pageToFetch = 'next'
             cursor = nextPageKey
           } else {
-            // Cannot fetch next if no key exists (and not already loading)
-            if (!isLoading) {
+            // No next page key
+            if (!isLoading)
               console.log(
                 `Pagination [${paginationKey}]: Cannot fetch next, no nextPageKey.`
               )
-              canFetch = false
-            }
-            // If loading, let it proceed, but don't start a *new* fetch for next
-            else canFetch = false
+            shouldProceedWithApiCall = false
           }
         } else if (fetchPrevious) {
           if (prevPageKey) {
             pageToFetch = 'prev'
             cursor = prevPageKey
           } else {
-            // Cannot fetch previous if no key exists (and not already loading)
-            if (!isLoading) {
+            // No prev page key
+            if (!isLoading)
               console.log(
                 `Pagination [${paginationKey}]: Cannot fetch previous, no prevPageKey.`
               )
-              canFetch = false
-            } else canFetch = false
+            shouldProceedWithApiCall = false
           }
-        } else if (currentPage > 0 && fetchPolicy === 'fetchIfNeeded') {
-          // Already fetched initial data, and not requesting next/prev/reset
-          console.log(
-            `Pagination [${paginationKey}]: Data already fetched, policy is 'fetchIfNeeded'.`
-          )
-          canFetch = false
+        } else {
+          // Initial fetch for this key, or re-fetch current view (not next/prev)
+          if (fetchPolicy === 'cache-only') {
+            if (!listHasData || isListStale) {
+              // Or just !listHasData if cache-only means "must exist"
+              console.log(
+                `Pagination [${paginationKey}]: Cache-only, but no fresh data. Not fetching.`
+              )
+              shouldProceedWithApiCall = false
+            } else {
+              console.log(
+                `Pagination [${paginationKey}]: Cache-only, using existing data.`
+              )
+              shouldProceedWithApiCall = false // Data exists and is fresh enough, or policy is cache-only
+            }
+          } else if (fetchPolicy === 'cache-first') {
+            if (listHasData && !isListStale) {
+              console.log(
+                `Pagination [${paginationKey}]: Cache-first, fresh data exists. Not fetching.`
+              )
+              shouldProceedWithApiCall = false
+            } else {
+              console.log(
+                `Pagination [${paginationKey}]: Cache-first, data missing or stale. Fetching.`
+              )
+            }
+          } else if (fetchPolicy === 'cache-and-network') {
+            console.log(
+              `Pagination [${paginationKey}]: Cache-and-network. Will use cache (if any) and fetch.`
+            )
+            // UI shows cached data, API call proceeds to update.
+          } else if (fetchPolicy === 'network-only') {
+            console.log(
+              `Pagination [${paginationKey}]: Network-only. Fetching.`
+            )
+          }
         }
-        // else: No specific page requested, not reset, initial fetch needed. pageToFetch remains 'first'.
-      }
-      // else: Reset is true, pageToFetch remains 'first'.
+      } // End of !reset block. If reset=true, we generally proceed unless loading.
 
-      // --- Guard Clauses ---
-      if (isLoading && !(reset && fetchPolicy === 'forceFetch')) {
+      // Guard Clauses
+      if (isLoading && !forceRefresh) {
+        // Allow forceRefresh to bypass isLoading if desired (e.g. to cancel and restart)
+        // Though generally, you might want to prevent multiple fetches.
+        // The original code had: !(reset && fetchPolicy === 'forceFetch')
+        // Let's stick to a simpler: if loading and not forcing, don't start new.
         console.log(
           `Pagination [${paginationKey}]: Fetch blocked, already in progress.`
         )
-        return Promise.resolve() // Resolve immediately, do nothing
+        return Promise.resolve()
       }
-      if (!canFetch) {
-        return Promise.resolve() // Resolve immediately, do nothing
+      if (!shouldProceedWithApiCall && !forceRefresh) {
+        // Added !forceRefresh here
+        console.log(
+          `Pagination [${paginationKey}]: Fetch conditions not met. Policy: ${fetchPolicy}, Reset: ${reset}`
+        )
+        return Promise.resolve()
       }
 
       // --- Prepare API Call ---
@@ -133,22 +184,23 @@ export function withPaginationList<S extends RootState>({
         ...additionalQueryParams
       }
       if (cursor) {
-        // Adapt cursor param name based on API ('next', 'cursor', 'after', 'before'...)
-        // Assuming 'next' for next page and 'prev' for previous page based on earlier code
         if (pageToFetch === 'next') queryParams.next = cursor
         if (pageToFetch === 'prev') queryParams.prev = cursor
       }
       const queryString = makeQueryString(queryParams)
 
-      // Prepare metadata for the action
       const meta: PaginationMeta = {
         paginationKey,
-        pageFetched: reset ? 'first' : pageToFetch,
+        pageFetched: reset || forceRefresh ? 'first' : pageToFetch, // If forceRefresh, treat as fetching 'first' page of a new set
         pageSize,
-        reset
+        reset: reset || forceRefresh, // forceRefresh implies a reset of the current list view
+        fetchPolicy: fetchPolicy // Pass policy for potential use in reducers/meta
       }
 
-      // Dispatch the actual API request thunk generated by the factory
+      console.log(
+        `Pagination [${paginationKey}]: Dispatching API request. Query: ${queryString}, Meta:`,
+        meta
+      )
       return dispatch(apiRequestFunction({ queryString, meta }))
     }
 }

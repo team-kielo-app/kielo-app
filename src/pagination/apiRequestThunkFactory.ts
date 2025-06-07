@@ -87,7 +87,25 @@ export function createApiRequestThunk({
           [key: string]: any
         } = {}
         if (schema && dataToProcess) {
-          normalizedData = normalize(dataToProcess, schema)
+          // Add _lastFetchedAt to items before normalization if dataToProcess is an array
+          // If dataToProcess is a single object (for single entity fetch), add it there.
+          const now = Date.now()
+          let processableDataWithTimestamp = dataToProcess
+          if (Array.isArray(dataToProcess)) {
+            processableDataWithTimestamp = dataToProcess.map(item =>
+              item && typeof item === 'object'
+                ? { ...item, _lastFetchedAt: now }
+                : item
+            )
+          } else if (dataToProcess && typeof dataToProcess === 'object') {
+            processableDataWithTimestamp = {
+              ...dataToProcess,
+              _lastFetchedAt: now
+            }
+          }
+
+          normalizedData = normalize(processableDataWithTimestamp, schema)
+          // normalizedData.entities will now have items with _lastFetchedAt
         } else {
           // If no schema, pass dataToProcess through, primarily for non-entity responses
           // The `result` field will be based on dataToProcess itself.

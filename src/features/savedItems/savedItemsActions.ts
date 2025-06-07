@@ -29,15 +29,16 @@ export const fetchSavedItemsThunk = createAsyncThunk<
     )
 
     const normalizedData = normalize(response.items, SAVED_ITEM_ARRAY_SCHEMA)
-    return {
-      result: response.items.map(item => ({
-        item_id: item.item_id,
-        item_type: item.item_type,
-        saved_at: item.saved_at,
-        notes: item.notes
-      })),
-      entities: normalizedData.entities
-    }
+    const savedItemReferences: SavedItemReference[] = response.items.map(
+      apiItem => ({
+        item_id: apiItem.item_id,
+        item_type: apiItem.item_type,
+        saved_at: apiItem.saved_at,
+        notes: apiItem.notes
+      })
+    )
+
+    return { result: savedItemReferences, entities: normalizedData.entities }
   } catch (error: any) {
     let message = 'Failed to fetch saved items. Please try again.'
     if (error instanceof ApiError) {

@@ -6,11 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  UIManager,
   Pressable,
   StyleSheet as RNStyleSheet,
-  findNodeHandle,
-  Platform,
   StatusBar
 } from 'react-native'
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router'
@@ -23,7 +20,6 @@ import { Colors } from '@constants/Colors'
 import { useResponsiveDimensions } from '@hooks/useResponsiveDimensions'
 import { fetchSingleArticle } from '@features/articles/articlesActions'
 import { AppDispatch, RootState } from '@store/store'
-import { selectEntityById } from '@pagination/selectors'
 import { useRequireAuthAction } from '@hooks/useRequireAuthAction'
 import { format } from 'date-fns'
 import { selectIsItemSaved } from '@features/savedItems/savedItemsSlice'
@@ -37,7 +33,6 @@ import { ArticleMetadataDisplay } from '@/components/reader/ArticleMetadataDispl
 import { ArticleAudioPlayer } from '@/components/reader/ArticleAudioPlayer'
 import { ArticleParagraphsList } from '@/components/reader/ArticleParagraphsList'
 import { ArticleVocabularySection } from '@/components/reader/ArticleVocabularySection'
-import { TranslationModal } from '@/components/reader/TranslationModal'
 import {
   InteractiveDetailPopup,
   PopupContentMode
@@ -51,6 +46,10 @@ import {
 } from '@features/articles/types'
 import { useRefresh } from '@hooks/useRefresh'
 import { RefreshControl } from 'react-native'
+import { useEntity } from '@/hooks/useEntity'
+import { ARTICLE_SCHEMA_SINGLE } from '@entities/schemas'
+import { Article } from '@features/articles/types'
+import { fetchEntityByIdIfNeededThunk } from '@/features/entities/entityActions'
 
 export default function ArticleScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -61,8 +60,16 @@ export default function ArticleScreen() {
 
   const [isFetching, setIsFetching] = useState(false)
 
-  const article = useSelector((state: RootState) =>
-    selectEntityById('articles', id)(state)
+  const {
+    data: article,
+    isLoading: isLoadingArticle,
+    error: articleError
+  } = useEntity<Article>(
+    'articles', // entityType
+    id, // entityId
+    ARTICLE_SCHEMA_SINGLE,
+    articleId => `/news/articles/${articleId}`, // endpoint generator
+    { fetchPolicy: 'cache-and-network' } // Example policy
   )
 
   const publicationDateFormatted = useMemo(() => {
@@ -79,17 +86,23 @@ export default function ArticleScreen() {
     }
   }, [id, dispatch])
 
-  const handleRefreshAction = React.useCallback(() => {
-    if (!id) {
-      console.warn('Cannot refresh, article ID is missing.')
-      return Promise.resolve()
-    }
-    console.log(`Dispatching fetchSingleArticle for refresh, ID: ${id}`)
-    setIsFetching(true)
-    return dispatch(fetchSingleArticle(id, () => setIsFetching(false)))
+  const handleRefreshAction = useCallback(() => {
+    if (!id) return Promise.resolve()
+    console.log(
+      `Dispatching fetchEntityByIdIfNeededThunk for refresh, ID: ${id}`
+    )
+    return dispatch(
+      fetchEntityByIdIfNeededThunk({
+        entityType: 'articles',
+        id,
+        endpoint: `/news/articles/${id}`,
+        schema: ARTICLE_SCHEMA_SINGLE,
+        forceRefresh: true // Key for refresh
+      })
+    ).unwrap() // Use unwrap if you need to handle promise from thunk
   }, [dispatch, id])
 
-  const [isRefreshing, handleRefresh] = useRefresh(handleRefreshAction)
+  const [isPullRefreshing, handlePullRefresh] = useRefresh(handleRefreshAction)
 
   // State for the new InteractiveDetailPopup
   const [popupVisible, setPopupVisible] = useState(false)
@@ -336,9 +349,8 @@ export default function ArticleScreen() {
     alert('Full article audio playback not implemented yet.')
   }
 
-  const isLoadingArticle = isFetching && !article
-
-  if (isLoadingArticle) {
+  if (isLoadingArticle && !article) {
+    // Still loading initial data
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color={Colors.light.primary} />
@@ -346,19 +358,18 @@ export default function ArticleScreen() {
     )
   }
 
-  // Handle case where article fetch failed or ID is invalid
-  if (!article && !isFetching) {
+  if (articleError && !article) {
+    // Failed to load initial data
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.errorContainer}>
-          <TouchableOpacity
-            onPress={handleGoBack}
-            style={styles.errorBackButton}
-          >
-            <ArrowLeft size={20} color={Colors.light.text} />
-          </TouchableOpacity>
-          <Text style={styles.errorText}>Failed to load article.</Text>
+          {/* ... back button ... */}
+          <Text style={styles.errorText}>
+            Failed to load article: {articleError}
+          </Text>
           <TouchableOpacity onPress={handleRefreshAction}>
+            {' '}
+            {/* Use the thunk directly */}
             <Text style={styles.errorRetry}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -412,8 +423,8 @@ export default function ArticleScreen() {
           ]}
           refreshControl={
             <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={handleRefresh}
+              refreshing={isPullRefreshing}
+              onRefresh={handleRefreshAction}
               tintColor={Colors.light.primary}
               colors={[Colors.light.primary]}
             />

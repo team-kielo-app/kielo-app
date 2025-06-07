@@ -40,7 +40,7 @@ const savedItemsSlice = createSlice({
           action: PayloadAction<{ result: SavedItemReference[]; entities: any }>
         ) => {
           state.status = 'succeeded'
-          state.items = action.payload.result
+          state.items = action.payload.result // Correct: stores array of SavedItemReference
         }
       )
       .addCase(fetchSavedItemsThunk.rejected, (state, action) => {
@@ -117,10 +117,12 @@ export const selectIsItemSaved = (
 }
 export const selectHydratedSavedArticles = (state: RootState): Article[] => {
   const savedArticleRefs = state.savedItems.items.filter(
+    // items are SavedItemReference[]
     ref => ref.item_type === 'ArticleVersion'
   )
   const articlesById = state.entities.articles || {}
+
   return savedArticleRefs
-    .map(ref => articlesById[ref.item_id])
-    .filter(article => !!article) as Article[] // Filter out undefined and cast
+    .map(ref => articlesById[ref.item_id]) // ref.item_id is the correct article UUID
+    .filter(article => !!article) as Article[]
 }
