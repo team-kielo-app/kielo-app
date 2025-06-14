@@ -1,94 +1,119 @@
-// src/components/ArticleThumbnail.tsx
-import React, { useMemo } from 'react' // Removed useEffect, useDispatch, useSelector
+// src/components/reader/ArticleThumbnail.tsx
+// src/components/reader/ArticleThumbnail.tsx
+import React, { useMemo } from 'react'
 import { View, StyleSheet, ActivityIndicator } from 'react-native'
 import { Image as ExpoImage, ImageStyle } from 'expo-image'
-import { BlurView } from 'expo-blur'
+// Removed BlurView as LQIP is handled directly by ExpoImage
+// import { BlurView } from 'expo-blur';
 
-import { Article } from '@features/articles/types' // Your Article type
-import { MediaMetadata } from '@features/media/types' // Your MediaMetadata type
-import { getBestImageUrl } from '@lib/mediaUtils' // Import the helper
+import { Article } from '@features/articles/types'
+import { MediaMetadata } from '@features/media/types'
+import { getBestImageUrl, getStaticPreviewUrl } from '@lib/mediaUtils' // Import the helper
 import { Colors } from '@constants/Colors'
+import { ImageOff } from 'lucide-react-native' // Icon for error state
 
 interface ArticleThumbnailProps {
   article: Article | null | undefined
   style?: ImageStyle
-  size?: 'medium' | 'large' | 'thumb'
+  size?: 'thumb' | 'medium' | 'large' // Size prop for getBestImageUrl
   contentFit?: 'cover' | 'contain'
 }
 
 export const ArticleThumbnail: React.FC<ArticleThumbnailProps> = React.memo(
   ({ article, style, size = 'medium', contentFit = 'cover' }) => {
-    // Get thumbnail metadata directly from the article prop
     const thumbnailMetadata: MediaMetadata | null | undefined =
       article?.thumbnail
 
-    // Determine Image URL and Placeholder using the direct metadata
-    const imageUrl = useMemo(
-      () => getBestImageUrl(thumbnailMetadata, size),
-      [thumbnailMetadata, size]
-    )
+    const imageUrl = useMemo(() => {
+      if (!thumbnailMetadata) return null
+      // For article thumbnails, we typically want a raster image.
+      // If the thumbnail is an SVG, get its rasterized preview.
+      // If it's an Image, get the best image URL.
+      if (thumbnailMetadata.media_type === 'SVG') {
+        return getStaticPreviewUrl(thumbnailMetadata) // Gets preview_webp for SVG
+      }
+      return getBestImageUrl(thumbnailMetadata, size) // Handles Image type
+    }, [thumbnailMetadata, size])
+
     const lqip = thumbnailMetadata?.metadata?.lqip_data_uri
 
-    // --- Render Logic ---
-
-    // Case: No article or no thumbnail metadata provided
     if (!thumbnailMetadata) {
-      console.log(
-        `ArticleThumbnail: No thumbnail metadata found for article ID: ${article?.id}`
-      )
-      return <View style={[styles.placeholder, style]} /> // Render empty placeholder
-    }
-
-    // Case: Thumbnail metadata exists but is still processing
-    if (thumbnailMetadata.processing_status !== 'Completed') {
-      console.log(
-        `ArticleThumbnail: Thumbnail processing for article ID: ${article?.id}, status: ${thumbnailMetadata.processing_status}`
-      )
+      // No thumbnail metadata on article object
       return (
-        <View style={[styles.placeholder, style]}>
-          <ActivityIndicator color={Colors.light.textSecondary} />
+        <View style={[styles.placeholder, styles.placeholderEmpty, style]}>
+          <ImageOff size={24} color={Colors.light.textTertiary} />
         </View>
       )
     }
 
-    // Case: Processing completed, but couldn't get a valid URL (should be rare if processing is done)
-    if (!imageUrl) {
-      console.warn(
-        `ArticleThumbnail: No suitable image URL found for completed thumbnail, article ID: ${article?.id}`
-      )
+    if (thumbnailMetadata.processing_status === 'Processing') {
       return (
-        <View style={[styles.placeholder, styles.errorPlaceholder, style]} />
-      ) // Error placeholder
+        <View style={[styles.placeholder, style]}>
+          {lqip ? (
+            <ExpoImage
+              source={{ uri: lqip }}
+              style={styles.image} // Ensure LQIP fills placeholder
+              contentFit="cover" // Cover for LQIP
+            />
+          ) : null}
+          <ActivityIndicator
+            style={StyleSheet.absoluteFill}
+            color={lqip ? Colors.light.white : Colors.light.textSecondary} // White if on LQIP, else secondary
+          />
+        </View>
+      )
     }
 
-    // Case: Success - Render the image
+    if (
+      thumbnailMetadata.processing_status === 'Failed' ||
+      (thumbnailMetadata.processing_status === 'Completed' && !imageUrl)
+    ) {
+      // Processing failed, or completed but no suitable URL (e.g. variant missing)
+      return (
+        <View style={[styles.placeholder, styles.placeholderError, style]}>
+          <ImageOff size={24} color={Colors.light.error} />
+        </View>
+      )
+    }
+
+    // Success case: Render the image
     return (
       <ExpoImage
-        source={{ uri: imageUrl }}
-        placeholder={{ uri: lqip }} // Use LQIP if available
-        placeholderContentFit={contentFit} // Contain placeholder
-        contentFit={contentFit} // Fit for the main image ('cover' or 'contain')
-        style={[styles.image, style]} // Apply base and passed styles
+        source={{ uri: imageUrl as string }} // Cast as string, already checked for null
+        placeholder={{ uri: lqip }}
+        placeholderContentFit="cover" // LQIP should cover
+        contentFit={contentFit}
+        style={[styles.image, style]} // Ensure image fills and applies passed style
         transition={300}
       />
     )
   }
 )
 
-// Styles remain the same
 const styles = StyleSheet.create({
   placeholder: {
+    width: '100%',
+    height: '100%',
     backgroundColor: Colors.light.backgroundLight,
     justifyContent: 'center',
     alignItems: 'center',
-    overflow: 'hidden'
+    overflow: 'hidden',
+    position: 'relative' // For absolute positioning of ActivityIndicator
   },
-  errorPlaceholder: {
-    backgroundColor: Colors.light.errorBackground // Indicate error visually
-    // Maybe add an error icon here later
+  placeholderEmpty: {
+    // Specific style for when there's no thumbnail at all
+    borderWidth: 1,
+    borderColor: Colors.light.border
+  },
+  placeholderError: {
+    backgroundColor: Colors.light.errorLight, // Use a light error background
+    borderWidth: 1,
+    borderColor: Colors.light.error
   },
   image: {
-    backgroundColor: Colors.light.backgroundLight,
+    width: '100%',
+    height: '100%',
+    backgroundColor: Colors.light.backgroundLight, // BG for the image component itself
     overflow: 'hidden'
   }
 })

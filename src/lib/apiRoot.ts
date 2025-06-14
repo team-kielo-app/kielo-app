@@ -21,7 +21,7 @@ const getDevApiUrl = (): string => {
 
     if (debuggerHost) {
       const ipAddress = debuggerHost.split(':')[0]
-      return `https://backend.kielo.app/api/v1`
+      return `http://${ipAddress}:${BACKEND_PORT}/api/v1`
     }
   } catch (error) {
     console.error('Error getting debugger host:', error)
