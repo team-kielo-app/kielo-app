@@ -29,6 +29,8 @@ export default function MainAppLayout() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="article/[id]" options={{ headerShown: false }} />
+
+        {/* Settings Screens */}
         <Stack.Screen name="settings/index" options={{ headerShown: false }} />
         <Stack.Screen
           name="settings/profile-info"
@@ -38,6 +40,8 @@ export default function MainAppLayout() {
           name="settings/change-password"
           options={{ headerShown: false }}
         />
+
+        {/* Other Screens */}
         <Stack.Screen
           name="progress-details"
           options={{ headerShown: false }}
@@ -45,6 +49,23 @@ export default function MainAppLayout() {
         <Stack.Screen name="saved-articles" options={{ headerShown: false }} />
         <Stack.Screen name="vocabulary" options={{ headerShown: false }} />
         <Stack.Screen name="achievements" options={{ headerShown: false }} />
+
+        {/* Exercise Screens */}
+        <Stack.Screen
+          name="exercises/player"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="exercises/review-session"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="challenges/daily"
+          options={{ headerShown: false }}
+        />
+        {/* Add other specific exercise screens here if needed, e.g., */}
+        {/* <Stack.Screen name="exercises/grammar-explorer" options={{ headerShown: false }} /> */}
+
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style="auto" />

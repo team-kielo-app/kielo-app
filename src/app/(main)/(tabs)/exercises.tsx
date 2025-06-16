@@ -1,10 +1,12 @@
-import React from 'react'
+// src/app/(main)/(tabs)/exercises.tsx
+import React, { useEffect } from 'react'
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity
+  TouchableOpacity,
+  ActivityIndicator
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import {
@@ -12,89 +14,77 @@ import {
   MessageSquare,
   ListChecks,
   Puzzle,
-  ChevronRight
+  ChevronRight,
+  Sparkles // For suggested lessons
 } from 'lucide-react-native'
 import { Colors } from '@constants/Colors'
 import { useRequireAuthAction } from '@hooks/useRequireAuthAction'
 import { useResponsiveDimensions } from '@/hooks/useResponsiveDimensions'
+import { useRouter } from 'expo-router'
+import { useDispatch, useSelector } from 'react-redux'
+import { AppDispatch, RootState } from '@/store/store'
 
-type ExerciseType = {
-  id: string
-  title: string
-  description: string
-  icon: React.ReactNode
-  color: string
-  exercises: number
-  backgroundColor: string
-}
+// Let's assume a new slice for "suggested lessons" (WPR)
+// This is a simplified version. In reality, these would be fetched.
+import {
+  fetchSuggestedLessonsThunk,
+  selectSuggestedLessons,
+  selectSuggestedLessonsStatus,
+  SuggestedLesson // Define this type
+} from '@features/lessons/lessonsSlice' // Assuming a lessonsSlice exists
+import { LessonData } from '@/features/lessons/types'
+import { DailyChallenge } from '@/components/home/DailyChallenge'
 
-const exercises: ExerciseType[] = [
+// Existing categories - can be static or fetched if they become dynamic
+const exerciseCategories = [
   {
-    id: 'vocabulary',
-    title: 'Vocabulary',
-    description: 'Learn and review Finnish words',
+    id: 'nsr_review_session', // More specific ID
+    title: 'Daily Review (SRS)', // Clearer title
+    description: 'Practice words & grammar due for review',
     icon: <Brain size={24} color={Colors.light.white} />,
     color: Colors.light.primary,
-    backgroundColor: Colors.light.primaryLight,
-    exercises: 12
-  },
-  {
-    id: 'conversation',
-    title: 'Conversation',
-    description: 'Practice dialog and phrases',
-    icon: <MessageSquare size={24} color={Colors.light.white} />,
-    color: Colors.light.accent,
-    backgroundColor: Colors.light.accentLight,
-    exercises: 8
-  },
-  {
-    id: 'grammar',
-    title: 'Grammar',
-    description: 'Master Finnish grammar rules',
-    icon: <ListChecks size={24} color={Colors.light.white} />,
-    color: Colors.light.success,
-    backgroundColor: Colors.light.successLight,
-    exercises: 5
-  },
-  {
-    id: 'games',
-    title: 'Games',
-    description: 'Fun activities to boost learning',
-    icon: <Puzzle size={24} color={Colors.light.white} />,
-    color: Colors.light.warning,
-    backgroundColor: Colors.light.warningLight,
-    exercises: 7
-  }
-]
-
-const dailySuggestions = [
-  {
-    id: 'suggestion-greetings',
-    title: 'Common Finnish Greetings',
-    type: 'Vocabulary',
-    duration: '10 min',
-    color: Colors.light.primary
-  },
-  {
-    id: 'suggestion-restaurant',
-    title: 'Restaurant Conversations',
-    type: 'Conversation',
-    duration: '15 min',
-    color: Colors.light.accent
+    targetPath: '/(main)/exercises/review-session' // Correct path
   }
 ]
 
 export default function ExercisesScreen() {
   const { isDesktop } = useResponsiveDimensions()
+  const router = useRouter()
+  const dispatch = useDispatch<AppDispatch>()
 
-  const goToExercise = useRequireAuthAction((exerciseId: string) => {
-    alert(`Navigate to exercise: ${exerciseId} (Not Implemented)`)
-  }, 'Login to start practicing.')
+  const suggestedLessons = useSelector(selectSuggestedLessons) // From lessonsSlice
+  const lessonsStatus = useSelector(selectSuggestedLessonsStatus) // From lessonsSlice
+
+  useEffect(() => {
+    // Fetch suggested lessons (WPR)
+    if (lessonsStatus === 'idle') {
+      dispatch(fetchSuggestedLessonsThunk({ max_suggestions: 3 }))
+    }
+  }, [dispatch, lessonsStatus])
+
+  const navigateToScreen = useRequireAuthAction(
+    (path: string, params?: Record<string, any>) => {
+      router.push({ pathname: path, params })
+    },
+    'Login to start practicing.'
+  )
+
+  const handleCategoryPress = (category: (typeof exerciseCategories)[0]) => {
+    navigateToScreen(category.targetPath)
+  }
+
+  const handleSuggestedLessonPress = (lesson: LessonData) => {
+    // lesson is now LessonData
+    navigateToScreen(`/(main)/exercises/player`, {
+      // Path no longer needs [lesson_id]
+      lessonDataString: JSON.stringify(lesson)
+    })
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Practice</Text>
+        <Text style={styles.headerTitle}>Practice Hub</Text>
       </View>
 
       <ScrollView
@@ -103,83 +93,94 @@ export default function ExercisesScreen() {
           isDesktop && styles.wideScreenContent
         ]}
       >
-        <Text style={styles.sectionTitle}>Categories</Text>
+        <DailyChallenge
+          onStartChallenge={() => router.push('/(main)/challenges/daily')}
+        />
+
+        {/* Suggested Lessons (WPR) */}
+        <Text style={styles.sectionTitle}>Recommended For You</Text>
+        {lessonsStatus === 'loading' && (
+          <ActivityIndicator
+            color={Colors.light.primary}
+            style={{ marginVertical: 20 }}
+          />
+        )}
+        {lessonsStatus === 'failed' && (
+          <Text style={styles.errorText}>Could not load recommendations.</Text>
+        )}
+        {lessonsStatus === 'succeeded' && suggestedLessons.length === 0 && (
+          <Text style={styles.emptySectionText}>
+            No specific recommendations right now. Explore categories below!
+          </Text>
+        )}
+        {suggestedLessons.map(lesson => (
+          <TouchableOpacity
+            key={lesson.lesson_id}
+            style={styles.suggestionCard}
+            onPress={() => handleSuggestedLessonPress(lesson)}
+          >
+            <View style={styles.suggestionIconContainer}>
+              <Sparkles size={22} color={Colors.light.white} />
+            </View>
+            <View style={styles.suggestionTextContainer}>
+              <Text style={styles.suggestionTitle}>{lesson.lesson_title}</Text>
+              <Text style={styles.suggestionDescription} numberOfLines={2}>
+                {lesson.description}
+              </Text>
+              <Text style={styles.suggestionMeta}>
+                Approx. {lesson.estimated_duration_minutes || '?'} min
+              </Text>
+            </View>
+            <ChevronRight size={20} color={Colors.light.textSecondary} />
+          </TouchableOpacity>
+        ))}
+
+        {/* Static Exercise Categories */}
+        <Text style={styles.sectionTitle}>Practice Areas</Text>
         <View
           style={[
             styles.exercisesGrid,
             isDesktop && styles.wideScreenExercisesGrid
           ]}
         >
-          {exercises.map(exercise => (
+          {exerciseCategories.map(category => (
             <TouchableOpacity
-              key={exercise.id}
+              key={category.id}
               style={[
                 styles.exerciseCard,
                 isDesktop && styles.wideScreenExerciseCard
               ]}
-              onPress={() => goToExercise(exercise.id)}
+              onPress={() => handleCategoryPress(category)}
             >
               <View
                 style={[
                   styles.exerciseIconContainer,
-                  { backgroundColor: exercise.color }
+                  { backgroundColor: category.color }
                 ]}
               >
-                {exercise.icon}
+                {category.icon}
               </View>
-              <Text style={styles.exerciseTitle}>{exercise.title}</Text>
-              <Text style={styles.exerciseDescription}>
-                {exercise.description}
+              <Text style={styles.exerciseTitle}>{category.title}</Text>
+              <Text style={styles.exerciseDescription} numberOfLines={2}>
+                {category.description}
               </Text>
               <View style={styles.exerciseInfoRow}>
-                <Text style={styles.exerciseCount}>
-                  {exercise.exercises} exercises
-                </Text>
+                <Text style={styles.exerciseCount}>Explore</Text>
                 <ChevronRight size={16} color={Colors.light.textSecondary} />
               </View>
             </TouchableOpacity>
           ))}
         </View>
 
-        <Text style={styles.sectionTitle}>Suggested For Today</Text>
-        {dailySuggestions.map(suggestion => (
-          <TouchableOpacity
-            key={suggestion.id}
-            style={styles.suggestionCard}
-            onPress={() => goToExercise(suggestion.id)}
-          >
-            <View style={styles.suggestionContent}>
-              <View
-                style={[
-                  styles.suggestionTypeIndicator,
-                  { backgroundColor: suggestion.color }
-                ]}
-              />
-              <View style={styles.suggestionTextContainer}>
-                <Text style={styles.suggestionTitle}>{suggestion.title}</Text>
-                <View style={styles.suggestionMetaContainer}>
-                  <Text style={styles.suggestionMeta}>{suggestion.type}</Text>
-                  <View style={styles.metaSeparator} />
-                  <Text style={styles.suggestionMeta}>
-                    {suggestion.duration}
-                  </Text>
-                </View>
-              </View>
-            </View>
-            <ChevronRight size={20} color={Colors.light.textSecondary} />
-          </TouchableOpacity>
-        ))}
-
+        {/* Word of the Day (Can remain static or be fetched) */}
         <Text style={styles.sectionTitle}>Word of the Day</Text>
         <View style={styles.wordOfDayCard}>
+          {/* ... Word of the day content ... */}
           <View style={styles.wordOfDayHeader}>
             <Text style={styles.finnishWord}>tervetuloa</Text>
             <Text style={styles.pronunciation}>/ter·ve·tu·lo·a/</Text>
           </View>
           <Text style={styles.englishTranslation}>welcome</Text>
-          <Text style={styles.exampleTitle}>Example:</Text>
-          <Text style={styles.exampleSentence}>Tervetuloa Suomeen!</Text>
-          <Text style={styles.exampleTranslation}>Welcome to Finland!</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -192,9 +193,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.background
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16
   },
@@ -217,66 +215,21 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-SemiBold',
     fontSize: 18,
     color: Colors.light.text,
-    marginTop: 16,
+    marginTop: 20,
     marginBottom: 16
   },
-  exercisesGrid: {
-    flexDirection: 'column',
-    marginBottom: 24,
-    gap: 12
+  errorText: {
+    textAlign: 'center',
+    color: Colors.light.error,
+    marginVertical: 15
   },
-  wideScreenExercisesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 16
-  },
-  exerciseCard: {
-    backgroundColor: Colors.light.cardBackground,
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: Colors.light.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 2,
-    width: '100%'
-  },
-  wideScreenExerciseCard: {
-    width: '48%'
-  },
-  exerciseIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12
-  },
-  exerciseTitle: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 18,
-    color: Colors.light.text,
-    marginBottom: 4
-  },
-  exerciseDescription: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 14,
+  emptySectionText: {
+    textAlign: 'center',
     color: Colors.light.textSecondary,
-    marginBottom: 12,
-    minHeight: 35
+    marginVertical: 15,
+    paddingHorizontal: 20
   },
-  exerciseInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 'auto'
-  },
-  exerciseCount: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 14,
-    color: Colors.light.textSecondary
-  },
+  // Suggested Lesson Card
   suggestionCard: {
     backgroundColor: Colors.light.cardBackground,
     borderRadius: 12,
@@ -286,62 +239,114 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     shadowColor: Colors.light.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
     elevation: 2
   },
-  suggestionContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    marginRight: 8
-  },
-  suggestionTypeIndicator: {
-    width: 4,
+  suggestionIconContainer: {
+    width: 40,
     height: 40,
-    borderRadius: 2,
+    borderRadius: 20,
+    backgroundColor: Colors.light.accent, // Example color
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 12
   },
   suggestionTextContainer: {
-    flex: 1
+    flex: 1,
+    marginRight: 8
   },
   suggestionTitle: {
     fontFamily: 'Inter-SemiBold',
     fontSize: 16,
     color: Colors.light.text,
+    marginBottom: 2
+  },
+  suggestionDescription: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 13,
+    color: Colors.light.textSecondary,
     marginBottom: 4
   },
-  suggestionMetaContainer: {
-    flexDirection: 'row',
-    alignItems: 'center'
-  },
   suggestionMeta: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 12,
+    color: Colors.light.primary
+  },
+  // Exercise Category Card (retained styles)
+  exercisesGrid: {
+    flexDirection: 'column', // Mobile: column
+    gap: 12
+  },
+  wideScreenExercisesGrid: {
+    flexDirection: 'row', // Desktop: row
+    flexWrap: 'wrap',
+    justifyContent: 'space-between', // Distribute cards
+    gap: 16 // Gap between cards
+  },
+  exerciseCard: {
+    backgroundColor: Colors.light.cardBackground,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: Colors.light.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+    width: '100%', // Mobile: full width
+    minHeight: 150, // Ensure cards have some height
+    justifyContent: 'space-between'
+  },
+  wideScreenExerciseCard: {
+    width: '48%' // Desktop: roughly 2 per row, accounting for gap
+  },
+  exerciseIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12
+  },
+  exerciseTitle: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 17,
+    color: Colors.light.text,
+    marginBottom: 4
+  },
+  exerciseDescription: {
     fontFamily: 'Inter-Regular',
+    fontSize: 14,
+    color: Colors.light.textSecondary,
+    marginBottom: 12,
+    flexGrow: 1 // Allow description to take space
+  },
+  exerciseInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 'auto' // Push to bottom
+  },
+  exerciseCount: {
+    // Renamed to "Explore" or similar
+    fontFamily: 'Inter-Medium',
     fontSize: 14,
     color: Colors.light.textSecondary
   },
-  metaSeparator: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: Colors.light.textSecondary,
-    marginHorizontal: 8
-  },
+  // Word of the Day Card (retained styles)
   wordOfDayCard: {
     backgroundColor: Colors.light.cardBackground,
     borderRadius: 12,
     padding: 16,
     marginBottom: 24,
     shadowColor: Colors.light.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
     elevation: 2
   },
-  wordOfDayHeader: {
-    marginBottom: 8
-  },
+  wordOfDayHeader: { marginBottom: 8 },
   finnishWord: {
     fontFamily: 'Inter-Bold',
     fontSize: 24,
@@ -357,25 +362,6 @@ const styles = StyleSheet.create({
   englishTranslation: {
     fontFamily: 'Inter-SemiBold',
     fontSize: 18,
-    color: Colors.light.primary,
-    marginBottom: 16
-  },
-  exampleTitle: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 14,
-    color: Colors.light.text,
-    marginBottom: 4
-  },
-  exampleSentence: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 16,
-    color: Colors.light.text,
-    fontStyle: 'italic',
-    marginBottom: 4
-  },
-  exampleTranslation: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 14,
-    color: Colors.light.textSecondary
+    color: Colors.light.primary
   }
 })

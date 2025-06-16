@@ -8,6 +8,9 @@ import vocabularyReducer from '@features/vocabulary/vocabularySlice'
 import readsReducer from '@features/reads/readsSlice'
 import progressReducer from '@features/progress/progressSlice'
 import achievementsReducer from '@features/achievements/achievementsSlice'
+import reviewsReducer from '@features/reviews/reviewsSlice'
+import lessonsReducer from '@features/lessons/lessonsSlice'
+import challengesReducer from '@features/challenges/challengesSlice'
 
 const pagination = combineReducers({
   articlePagination: articlePaginationReducer
@@ -22,6 +25,9 @@ const rootReducer = combineReducers({
   reads: readsReducer,
   progress: progressReducer,
   achievements: achievementsReducer,
+  reviews: reviewsReducer,
+  lessons: lessonsReducer,
+  challenges: challengesReducer,
   pagination
 })
 
