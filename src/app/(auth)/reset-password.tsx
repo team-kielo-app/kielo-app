@@ -366,7 +366,7 @@ export default function ResetPasswordScreen() {
               disabled={isVerifyButtonDisabled}
             >
               {isLoading ? (
-                <ActivityIndicator color={Colors.light.white} />
+                <ActivityIndicator color={Colors.common.white} />
               ) : (
                 <Text style={authStyles.actionButtonText}>Verify Code</Text>
               )}
@@ -383,7 +383,7 @@ export default function ResetPasswordScreen() {
               disabled={isFormDisabled}
             >
               {isLoading ? (
-                <ActivityIndicator color={Colors.light.white} />
+                <ActivityIndicator color={Colors.common.white} />
               ) : (
                 <Text style={authStyles.actionButtonText}>Reset Password</Text>
               )}
@@ -396,7 +396,11 @@ export default function ResetPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
-  inputWrapperDisabled: {},
+  inputWrapperDisabled: {
+    borderColor: Colors.light.borderSubtle,
+    backgroundColor: Colors.light.backgroundSecondary,
+    opacity: 0.7
+  },
   otpContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',

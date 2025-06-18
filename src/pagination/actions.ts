@@ -94,8 +94,8 @@ export function withPaginationList<S extends RootState>({
         ...additionalQueryParams
       }
       if (cursor) {
-        if (pageToFetch === 'next') queryParams.next = cursor
-        if (pageToFetch === 'prev') queryParams.prev = cursor
+        if (pageToFetch === 'next') queryParams.next_page_key = cursor
+        if (pageToFetch === 'prev') queryParams.next_page_key = cursor
       }
       const queryString = makeQueryString(queryParams)
 

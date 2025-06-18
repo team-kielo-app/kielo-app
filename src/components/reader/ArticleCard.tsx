@@ -1,151 +1,127 @@
-import React, { useMemo, useState } from 'react'
-import type { ArticleType } from '@features/articles/types'
+import React, { useMemo } from 'react'
+import type { Article as ArticleType } from '@features/articles/types'
 import { Colors } from '@constants/Colors'
-import { Link } from 'expo-router'
 import {
   View,
   Text,
   StyleSheet,
-  Pressable,
-  TouchableOpacity
+  TouchableOpacity,
+  Pressable
 } from 'react-native'
-import { Article } from '@features/articles/types' // Use the new Article typeate formatting
 import { BookOpen } from 'lucide-react-native'
-import { formatDistanceToNow } from 'date-fns'
-import { useResponsiveDimensions } from '@/hooks/useResponsiveDimensions'
+import { formatDistanceToNowStrict } from 'date-fns'
 
-type ArticleCardProps = {
+interface ArticleCardProps {
   article: ArticleType
   onPress: () => void
 }
 
-export const ArticleCard: React.FC<ArticleCardProps> = ({
+export function ArticleCard({
   article,
   onPress
-}) => {
-  const { isDesktop } = useResponsiveDimensions()
-  const [isSaved, setIsSaved] = useState(false)
-
+}: ArticleCardProps): React.ReactElement {
   const formattedDate = useMemo(() => {
     if (!article?.publication_date) return ''
-    return formatDistanceToNow(new Date(article?.publication_date))
+    return formatDistanceToNowStrict(new Date(article.publication_date), {
+      addSuffix: true
+    })
   }, [article?.publication_date])
 
-  const toggleSaved = (e: any) => {
+  const handleBrandPress = (e: any) => {
     e.stopPropagation()
-    setIsSaved(!isSaved)
-  }
-
-  const handleBrandPress = () => {
-    console.log(
-      'Navigate to brand page for:',
-      article?.brand?.source_identifier
+    console.log('Brand pressed (ArticleCard):', article?.brand?.display_name)
+    Alert.alert(
+      'Brand Action',
+      `Brand: ${article?.brand?.display_name} (Not Implemented)`
     )
-    // Future implementation:
-    // router.push({
-    //   pathname: '/(main)/brand/[id]',
-    //   params: { id: article.brand.source_identifier }
-    // });
-    // For now, maybe just log or do nothing
   }
 
   return (
-    <TouchableOpacity
-      style={[styles.card]}
-      onPress={onPress}
-      activeOpacity={0.8}
-    >
-      {/* Optional: Bookmark Icon */}
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
       <View style={styles.bookmarkIconContainer}>
         <BookOpen size={18} color={Colors.light.textTertiary} />
-        {/* Or use a bookmark icon based on article.isBookmarked */}
       </View>
 
-      {/* Content */}
       <View style={styles.content}>
-        {/* Title */}
         <Text style={styles.title} numberOfLines={3}>
-          {article?.title}
+          {article?.title || 'Untitled Article'}
         </Text>
 
-        {/* Brand Info & Date */}
         <View style={styles.footer}>
-          <Pressable onPress={handleBrandPress} hitSlop={10}>
-            <Text style={styles.brandName}>{article?.brand?.display_name}</Text>
-          </Pressable>
-          <Text style={styles.date}>{formattedDate}</Text>
+          {article?.brand?.display_name && (
+            <Pressable onPress={handleBrandPress} hitSlop={10}>
+              <Text style={styles.brandName}>{article.brand.display_name}</Text>
+            </Pressable>
+          )}
+          {article?.publication_date && (
+            <Text style={styles.dateText}>{formattedDate}</Text>
+          )}
         </View>
-      </View>
-
-      {/* Optional: Progress Bar if tracking reading */}
-      <View style={styles.progressBarContainer}>
-        <View
-          style={[styles.progressBar, { width: `${Math.random() * 100}%` }]}
-        />
       </View>
     </TouchableOpacity>
   )
 }
+import { Alert } from 'react-native'
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: Colors.light.white,
+    backgroundColor: Colors.light.cardBackground,
     borderRadius: 12,
-    marginBottom: 15,
-    // Common card styles (shadow, border etc)
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
+    marginBottom: 16,
+    shadowColor: Colors.light.shadowSoft,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.light.border,
-    overflow: 'hidden', // Needed for progress bar potentially
-    minHeight: 120, // Adjust as needed
-    padding: 12,
-    position: 'relative' // For absolute positioning of icon
+    borderColor: Colors.light.borderSubtle,
+    overflow: 'hidden',
+    padding: 16,
+    position: 'relative'
   },
   bookmarkIconContainer: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    padding: 4, // Hit area
-    // backgroundColor: 'rgba(255,255,255,0.7)', // Optional background
-    borderRadius: 15
+    top: 12,
+    right: 12,
+    padding: 4,
+    zIndex: 1
   },
   content: {
     flex: 1,
-    justifyContent: 'space-between' // Push title up and footer down
+    justifyContent: 'space-between'
   },
   title: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold', // Or your title font
+    fontSize: 17,
+    fontFamily: 'Inter-SemiBold',
     color: Colors.light.text,
     marginBottom: 10,
-    lineHeight: 22,
-    paddingRight: 25 // Avoid overlapping icon
+    lineHeight: 23,
+    paddingRight: 30
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 'auto' // Push footer to bottom
+    marginTop: 8
   },
   brandName: {
     fontSize: 13,
     fontFamily: 'Inter-Medium',
-    color: Colors.light.primary, // Or use brand color if desired/safe
-    paddingVertical: 2 // Hit area for Pressable
+    color: Colors.light.primary,
+    paddingVertical: 2,
+    marginRight: 8,
+    flexShrink: 1
   },
-  date: {
+  dateText: {
     fontSize: 12,
     fontFamily: 'Inter-Regular',
-    color: Colors.light.textSecondary
+    color: Colors.light.textSecondary,
+    textAlign: 'right',
+    flexShrink: 0
   },
-  // Optional progress bar styling
   progressBarContainer: {
     height: 4,
-    backgroundColor: Colors.light.backgroundLight,
+    backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: 2,
     overflow: 'hidden'
   },

@@ -42,7 +42,7 @@ export const ArticleHeaderControls: React.FC<ArticleHeaderControlsProps> = ({
         accessibilityRole="button"
         pointerEvents="auto"
       >
-        <ArrowLeft size={22} color={Colors.light.white} />
+        <ArrowLeft size={22} color={Colors.common.white} />
       </TouchableOpacity>
       <View style={styles.headerRightButtons}>
         <TouchableOpacity
@@ -56,11 +56,11 @@ export const ArticleHeaderControls: React.FC<ArticleHeaderControlsProps> = ({
           pointerEvents="auto"
         >
           {isSaveLoading ? (
-            <ActivityIndicator size="small" color={Colors.light.white} />
+            <ActivityIndicator size="small" color={Colors.common.white} />
           ) : isArticleSaved ? (
             <BookmarkCheck size={22} color={Colors.light.primary} />
           ) : (
-            <Bookmark size={22} color={Colors.light.white} />
+            <Bookmark size={22} color={Colors.common.white} />
           )}
         </TouchableOpacity>
         <TouchableOpacity
@@ -70,7 +70,7 @@ export const ArticleHeaderControls: React.FC<ArticleHeaderControlsProps> = ({
           accessibilityRole="button"
           pointerEvents="auto"
         >
-          <Share size={22} color={Colors.light.white} />
+          <Share size={22} color={Colors.common.white} />
         </TouchableOpacity>
       </View>
     </View>
@@ -104,8 +104,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.55)',
     alignItems: 'center',
     justifyContent: 'center'
-    // Consider if backdropFilter is truly needed or if simple opacity is enough
-    // backdropFilter: 'blur(10px)', // backdropFilter is iOS only and can have performance implications
   },
   headerRightButtons: {
     flexDirection: 'row',
@@ -118,6 +116,5 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     alignItems: 'center',
     justifyContent: 'center'
-    // backdropFilter: 'blur(10px)',
   }
 })

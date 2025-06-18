@@ -5,7 +5,6 @@ import * as Device from 'expo-device'
 import { Platform } from 'react-native'
 import * as tokenStorage from '@lib/tokenStorage'
 import * as secureStorage from './secureStorage'
-import { showAuthDebugToast } from './debugToast'
 import { ApiError } from './ApiError'
 import { API_URL } from './apiRoot'
 

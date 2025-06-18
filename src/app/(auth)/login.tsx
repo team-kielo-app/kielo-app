@@ -34,7 +34,6 @@ import {
   usePathname
 } from 'expo-router'
 
-// Configure Google Sign-In
 GoogleSignin.configure({
   webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
   iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
@@ -59,7 +58,6 @@ const LoginView = () => {
   const isLoading = status === 'loading'
   const displayError = rawError || localError
 
-  // Email/password login
   const handleLoginSubmit = useCallback(async () => {
     if (isLoading) return
     dispatch(clearAuthError())
@@ -72,7 +70,6 @@ const LoginView = () => {
     }
   }, [email, password, dispatch, isLoading])
 
-  // Google Sign-In
   const handleGoogleLoginPress = useCallback(async () => {
     dispatch(clearAuthError())
     setLocalError(null)
@@ -92,9 +89,7 @@ const LoginView = () => {
       }
     } catch (error: any) {
       if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-        // user cancelled the login flow
       } else if (error.code === statusCodes.IN_PROGRESS) {
-        // operation (e.g. sign in) is in progress
       } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
         setLocalError('Google Play Services not available or outdated')
       } else {
@@ -103,7 +98,6 @@ const LoginView = () => {
     }
   }, [dispatch])
 
-  // Other social placeholders
   const handleAppleLoginPress = useCallback(() => {
     dispatch(clearAuthError())
     setLocalError(null)
@@ -116,12 +110,10 @@ const LoginView = () => {
     setLocalError('Facebook Sign-In is not yet implemented.')
   }, [dispatch])
 
-  // Clear errors on input
   useEffect(() => {
     setLocalError(null)
   }, [email, password])
 
-  // Clear remote errors after timeout
   useEffect(() => {
     let timer: NodeJS.Timeout
     if (displayError) {
@@ -169,7 +161,7 @@ const LoginView = () => {
       return (
         <Pressable
           style={({ pressed }) => [
-            styles.socialButton,
+            authStyles.socialButton,
             (disabled || isLoading) && authStyles.buttonDisabled,
             pressed &&
               !(disabled || isLoading) && {
@@ -180,7 +172,11 @@ const LoginView = () => {
           onPress={onPress}
           disabled={disabled || isLoading}
         >
-          <FontAwesome name={iconName as any} size={20} color="white" />
+          <FontAwesome
+            name={iconName as any}
+            size={20}
+            color={Colors.light.primaryContent}
+          />
         </Pressable>
       )
     },
@@ -193,7 +189,6 @@ const LoginView = () => {
       keyboardShouldPersistTaps="handled"
     >
       <View style={authStyles.innerContainer}>
-        {/* Header */}
         <View style={authStyles.headerContainer}>
           <TouchableOpacity
             onPress={handleGoBack}
@@ -203,7 +198,6 @@ const LoginView = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Titles */}
         <View style={authStyles.titleContainer}>
           <Text style={authStyles.title}>Let's Sign you in.</Text>
           <Text style={authStyles.subtitle}>Welcome back</Text>
@@ -314,7 +308,7 @@ const LoginView = () => {
             disabled={isLoading}
           >
             {isLoading ? (
-              <ActivityIndicator color={Colors.light.white} />
+              <ActivityIndicator color={Colors.common.white} />
             ) : (
               <Text style={authStyles.actionButtonText}>Login</Text>
             )}

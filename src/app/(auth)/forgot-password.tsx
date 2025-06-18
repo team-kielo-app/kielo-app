@@ -130,7 +130,7 @@ export default function ForgotPasswordScreen() {
             disabled={isButtonDisabled}
           >
             {isLoading ? (
-              <ActivityIndicator color={Colors.light.white} />
+              <ActivityIndicator color={Colors.common.white} />
             ) : (
               <Text style={authStyles.actionButtonText}>Send Instructions</Text>
             )}

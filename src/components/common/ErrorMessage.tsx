@@ -28,7 +28,7 @@ export const ErrorMessage: React.FC<ErrorMessageProps> = ({
 
 const styles = StyleSheet.create({
   errorContainer: {
-    backgroundColor: Colors.light.errorLight,
+    backgroundColor: Colors.light.errorBackground,
     padding: 12,
     borderRadius: 8,
     marginVertical: 10,

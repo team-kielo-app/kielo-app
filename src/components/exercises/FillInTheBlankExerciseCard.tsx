@@ -1,25 +1,30 @@
 // src/components/exercises/FillInTheBlankExerciseCard.tsx
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react' // Added useEffect
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  TextInput
+  TextInput,
+  Image
 } from 'react-native'
 import { Colors } from '@constants/Colors'
-import { Check, X } from 'lucide-react-native' // Assuming lucide-react-native is used
+import { Check, X, Lightbulb } from 'lucide-react-native' // Lightbulb for Hint
 
-// Define a type for the exercise data this card expects
+// Icon for visual aid - could be related to grammar or the sentence context
+const fillInBlankVisualAidPlaceholder =
+  'https://cdn-icons-png.flaticon.com/512/3259/3259689.png' // Example: book/document icon
+
 export interface FillInTheBlankExercise {
   exercise_type: 'fill_in_the_blank'
-  prompt: string // e.g., "Minulla on kaksi ____ (auto)."
-  // sentence_with_blank could be derived or provided: "Minulla on kaksi ____."
+  prompt: string // e.g., "Apply grammar: 'adessiivi'" OR "Complete the sentence:"
+  sentence_with_blank: string // e.g., "Kissa on _____ (tuoli)." or "Aurinko paistaa ja linnut _____."
   correct_answer: string
-  options?: string[] // If present, it's a multiple-choice fill-in-the-blank
-  // item_id_fk?: string; // Optional: ID of the word/grammar concept being tested
-  // item_type_fk?: string; // Optional: "word" or "grammar"
-  explanation?: string // Optional: Explanation if the answer is wrong
+  options?: string[] | null
+  explanation?: string // Feedback if wrong
+  hint?: string // Optional hint for the user
+  item_id_fk: string
+  item_type_fk: 'word' | 'grammar' | string
 }
 
 interface FillInTheBlankExerciseCardProps {
@@ -32,28 +37,38 @@ export const FillInTheBlankExerciseCard: React.FC<
 > = ({ exercise, onAnswered }) => {
   const [userAnswer, setUserAnswer] = useState('')
   const [isSubmitted, setIsSubmitted] = useState(false)
-  const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
+  const [showHint, setShowHint] = useState(false)
+
+  // Calculate isCorrect only when submitted, to avoid premature UI updates
+  const [isCorrectOnSubmit, setIsCorrectOnSubmit] = useState<boolean | null>(
+    null
+  )
+
+  useEffect(() => {
+    // Reset state when the exercise changes
+    setUserAnswer('')
+    setIsSubmitted(false)
+    setShowHint(false)
+    setIsCorrectOnSubmit(null)
+  }, [exercise])
 
   const isMcqFill = exercise.options && exercise.options.length > 0
 
   const handleSubmit = () => {
-    if (!userAnswer && !isMcqFill) return // Require input for text entry
-    if (isMcqFill && !userAnswer) return // Require selection for MCQ
+    if (!userAnswer && !isMcqFill) return
+    if (isMcqFill && !userAnswer) return
 
     const correct =
       userAnswer.trim().toLowerCase() === exercise.correct_answer.toLowerCase()
-    setIsCorrect(correct)
+    setIsCorrectOnSubmit(correct) // Set correctness state
     setIsSubmitted(true)
-    // onAnswered(correct, userAnswer); // Call this after user clicks "Next" or if auto-advancing
   }
 
   const handleNext = () => {
-    if (isCorrect === null) return // Should not happen if submit was pressed
-    onAnswered(isCorrect, userAnswer)
-    // Reset state for potential reuse if this component isn't unmounted
-    setUserAnswer('')
-    setIsSubmitted(false)
-    setIsCorrect(null)
+    // isCorrectOnSubmit should be set by handleSubmit before this is called
+    if (isCorrectOnSubmit === null) return
+    onAnswered(isCorrectOnSubmit, userAnswer)
+    // State reset is now handled by useEffect on exercise change
   }
 
   const renderInputMethod = () => {
@@ -79,7 +94,7 @@ export const FillInTheBlankExerciseCard: React.FC<
               }}
               disabled={isSubmitted}
             >
-              <Text style={styles.optionText}>{option}</Text>
+              <Text style={styles.optionButtonText}>{option}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -88,13 +103,14 @@ export const FillInTheBlankExerciseCard: React.FC<
       return (
         <TextInput
           style={[
-            styles.input,
+            styles.textInputFill,
             isSubmitted &&
-              (isCorrect ? styles.inputCorrect : styles.inputIncorrect)
+              (isCorrectOnSubmit ? styles.inputCorrect : styles.inputIncorrect)
           ]}
           value={userAnswer}
           onChangeText={setUserAnswer}
-          placeholder="Your answer"
+          placeholder="Type your answer here"
+          placeholderTextColor={Colors.light.textTertiary}
           editable={!isSubmitted}
           onSubmitEditing={handleSubmit}
           autoCapitalize="none"
@@ -103,62 +119,98 @@ export const FillInTheBlankExerciseCard: React.FC<
     }
   }
 
-  // Attempt to display the prompt with a clear blank
-  const displayPrompt = exercise.prompt
-    .replace(/____\(.+\)/g, '______')
-    .replace(/____/g, '______')
+  // Process sentence_with_blank to highlight the blank space more visually
+  const formattedSentence = exercise.sentence_with_blank
+    .replace(/_____/g, ' __ __ __ __ __ ') // Make underscores more distinct
+    .replace(/\(.*\)/g, match => `(${match.slice(1, -1).italics()})`) // Italicize hint in parentheses (conceptual)
+  // Actual italicization needs <Text> styling
 
   return (
     <View style={styles.card}>
-      <Text style={styles.prompt}>{displayPrompt}</Text>
-      <Text style={styles.sentenceForBlank}>
-        {exercise.sentence_with_blank}
-      </Text>
+      <View style={styles.contentContainer}>
+        <Text style={styles.instructionText}>{exercise.prompt}</Text>
 
-      {renderInputMethod()}
+        <Text style={styles.sentenceToFill}>
+          {/* Split sentence to style the blank part if needed, or just display as is */}
+          {formattedSentence}
+        </Text>
+
+        <View style={styles.visualAidContainer}>
+          <Image
+            source={{ uri: fillInBlankVisualAidPlaceholder }}
+            style={styles.visualAidIcon}
+          />
+        </View>
+
+        {renderInputMethod()}
+
+        {exercise.hint && !isSubmitted && (
+          <TouchableOpacity
+            style={styles.hintButton}
+            onPress={() => setShowHint(true)}
+          >
+            <Lightbulb size={16} color={Colors.light.accentOrange} />
+            <Text style={styles.hintButtonText}>Show Hint</Text>
+          </TouchableOpacity>
+        )}
+        {showHint && !isSubmitted && exercise.hint && (
+          <Text style={styles.hintText}>{exercise.hint}</Text>
+        )}
+      </View>
 
       {isSubmitted && (
-        <View style={styles.feedbackContainer}>
-          {isCorrect ? (
-            <Check size={20} color={Colors.light.success} />
-          ) : (
-            <X size={20} color={Colors.light.error} />
-          )}
-          <Text
+        <View style={styles.feedbackSection}>
+          <View
             style={[
-              styles.feedbackText,
-              isCorrect ? styles.feedbackCorrect : styles.feedbackIncorrect
+              styles.feedbackBox,
+              isCorrectOnSubmit
+                ? styles.feedbackBoxCorrect
+                : styles.feedbackBoxIncorrect
             ]}
           >
-            {isCorrect
-              ? 'Correct!'
-              : `Correct answer: ${exercise.correct_answer}`}
-          </Text>
-          {exercise.explanation && !isCorrect && (
+            {isCorrectOnSubmit ? (
+              <Check size={18} color={Colors.light.success} />
+            ) : (
+              <X size={18} color={Colors.light.error} />
+            )}
+            <Text
+              style={[
+                styles.feedbackText,
+                isCorrectOnSubmit
+                  ? { color: Colors.light.success }
+                  : { color: Colors.light.error }
+              ]}
+            >
+              {isCorrectOnSubmit
+                ? 'Correct!'
+                : `Correct answer: ${exercise.correct_answer}`}
+            </Text>
+          </View>
+          {exercise.explanation && !isCorrectOnSubmit && (
             <Text style={styles.explanationText}>{exercise.explanation}</Text>
           )}
         </View>
       )}
 
-      <View style={styles.actions}>
+      <View style={styles.actionBar}>
         {!isSubmitted ? (
           <TouchableOpacity
             style={[
-              styles.button,
+              styles.actionButton,
               styles.submitButton,
-              !userAnswer && styles.buttonDisabled
+              !userAnswer && !isMcqFill && styles.buttonDisabled
             ]}
             onPress={handleSubmit}
-            disabled={!userAnswer}
+            disabled={(!userAnswer && !isMcqFill) || (isMcqFill && !userAnswer)}
           >
-            <Text style={styles.buttonText}>Submit</Text>
+            <Text style={styles.actionButtonText}>Check</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
-            style={[styles.button, styles.nextButton]}
+            style={[styles.actionButton, styles.nextButton]}
             onPress={handleNext}
           >
-            <Text style={styles.buttonText}>Next</Text>
+            <Text style={styles.actionButtonText}>Next</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -169,124 +221,163 @@ export const FillInTheBlankExerciseCard: React.FC<
 const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.light.cardBackground,
-    borderRadius: 12,
+    borderRadius: 24,
     padding: 20,
     marginVertical: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2
+    shadowRadius: 4,
+    elevation: 5
+    // Mimicking the Pronunciation screen's card feel
   },
-  mainPrompt: {
-    // For the overall instruction from KLearn
-    fontSize: 16,
-    color: Colors.light.textSecondary,
-    marginBottom: 8,
-    textAlign: 'center',
-    fontStyle: 'italic'
+  contentContainer: {
+    alignItems: 'center',
+    marginBottom: 20
   },
-  sentenceForBlank: {
-    // For the sentence containing the blank
-    fontSize: 19, // Make it slightly larger
-    color: Colors.light.text,
-    marginBottom: 20,
-    lineHeight: 28, // Ensure good readability
-    textAlign: 'center',
-    fontWeight: '500'
-  },
-  prompt: {
-    fontSize: 18,
-    color: Colors.light.text,
-    marginBottom: 20,
-    lineHeight: 26,
+  instructionText: {
+    fontSize: 16, // Adjusted size
+    fontFamily: 'Inter-SemiBold', // More prominent
+    color: Colors.light.textSecondary, // Softer color
+    marginBottom: 10, // Spacing
     textAlign: 'center'
   },
-  input: {
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
+  sentenceToFill: {
+    fontSize: 22, // Prominent sentence
+    fontFamily: 'Inter-Medium', // Not too bold, to let blank stand out
+    color: Colors.light.text,
+    marginBottom: 15,
+    textAlign: 'center',
+    lineHeight: 32,
+    paddingHorizontal: 10 // Ensure it doesn't touch edges
+  },
+  visualAidContainer: {
+    width: 60,
+    height: 60, // Smaller visual aid
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 20,
-    backgroundColor: Colors.light.white
+    opacity: 0.7 // Subtler
+  },
+  visualAidIcon: { width: '100%', height: '100%', resizeMode: 'contain' },
+
+  textInputFill: {
+    borderWidth: 1.5, // Slightly thicker border
+    borderColor: Colors.light.border, // Use a theme green if active: Colors.light.accentGreen
+    backgroundColor: Colors.common.white, // Clean white background
+    borderRadius: 12,
+    paddingVertical: 16, // Taller input
+    paddingHorizontal: 20,
+    fontSize: 18,
+    textAlign: 'center',
+    marginBottom: 15, // Space before hint/submit
+    width: '90%',
+    alignSelf: 'center',
+    fontFamily: 'Inter-Regular',
+    color: Colors.light.text
   },
   inputCorrect: {
     borderColor: Colors.light.success,
-    backgroundColor: Colors.light.successLight
+    backgroundColor: Colors.light.successBackground,
+    color: Colors.light.success
   },
   inputIncorrect: {
     borderColor: Colors.light.error,
-    backgroundColor: Colors.light.errorLight
+    backgroundColor: Colors.light.errorBackground,
+    color: Colors.light.error
   },
-  optionsContainer: {
-    marginBottom: 20
-  },
+
+  optionsContainer: { marginBottom: 15, width: '100%' },
   optionButton: {
-    backgroundColor: Colors.light.backgroundLight,
-    padding: 15,
-    borderRadius: 8,
+    backgroundColor: Colors.common.white,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
     marginBottom: 10,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Colors.light.border,
     alignItems: 'center'
   },
+  // Using accentGreen from your Colors.ts (or a similar theme green)
   optionSelected: {
-    borderColor: Colors.light.primary,
-    backgroundColor: Colors.light.primaryLight
+    borderColor: Colors.light.accentGreen,
+    backgroundColor: Colors.light.accentGreen + '20'
   },
   optionCorrect: {
     borderColor: Colors.light.success,
-    backgroundColor: Colors.light.successLight
+    backgroundColor: Colors.light.successBackground
   },
   optionIncorrect: {
     borderColor: Colors.light.error,
-    backgroundColor: Colors.light.errorLight
+    backgroundColor: Colors.light.errorBackground
   },
-  optionText: {
+  optionButtonText: {
     fontSize: 16,
+    fontFamily: 'Inter-Medium',
     color: Colors.light.text
   },
-  feedbackContainer: {
+
+  hintButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 10,
-    borderRadius: 8,
-    marginVertical: 10
+    paddingVertical: 8,
+    marginBottom: 10
   },
-  feedbackText: {
-    marginLeft: 8,
-    fontSize: 16,
-    fontWeight: '500'
+  hintButtonText: {
+    marginLeft: 6,
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    color: Colors.light.accentOrange
   },
-  feedbackCorrect: { color: Colors.light.success },
-  feedbackIncorrect: { color: Colors.light.error },
+  hintText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: Colors.light.textSecondary,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingHorizontal: 10,
+    marginBottom: 15
+  },
+
+  feedbackSection: { marginVertical: 10, paddingHorizontal: 0 }, // No extra horizontal padding
+  feedbackBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1
+  },
+  feedbackBoxCorrect: {
+    borderColor: Colors.light.success,
+    backgroundColor: Colors.light.successBackground
+  },
+  feedbackBoxIncorrect: {
+    borderColor: Colors.light.error,
+    backgroundColor: Colors.light.errorBackground
+  },
+  feedbackText: { marginLeft: 8, fontSize: 15, fontFamily: 'Inter-Medium' },
   explanationText: {
-    marginTop: 5,
+    marginTop: 8,
     fontSize: 14,
     color: Colors.light.textSecondary,
-    marginLeft: 28 // Align with feedback text
+    paddingLeft: 30
   },
-  actions: {
-    marginTop: 10
+
+  actionBar: {
+    marginTop: 15,
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border
   },
-  button: {
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center'
-  },
-  submitButton: {
-    backgroundColor: Colors.light.primary
-  },
-  nextButton: {
-    backgroundColor: Colors.light.accent
-  },
-  buttonDisabled: {
-    backgroundColor: Colors.light.border
-  },
-  buttonText: {
-    color: Colors.light.white,
-    fontWeight: 'bold',
+  actionButton: { paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+  // Using accentGreen for "Check" and a different color for "Next" to match pronunciation screen buttons
+  submitButton: { backgroundColor: Colors.light.accentGreen },
+  nextButton: { backgroundColor: Colors.light.primary },
+  buttonDisabled: { backgroundColor: Colors.light.border, opacity: 0.7 },
+  actionButtonText: {
+    color: Colors.common.white,
+    fontFamily: 'Inter-Bold',
     fontSize: 16
   }
 })

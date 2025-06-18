@@ -2,12 +2,12 @@ import React, { useEffect, useCallback } from 'react'
 import {
   View,
   Text,
-  FlatList,
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
   RefreshControl,
-  ScrollView
+  Platform,
+  Alert
 } from 'react-native'
 import { Stack, useRouter } from 'expo-router'
 import { useDispatch, useSelector } from 'react-redux'
@@ -20,19 +20,17 @@ import {
 } from '@features/savedItems/savedItemsActions'
 import {
   selectSavedItemsStatus,
-  selectHydratedSavedArticles,
-  selectSavedItemReferences
+  selectHydratedSavedArticles
 } from '@features/savedItems/savedItemsSlice'
 import { useRefresh } from '@hooks/useRefresh'
 import { Colors } from '@constants/Colors'
-import { showAuthDebugToast } from '@lib/debugToast'
 import { ArticleCardWithThumbnail } from '@components/reader/ArticleCardWithThumbnail'
-import { XCircle, ArrowLeft } from 'lucide-react-native'
+import { XCircle, ArrowLeft, BookOpen } from 'lucide-react-native'
 import { useResponsiveDimensions } from '@/hooks/useResponsiveDimensions'
 import type { Article } from '@/features/articles/types'
 import { CustomFlatList } from '@/components/common/CustomFlatList'
 
-export default function LibraryScreen() {
+export default function LibraryScreen(): React.ReactElement {
   const dispatch = useDispatch<AppDispatch>()
   const { isDesktop } = useResponsiveDimensions()
   const savedArticles = useSelector(selectHydratedSavedArticles)
@@ -41,128 +39,125 @@ export default function LibraryScreen() {
   const status = useSelector(selectSavedItemsStatus)
   const error = useSelector((state: RootState) => state.savedItems.error)
 
+  const fetchData = useCallback(() => {
+    return dispatch(fetchSavedItemsThunk())
+  }, [dispatch])
+
   useEffect(() => {
-    if (status === 'idle') {
-      dispatch(fetchSavedItemsThunk())
+    if (status === 'idle' || status === 'failed') {
+      fetchData()
     }
-  }, [dispatch, status])
+  }, [dispatch, status, fetchData])
+
+  const [isRefreshing, handleRefresh] = useRefresh(fetchData)
 
   const handleGoBack = useCallback(() => {
     if (router.canGoBack()) {
       router.back()
     } else {
-      router.replace('/(main)/(tabs)/') // Fallback to home if no back history
+      router.replace('/(main)/(tabs)/')
     }
   }, [router])
 
-  const handleRefreshAction = useCallback(() => {
-    return dispatch(fetchSavedItemsThunk())
-  }, [dispatch])
-  const [isRefreshing, handleRefresh] = useRefresh(handleRefreshAction)
-
-  const refreshControlElement = React.useMemo(
-    () => (
-      <RefreshControl
-        refreshing={isRefreshing}
-        onRefresh={handleRefresh}
-        colors={[Colors.light.primary]}
-        tintColor={Colors.light.primary}
-      />
-    ),
-    [isRefreshing, handleRefresh]
-  )
-
-  const handleLoadMore = useCallback(() => {
-    // Check if currently loading, if already at the end, or if status is not 'succeeded'
-    // This logic depends on how your pagination state from savedItemsSlice or a dedicated pagination slice for it looks
-    // For now, assuming fetchSavedItemsThunk can handle fetching "next page" if it were designed for it.
-    // If fetchSavedItemsThunk always resets, you'd need a different thunk for "load more".
-
-    // Let's assume your `fetchSavedItemsThunk` is currently for initial/refresh.
-    // For "load more", you'd typically have:
-    // 1. Pagination state in Redux for saved items (nextPageKey, isLoadingMore, etc.)
-    // 2. A `fetchMoreSavedItemsThunk`
-    // For now, this is a placeholder:
-    if (status === 'succeeded' && !isRefreshing /* && hasMoreSavedItems */) {
-      console.log('LibraryScreen: Load more triggered...')
-      // dispatch(fetchMoreSavedItemsThunk()); // Hypothetical thunk
-    }
-  }, [status, isRefreshing, dispatch /*, hasMoreSavedItems */])
-
   const handleUnsave = useCallback(
-    async (itemType: string, itemId: string) => {
-      showAuthDebugToast('info', `Unsacing ${itemType} ${itemId}...`)
-      try {
-        await dispatch(
-          unsaveItemThunk({ item_type: itemType, item_id: itemId })
-        )
-        showAuthDebugToast('success', 'Item Unsaved')
-      } catch (err: any) {
-        console.error('Unsave failed:', err)
-        showAuthDebugToast(
-          'error',
-          'Unsave Failed',
-          err?.message || 'Could not remove item.'
-        )
-      }
+    async (itemType: string, itemId: string, itemTitle?: string) => {
+      Alert.alert(
+        'Confirm Unsave',
+        `Are you sure you want to remove "${
+          itemTitle || 'this item'
+        }" from your library?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Unsave',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await dispatch(
+                  unsaveItemThunk({ item_type: itemType, item_id: itemId })
+                )
+              } catch (err: any) {
+                console.error('Unsave failed:', err)
+                Alert.alert(
+                  'Error',
+                  err?.message || 'Could not remove item. Please try again.'
+                )
+              }
+            }
+          }
+        ]
+      )
     },
     [dispatch]
   )
 
-  const renderSavedArticle = ({ item }: { item: Article }) => {
+  const renderSavedArticle = ({
+    item
+  }: {
+    item: Article
+  }): React.ReactElement => {
     return (
-      <View style={styles.itemContainer}>
-        <ArticleCardWithThumbnail article={item} size="small" />
+      <View
+        style={
+          isDesktop ? styles.itemContainerDesktop : styles.itemContainerMobile
+        }
+      >
+        <ArticleCardWithThumbnail
+          article={item}
+          size={isDesktop ? 'medium' : 'small'}
+        />
         <TouchableOpacity
           style={styles.unsaveButton}
-          onPress={() => handleUnsave('ArticleVersion', item.id)}
+          onPress={() => handleUnsave('ArticleVersion', item.id, item.title)}
+          accessibilityLabel={`Unsave article ${item.title}`}
         >
-          <XCircle size={22} color={Colors.light.error} />
+          <XCircle size={isDesktop ? 24 : 22} color={Colors.light.error} />
         </TouchableOpacity>
       </View>
     )
   }
 
+  const ListEmptyComponentContent = () => (
+    <View style={styles.centeredMessageContainer}>
+      <BookOpen
+        size={48}
+        color={Colors.light.textTertiary}
+        style={{ marginBottom: 16 }}
+      />
+      <Text style={styles.emptyText}>No saved items yet.</Text>
+      <Text style={styles.emptySubText}>
+        Articles you save will appear here.
+      </Text>
+      <TouchableOpacity
+        style={styles.browseButton}
+        onPress={() => router.push('/(main)/(tabs)/reader')}
+      >
+        <Text style={styles.browseButtonText}>Browse Articles</Text>
+      </TouchableOpacity>
+    </View>
+  )
+
   const renderContent = () => {
     if (status === 'loading' && savedArticles.length === 0) {
       return (
-        <View style={styles.centered}>
+        <View style={styles.centeredMessageContainer}>
           <ActivityIndicator size="large" color={Colors.light.primary} />
         </View>
       )
     }
-    if (status === 'failed' && savedArticles.length === 0) {
+    if (status === 'failed' && savedArticles.length === 0 && error) {
       return (
-        <View style={styles.centered}>
-          <Text style={styles.errorText}>
-            Error loading saved items: {error}
-          </Text>
-          <TouchableOpacity onPress={() => dispatch(fetchSavedItemsThunk())}>
-            <Text style={styles.retryText}>Retry</Text>
+        <View style={styles.centeredMessageContainer}>
+          <Text style={styles.errorText}>Error loading saved items.</Text>
+          <Text style={styles.errorSubText}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={fetchData}>
+            <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
         </View>
       )
     }
-    if (savedArticles.length === 0 && status !== 'loading') {
-      return (
-        <ScrollView
-          contentContainerStyle={styles.centered}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={handleRefresh}
-              colors={[Colors.light.primary]}
-              tintColor={Colors.light.primary}
-            />
-          }
-        >
-          <Text style={styles.emptyText}>No saved items yet.</Text>
-          <Text style={styles.emptySubText}>
-            Save articles or words to find them here.
-          </Text>
-        </ScrollView>
-      )
-    }
+
+    const numColumns = isDesktop ? (Platform.OS === 'web' ? 4 : 3) : 1
 
     return (
       <CustomFlatList
@@ -170,40 +165,40 @@ export default function LibraryScreen() {
         renderItem={renderSavedArticle}
         keyExtractor={item => item.id}
         containerStyle={styles.flatListContainer}
-        contentContainerStyle={styles.listContent}
-        numColumns={isDesktop ? 3 : 1}
-        refreshControl={refreshControlElement}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: insets.bottom + 20 },
+          isDesktop && styles.listContentDesktop
+        ]}
+        numColumns={numColumns}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            colors={[Colors.light.primary]}
+            tintColor={Colors.light.primary}
+          />
+        }
         ListEmptyComponent={ListEmptyComponentContent}
-        showScrollArrows={false}
-        showScrollShadows={true}
-        onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.5} // Adjust as needed
-        ListFooterComponent={() => {
-          // Render a loading indicator if status indicates loading more
-          if (status === 'loading')
-            return <ActivityIndicator style={{ marginVertical: 20 }} />
-          return null
-        }}
       />
     )
   }
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Library' }} />
+      <Stack.Screen options={{ title: 'My Library' }} />
       <View style={styles.container}>
         {renderContent()}
-
-        {/* Floating Back Button - similar to reader screen's style */}
-        {/* Position it respecting safe area, typically top-left */}
         <TouchableOpacity
-          style={[styles.floatingBackButton, { top: insets.top + 10 }]} // Adjust top offset as needed
+          style={[
+            styles.floatingBackButton,
+            { top: insets.top + (Platform.OS === 'ios' ? 10 : 15) }
+          ]}
           onPress={handleGoBack}
           accessibilityLabel="Go back"
           accessibilityRole="button"
         >
           <ArrowLeft size={22} color={Colors.light.text} />
-          {/* Color can be white if on a dark background, or theme text color */}
         </TouchableOpacity>
       </View>
     </>
@@ -211,87 +206,115 @@ export default function LibraryScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.light.background },
-  centered: {
+  container: {
+    flex: 1,
+    backgroundColor: Colors.light.backgroundSecondary
+  },
+  centeredMessageContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20
   },
-  flatListContainer: { flex: 1 },
-  listContent: { padding: 15 },
-  itemContainer: {
+  flatListContainer: {
+    flex: 1
+  },
+  listContent: {
+    paddingHorizontal: Platform.OS === 'web' ? 0 : 12,
+    paddingTop: Platform.OS === 'ios' ? 55 : 65
+  },
+  listContentDesktop: {
+    maxWidth: 1200,
+    alignSelf: 'center',
+    paddingHorizontal: 20
+  },
+  itemContainerMobile: {
     position: 'relative',
-    marginBottom: 15,
-    paddingHorizontal: 5
+    marginBottom: 16,
+    alignItems: 'center'
+  },
+  itemContainerDesktop: {
+    position: 'relative',
+    flex: 1,
+    margin: 8,
+    maxWidth: '100%'
   },
   unsaveButton: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-    padding: 6,
-    borderRadius: 15,
-    zIndex: 1
+    top: 10,
+    right: 10,
+    backgroundColor: Colors.light.cardBackground + 'CC',
+    padding: 8,
+    borderRadius: 20,
+    zIndex: 1,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2
   },
   errorText: {
+    fontFamily: 'Inter-SemiBold',
     color: Colors.light.error,
-    marginBottom: 15,
-    textAlign: 'center'
+    marginBottom: 5,
+    textAlign: 'center',
+    fontSize: 17
   },
-  retryText: { color: Colors.light.primary, fontSize: 16, fontWeight: '500' },
+  errorSubText: {
+    fontFamily: 'Inter-Regular',
+    color: Colors.light.textSecondary,
+    marginBottom: 15,
+    textAlign: 'center',
+    fontSize: 14
+  },
+  retryButton: {
+    backgroundColor: Colors.light.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 25,
+    borderRadius: 25
+  },
+  retryButtonText: {
+    color: Colors.light.primaryContent,
+    fontSize: 15,
+    fontFamily: 'Inter-SemiBold'
+  },
   emptyText: {
     fontSize: 18,
+    fontFamily: 'Inter-SemiBold',
     color: Colors.light.textSecondary,
-    marginBottom: 5
+    marginBottom: 8,
+    textAlign: 'center'
   },
   emptySubText: {
     fontSize: 14,
+    fontFamily: 'Inter-Regular',
     color: Colors.light.textTertiary,
-    textAlign: 'center'
+    textAlign: 'center',
+    marginBottom: 20
   },
-  unknownItem: {
-    padding: 15,
-    backgroundColor: Colors.light.backgroundLight,
-    borderRadius: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center'
+  browseButton: {
+    backgroundColor: Colors.light.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 25,
+    borderRadius: 25
   },
-  unknownText: { color: Colors.light.textSecondary },
-  itemDetailMissing: {
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.light.backgroundLight,
-    borderRadius: 8,
-    minHeight: 100
-  },
-  itemDetailMissingText: {
-    color: Colors.light.textSecondary,
-    fontStyle: 'italic'
+  browseButtonText: {
+    color: Colors.light.primaryContent,
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 15
   },
   floatingBackButton: {
     position: 'absolute',
-    // top: is handled by insets + offset
     left: 15,
-    zIndex: 10, // Ensure it's above other content
+    zIndex: 10,
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)', // Semi-transparent white
-    // Or use Colors.light.cardBackground with opacity if preferred
+    backgroundColor: Colors.light.cardBackground + 'E6',
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 3 // Android shadow
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3
   }
 })
-
-const ListEmptyComponentContent = (
-  <View style={styles.centered}>
-    <Text style={styles.emptyText}>No saved items yet.</Text>
-    <Text style={styles.emptySubText}>
-      Save articles or words to find them here.
-    </Text>
-  </View>
-)

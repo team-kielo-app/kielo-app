@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native'
+import { StyleSheet, Platform } from 'react-native'
 import { Colors } from '@constants/Colors'
 
 const authStyles = StyleSheet.create({
@@ -9,7 +9,7 @@ const authStyles = StyleSheet.create({
   },
   innerContainer: {
     paddingHorizontal: 24,
-    paddingVertical: 20,
+    paddingVertical: Platform.OS === 'ios' ? 20 : 30,
     width: '100%',
     maxWidth: 420,
     alignSelf: 'center',
@@ -24,9 +24,7 @@ const authStyles = StyleSheet.create({
     padding: 8,
     marginLeft: -8
   },
-  titleContainer: {
-    marginBottom: 5
-  },
+  titleContainer: {},
   title: {
     fontSize: 28,
     fontFamily: 'Inter-Bold',
@@ -34,7 +32,7 @@ const authStyles = StyleSheet.create({
     marginBottom: 8
   },
   subtitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontFamily: 'Inter-Regular',
     color: Colors.light.textSecondary,
     lineHeight: 24
@@ -42,24 +40,25 @@ const authStyles = StyleSheet.create({
   messageContainer: {
     minHeight: 20,
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
+    paddingHorizontal: 10
   },
   errorText: {
     color: Colors.light.error,
     textAlign: 'center',
-    fontFamily: 'Inter-SemiBold',
+    fontFamily: 'Inter-Medium',
     fontSize: 14,
-    paddingHorizontal: 10
+    lineHeight: 18
   },
   successText: {
     color: Colors.light.success,
     textAlign: 'center',
-    fontFamily: 'Inter-SemiBold',
+    fontFamily: 'Inter-Medium',
     fontSize: 14,
-    paddingHorizontal: 10
+    lineHeight: 18
   },
   formContainer: {
-    gap: 15
+    gap: 18
   },
   inputGroup: {
     width: '100%'
@@ -73,43 +72,51 @@ const authStyles = StyleSheet.create({
   input: {
     height: 52,
     paddingHorizontal: 16,
-    borderRadius: 12,
+    borderRadius: 10,
     fontSize: 16,
-    backgroundColor: Colors.light.white,
+    backgroundColor: Colors.light.inputBackground,
     color: Colors.light.text,
     fontFamily: 'Inter-Regular',
     borderWidth: 1,
-    borderColor: Colors.light.border
+    borderColor: Colors.light.inputBorder
+  },
+  inputFocused: {
+    borderColor: Colors.light.inputBorderFocused
   },
   inputDisabled: {
-    backgroundColor: Colors.light.backgroundLight,
+    backgroundColor: Colors.light.backgroundSecondary,
     color: Colors.light.textTertiary,
-    borderColor: Colors.light.border
+    borderColor: Colors.light.borderSubtle
   },
   passwordInputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: Colors.light.border,
-    backgroundColor: Colors.light.white
+    borderColor: Colors.light.inputBorder,
+    backgroundColor: Colors.light.inputBackground
+  },
+  passwordInputWrapperFocused: {
+    borderColor: Colors.light.inputBorderFocused
   },
   passwordInputOnly: {
     flex: 1,
     borderWidth: 0,
     height: 50,
-    backgroundColor: 'transparent'
+    backgroundColor: Colors.common.transparent,
+    paddingLeft: 16,
+    paddingRight: 0
   },
   passwordVisibilityButton: {
     padding: 14
   },
   linkText: {
-    color: Colors.light.primary,
+    color: Colors.light.textLink,
     fontSize: 14,
     fontFamily: 'Inter-Medium'
   },
   linkTextBold: {
-    color: Colors.light.primary,
+    color: Colors.light.textLink,
     fontSize: 14,
     fontFamily: 'Inter-SemiBold'
   },
@@ -119,26 +126,54 @@ const authStyles = StyleSheet.create({
   footerContainer: {
     width: '100%',
     alignItems: 'center',
-    marginTop: 10
+    marginTop: 15,
+    gap: 15
   },
   actionButton: {
     width: '100%',
     height: 52,
-    backgroundColor: Colors.light.text,
+    backgroundColor: Colors.common.gray[900],
     borderRadius: 12,
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    shadowColor: Colors.light.shadowSoft,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2
   },
   actionButtonPressed: {
-    backgroundColor: '#333'
+    backgroundColor: Colors.common.gray[800]
   },
   actionButtonText: {
-    color: Colors.light.white,
+    color: Colors.light.primaryContent,
     fontSize: 16,
     fontFamily: 'Inter-SemiBold'
   },
   buttonDisabled: {
-    opacity: 0.6
+    backgroundColor: Colors.light.buttonDisabledBackground,
+    shadowOpacity: 0,
+    elevation: 0
+  },
+  socialButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  orSeparatorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginVertical: 10
+  },
+  orSeparatorLine: { flex: 1, height: 1, backgroundColor: Colors.light.border },
+  orSeparatorText: {
+    marginHorizontal: 12,
+    fontSize: 13,
+    fontFamily: 'Inter-Regular',
+    color: Colors.light.textSecondary
   }
 })
 

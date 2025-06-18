@@ -2,35 +2,25 @@ import React from 'react'
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { PlayCircle } from 'lucide-react-native'
 import { Colors } from '@constants/Colors'
-// If you plan to implement actual audio playback here, you might need:
-// import { useAudioPlayer, AudioPlayerStatus } from 'expo-audio';
-// import { Audio } from 'expo-av';
 
 interface ArticleAudioPlayerProps {
-  articleId: string // Or a direct audio URL if available on the article object
-  // mockAudioDuration?: string; // For display, replace with actual duration logic
-  onPlayPress: () => void // Callback when play is pressed
-  // Potentially add props for actual playback control if implemented here:
-  // isPlaying?: boolean;
-  // isLoading?: boolean;
-  // duration?: number;
-  // position?: number;
+  articleId: string
+  onPlayPress: () => void
 }
 
-export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
+const MOCK_AUDIO_DURATION = '4:32'
+
+export function ArticleAudioPlayer({
   articleId,
   onPlayPress
-  // mockAudioDuration = "4:32", // Keeping placeholder for now
-}) => {
-  // Placeholder for actual audio duration.
-  // This would typically come from the article's audio metadata or be fetched.
-  const displayDuration = '4:32' // Replace with actual logic if available
+}: ArticleAudioPlayerProps): React.ReactElement {
+  const displayDuration = MOCK_AUDIO_DURATION
 
   return (
     <TouchableOpacity
-      style={styles.audioPlayerContainer}
+      style={styles.audioPlayerOuterContainer}
       onPress={onPlayPress}
-      activeOpacity={0.7}
+      activeOpacity={0.75}
       accessibilityRole="button"
       accessibilityLabel={`Listen to article, duration ${displayDuration}`}
     >
@@ -39,7 +29,7 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
         <Text style={styles.audioPlayerText}>Listen to Article</Text>
       </View>
       {displayDuration && (
-        <View style={styles.audioDuration}>
+        <View style={styles.audioDurationBadge}>
           <Text style={styles.audioDurationText}>{displayDuration}</Text>
         </View>
       )}
@@ -47,21 +37,23 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
   )
 }
 
-// Styles are copied and adapted from ArticleScreen.tsx
 const styles = StyleSheet.create({
-  audioPlayerContainer: {
+  audioPlayerOuterContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.light.cardBackground,
+    backgroundColor: Colors.common.white,
     borderRadius: 12,
-    padding: 12,
-    marginBottom: 24, // Spacing before paragraphs
-    shadowColor: Colors.light.shadow,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 24,
+    shadowColor: Colors.light.shadowSoft,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.light.borderSubtle
   },
   audioPlayerContent: {
     flexDirection: 'row',
@@ -69,18 +61,18 @@ const styles = StyleSheet.create({
   },
   audioPlayerText: {
     fontFamily: 'Inter-Medium',
-    fontSize: 14,
+    fontSize: 15,
     color: Colors.light.text,
-    marginLeft: 8
+    marginLeft: 10
   },
-  audioDuration: {
-    backgroundColor: Colors.light.backgroundLight,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4
+  audioDurationBadge: {
+    backgroundColor: Colors.light.backgroundSecondary,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8
   },
   audioDurationText: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Inter-SemiBold',
     fontSize: 12,
     color: Colors.light.textSecondary
   }

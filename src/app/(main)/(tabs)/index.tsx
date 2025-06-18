@@ -1,14 +1,20 @@
 import React, { useCallback, useEffect } from 'react'
-import { StyleSheet, ScrollView, RefreshControl } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import {
+  StyleSheet,
+  ScrollView,
+  RefreshControl,
+  View,
+  Text,
+  Alert
+} from 'react-native'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useSelector, useDispatch } from 'react-redux'
+import { LinearGradient } from 'expo-linear-gradient'
+import { LearningModuleCard } from '@/components/home/LearningModuleCard'
 
 import { Colors } from '@constants/Colors'
-import { useResponsiveDimensions } from '@hooks/useResponsiveDimensions'
 import { selectIsAuthenticated, selectUser } from '@features/auth/authSelectors'
-import { fetchArticles } from '@features/articles/articlesActions'
 import { AppDispatch, RootState } from '@store/store'
-import { selectPaginatedData } from '@pagination/selectors'
 import { useRequireAuthAction } from '@hooks/useRequireAuthAction'
 import { useRefresh } from '@hooks/useRefresh'
 import { fetchProgressThunk } from '@features/progress/progressActions'
@@ -16,115 +22,184 @@ import {
   selectProgressSummary,
   selectProgressStatus
 } from '@features/progress/progressSlice'
+import { useRouter } from 'expo-router'
 
 import { HomeHeader } from '@/components/home/HomeHeader'
-import { UserProgressSummary } from '@/components/home/UserProgressSummary'
+import { StreakCard } from '@/components/home/StreakCard'
+import { DailyGoalCard } from '@/components/home/DailyGoalCard'
 import { FeaturedArticles } from '@/components/home/FeaturedArticles'
-import { DailyChallenge } from '@/components/home/DailyChallenge'
+import { fetchArticles } from '@/features/articles/articlesActions'
+import { selectPaginatedData } from '@/pagination/selectors'
 
-export default function HomeScreen() {
+const HOME_FEATURED_ARTICLES_KEY = 'home-featured-articles'
+
+export default function HomeScreen(): React.ReactElement {
   const dispatch = useDispatch<AppDispatch>()
-  const { isDesktop } = useResponsiveDimensions()
+  const router = useRouter()
+  const insets = useSafeAreaInsets()
 
   const isAuthenticated = useSelector(selectIsAuthenticated)
-  const userState = useSelector((state: RootState) => selectUser(state))
-
-  const paginationKey = isAuthenticated
-    ? `${userState?.id}-articles-feed`
-    : 'articlesPublic'
-  const { data: articles, pagination } = useSelector((state: RootState) =>
-    selectPaginatedData(
-      'articles',
-      'articlePagination',
-      paginationKey,
-      false
-    )(state)
-  )
-
+  const user = useSelector(selectUser)
   const progressSummary = useSelector(selectProgressSummary)
   const progressStatus = useSelector(selectProgressStatus)
 
-  useEffect(() => {
-    if (!pagination.isLoading && !pagination.error && articles.length < 5) {
-      dispatch(fetchArticles(paginationKey, { reset: true }))
-    }
-    if (isAuthenticated && progressStatus === 'idle') {
-      dispatch(fetchProgressThunk())
-    }
-  }, [dispatch, paginationKey, progressStatus])
+  const { data: featuredArticles, pagination: featuredArticlesPagination } =
+    useSelector((state: RootState) =>
+      selectPaginatedData(
+        'articles', // entityName for normalizr
+        'articlePagination', // paginationType in pagination slice
+        HOME_FEATURED_ARTICLES_KEY, // Specific key for this list
+        false // isAccumulated: false, typically for feeds that reset
+      )(state)
+    )
 
-  const handleRefreshAction = useCallback(async () => {
-    console.log('HomeScreen: Refreshing...')
-    const promises: Promise<any>[] = [
-      dispatch(fetchArticles(paginationKey, { reset: true }))
-    ]
-    if (isAuthenticated) {
+  const handleLoadMoreFeaturedArticles = () => {
+    if (
+      !featuredArticlesPagination.isLoading &&
+      featuredArticlesPagination.hasMore
+    ) {
+      dispatch(
+        fetchArticles(HOME_FEATURED_ARTICLES_KEY, {
+          fetchNext: true
+        })
+      )
+    }
+  }
+
+  const fetchHomeScreenData = useCallback(async () => {
+    const promises: Promise<any>[] = []
+    if (
+      isAuthenticated &&
+      (progressStatus === 'idle' || progressStatus === 'failed')
+    ) {
       promises.push(dispatch(fetchProgressThunk()))
     }
-    await Promise.all(promises)
-  }, [dispatch, paginationKey, isAuthenticated])
+    // Fetch featured articles if not already loading or fetched (or if forcing refresh)
+    if (
+      !featuredArticlesPagination.isLoading &&
+      (!featuredArticlesPagination.hasFetched ||
+        featuredArticlesPagination.error)
+    ) {
+      promises.push(
+        dispatch(
+          fetchArticles(HOME_FEATURED_ARTICLES_KEY, {
+            reset: true
+          })
+        )
+      )
+    }
+    if (promises.length > 0) {
+      try {
+        await Promise.all(promises)
+      } catch (e) {
+        console.error('Error fetching home screen data:', e)
+      }
+    }
+  }, [
+    dispatch,
+    isAuthenticated,
+    progressStatus,
+    featuredArticlesPagination.isLoading,
+    featuredArticlesPagination.hasFetched,
+    featuredArticlesPagination.error
+  ])
 
-  const [isRefreshing, handleRefresh] = useRefresh(handleRefreshAction)
+  useEffect(() => {
+    fetchHomeScreenData()
+  }, [fetchHomeScreenData])
 
-  const startChallengeAction = useCallback((challengeId: string) => {
-    alert(`Starting challenge ${challengeId} (Not Implemented)`)
-  }, [])
+  const [isRefreshing, handleRefresh] = useRefresh(fetchHomeScreenData)
 
-  const handleStartChallenge = useRequireAuthAction(
-    startChallengeAction,
-    'Login to start the daily challenge.'
+  const navigateToFlashcards = useRequireAuthAction(
+    () => router.push('/(main)/exercises/review-session'),
+    'Login to review flashcards.'
   )
+  const navigateToQuiz = useRequireAuthAction(() => {
+    router.push('/(main)/challenges/daily')
+  }, 'Login to play quiz games.')
+
+  const navigateToNewWordsAndPronunciation = useRequireAuthAction(() => {
+    router.push('/(main)/(tabs)/exercises')
+  }, 'Login to learn new words or practice pronunciation.')
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          isDesktop && styles.wideScreenContent
-        ]}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            tintColor={Colors.light.primary}
-            colors={[Colors.light.primary]}
+    <LinearGradient
+      colors={[
+        Colors.light.screenBackgroundGradientFrom,
+        Colors.light.screenBackgroundGradientTo
+      ]}
+      style={styles.gradientBackground}
+    >
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: insets.bottom + 90 }
+          ]}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              tintColor={Colors.light.primary}
+              colors={[Colors.light.primary]}
+            />
+          }
+          showsVerticalScrollIndicator={false}
+        >
+          <HomeHeader user={user} />
+          <StreakCard progressSummary={progressSummary} />
+          <DailyGoalCard progressSummary={progressSummary} />
+
+          <FeaturedArticles
+            articles={featuredArticles}
+            pagination={featuredArticlesPagination}
+            onLoadMore={handleLoadMoreFeaturedArticles} // Pass load more handler
           />
-        }
-      >
-        <HomeHeader isAuthenticated={isAuthenticated} user={userState} />
 
-        <UserProgressSummary
-          progressSummary={progressSummary}
-          progressStatus={progressStatus}
-          isDesktop={isDesktop}
-        />
-        <FeaturedArticles articles={articles} pagination={pagination} />
-
-        <DailyChallenge onStartChallenge={handleStartChallenge} />
-      </ScrollView>
-    </SafeAreaView>
+          <Text style={styles.sectionTitle}>Continue Learning</Text>
+          <View style={styles.modulesGrid}>
+            <LearningModuleCard
+              title="Flashcards"
+              description="Review today's words"
+              iconUrl="https://cdn-icons-png.flaticon.com/512/2490/2490396.png"
+              backgroundColor={Colors.light.moduleFlashcardBg}
+              onPress={navigateToFlashcards}
+            />
+            <LearningModuleCard
+              title="Quiz Game"
+              description="Test your knowledge"
+              iconUrl="https://cdn-icons-png.flaticon.com/512/3341/3341505.png"
+              backgroundColor={Colors.light.moduleQuizBg}
+              onPress={navigateToQuiz}
+            />
+            <LearningModuleCard
+              title="New Words"
+              description="Learn something new"
+              iconUrl="https://cdn-icons-png.flaticon.com/512/4456/4456136.png"
+              backgroundColor={Colors.light.moduleNewWordsBg}
+              onPress={navigateToNewWordsAndPronunciation}
+            />
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </LinearGradient>
   )
 }
 
-// Styles filled from original file
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.light.background
+  gradientBackground: { flex: 1 },
+  container: { flex: 1 },
+  scrollContent: { paddingHorizontal: 24, paddingTop: 10, paddingBottom: 120 },
+  sectionTitle: {
+    fontFamily: 'Inter-Bold',
+    textAlign: 'center',
+    color: Colors.light.text,
+    marginBottom: 16,
+    fontSize: 20
   },
-  centeredSection: {
-    // Style for centering loading/error within a section
-    height: 150, // Give it some height
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 40
-  },
-  wideScreenContent: {
-    maxWidth: 1200,
-    alignSelf: 'center',
-    width: '100%'
+  modulesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between'
   }
 })

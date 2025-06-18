@@ -622,7 +622,7 @@ const styles = StyleSheet.create({
     borderRadius: 8, // rounded-lg
     shadowColor: AppColors.black, // shadow-lg
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1, // Softer shadow
+    shadowOpacity: 0.2, // Softer shadow
     shadowRadius: 8,
     elevation: 5,
     borderWidth: 1,

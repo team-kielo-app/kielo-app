@@ -6,8 +6,8 @@ import {
   ScrollView,
   Image,
   TouchableOpacity,
-  FlatList,
-  ActivityIndicator
+  ActivityIndicator,
+  RefreshControl
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import {
@@ -38,83 +38,39 @@ import { useResponsiveDimensions } from '@hooks/useResponsiveDimensions'
 import { useSelector, useDispatch } from 'react-redux'
 import { fetchArticles } from '@features/articles/articlesActions'
 import { AppDispatch, RootState } from '@store/store'
-import { selectUser, selectAuthStatus } from '@features/auth/authSelectors'
+import { selectUser } from '@features/auth/authSelectors'
 import { selectPaginatedData } from '@pagination/selectors'
 import { useRouter, Link } from 'expo-router'
 import { useProtectedRoute } from '@hooks/useProtectedRoute'
 import { nameParser } from '@/utils/string'
-
-// Filled from original file
-const stats = [
-  {
-    id: 'words',
-    label: 'Words Learned',
-    value: 145,
-    icon: <CheckCircle size={18} color={Colors.light.primary} />
-  },
-  {
-    id: 'articles',
-    label: 'Articles Read',
-    value: 12,
-    icon: <BookOpen size={18} color={Colors.light.accent} />
-  },
-  {
-    id: 'streak',
-    label: 'Day Streak',
-    value: 7,
-    icon: <Calendar size={18} color={Colors.light.warning} />
-  }
-]
-
-// Filled from original file
-const achievements = [
-  {
-    id: '1',
-    title: 'First Steps',
-    description: 'Complete your first article',
-    progress: 1,
-    total: 1,
-    color: Colors.light.success,
-    earned: true
-  },
-  {
-    id: '2',
-    title: 'Word Collector',
-    description: 'Learn 100 Finnish words',
-    progress: 145,
-    total: 100,
-    color: Colors.light.primary,
-    earned: true
-  },
-  {
-    id: '3',
-    title: 'Dedicated Reader',
-    description: 'Read articles for 5 days in a row',
-    progress: 7,
-    total: 5,
-    color: Colors.light.accent,
-    earned: true
-  },
-  {
-    id: '4',
-    title: 'Vocabulary Master',
-    description: 'Learn 500 Finnish words',
-    progress: 145,
-    total: 500,
-    color: Colors.light.warning,
-    earned: false
-  }
-]
+import { useFloatingTabBarHeight } from '@/hooks/useFloatingTabBarHeight'
+import { useRefresh } from '@/hooks/useRefresh'
 
 export default function ProfileScreen() {
-  const { isLoading: isAuthLoading, isAuthenticated } = useProtectedRoute() // Auth check
+  const { isLoading: isAuthLoading, isAuthenticated } = useProtectedRoute()
   const { isDesktop } = useResponsiveDimensions()
   const dispatch = useDispatch<AppDispatch>()
   const router = useRouter()
+  const floatingTabBarHeight = useFloatingTabBarHeight()
+  const [isRefreshing, handleRefresh] = useRefresh(() => {
+    if (isAuthenticated && userState?.id) {
+      if (!savedArticlesPagination.isLoading) {
+        dispatch(
+          fetchArticles(`${userState.id}-saved`, {
+            reset: true
+          })
+        )
+      }
+      if (progressStatus === 'idle') {
+        dispatch(fetchProgressThunk())
+      }
+      if (achievementsStatus === 'idle') {
+        dispatch(fetchEarnedAchievementsThunk())
+      }
+    }
+  })
 
-  // Selectors
   const userState = useSelector((state: RootState) => selectUser(state))
-  // Saved Articles (keep this logic)
   const { data: savedArticles, pagination: savedArticlesPagination } =
     useSelector((state: RootState) =>
       selectPaginatedData(
@@ -124,17 +80,13 @@ export default function ProfileScreen() {
         true
       )(state)
     )
-  // Progress Summary
   const progressSummary = useSelector(selectProgressSummary)
   const progressStatus = useSelector(selectProgressStatus)
-  // Earned Achievements
   const earnedAchievements = useSelector(selectEarnedAchievements)
   const achievementsStatus = useSelector(selectAchievementsStatus)
 
-  // Fetch Data Effect
   useEffect(() => {
     if (isAuthenticated && userState?.id) {
-      // Fetch Saved Articles (if needed)
       if (!savedArticlesPagination.isLoading) {
         dispatch(
           fetchArticles(`${userState.id}-saved`, {
@@ -142,30 +94,23 @@ export default function ProfileScreen() {
           })
         )
       }
-      // Fetch Progress Summary (if needed)
       if (progressStatus === 'idle') {
         dispatch(fetchProgressThunk())
       }
-      // Fetch Achievements (if needed)
       if (achievementsStatus === 'idle') {
         dispatch(fetchEarnedAchievementsThunk())
       }
     }
-  }, [dispatch, isAuthenticated, userState?.id]) // Dependencies
+  }, [dispatch, isAuthenticated, userState?.id])
 
-  // Authentication loading/guard
   if (isAuthLoading || !isAuthenticated || !userState) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        {' '}
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.light.primary} />
-        </View>{' '}
+      <SafeAreaView style={[styles.container, styles.centered]} edges={['top']}>
+        <ActivityIndicator size="large" color={Colors.light.primary} />
       </SafeAreaView>
     )
   }
 
-  // Prepare stats data from progress summary
   const userStats = progressSummary
     ? [
         {
@@ -193,7 +138,7 @@ export default function ProfileScreen() {
           icon: <Zap size={18} color={Colors.light.success} />
         }
       ]
-    : [] // Empty array if summary not loaded
+    : []
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -203,18 +148,24 @@ export default function ProfileScreen() {
           style={styles.settingsButton}
           onPress={() => router.push('/(main)/settings/')}
         >
-          <Settings size={22} color={Colors.light.text} />
+          <Settings size={24} color={Colors.light.text} />
         </TouchableOpacity>
       </View>
 
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          isDesktop && styles.wideScreenContent
+          isDesktop && styles.wideScreenContent,
+          { paddingBottom: floatingTabBarHeight + 20 }
         ]}
-        // showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={Colors.light.primary}
+          />
+        }
       >
-        {/* Profile info */}
         <View style={styles.profileSection}>
           <Image
             source={{
@@ -224,7 +175,7 @@ export default function ProfileScreen() {
           />
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>
-              {nameParser(userState?.displayName || 'Duy Khanh Le', {
+              {nameParser(userState?.displayName || 'User', {
                 maxLen: 32
               })}
             </Text>
@@ -240,7 +191,6 @@ export default function ProfileScreen() {
                   color={Colors.light.primary}
                 />
                 <View style={styles.progressTextContainer}>
-                  {/* Display level and percentage */}
                   {progressSummary ? (
                     <>
                       <Text style={styles.progressPercentage}>
@@ -274,7 +224,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Statistics */}
         <View style={styles.statsContainer}>
           {progressStatus === 'loading' && !progressSummary ? (
             <ActivityIndicator />
@@ -292,7 +241,6 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        {/* --- Category Progress --- */}
         {progressSummary?.category_progress &&
           progressSummary.category_progress.length > 0 && (
             <View style={styles.section}>
@@ -304,7 +252,6 @@ export default function ProfileScreen() {
                   <View key={catProg.category} style={styles.categoryItem}>
                     <Text style={styles.categoryName}>{catProg.category}</Text>
                     <View style={styles.categoryBarContainer}>
-                      {/* Simple bar representation, could use a library */}
                       <View
                         style={[
                           styles.categoryBar,
@@ -336,7 +283,6 @@ export default function ProfileScreen() {
             </View>
           )}
 
-        {/* Saved Articles Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Saved Articles</Text>
@@ -352,34 +298,15 @@ export default function ProfileScreen() {
           {!savedArticlesPagination.isLoading && savedArticles.length === 0 && (
             <Text style={styles.emptySectionText}>No saved articles yet.</Text>
           )}
-          {savedArticles.length > 0 &&
-            (isDesktop ? (
-              <View style={styles.wideScreenArticles}>
-                {savedArticles.map(article => (
-                  <ArticleCardWithThumbnail
-                    key={article.id}
-                    article={article}
-                    size="medium"
-                  />
-                ))}
-              </View>
-            ) : (
-              <ScrollView
-                horizontal
-                // showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.savedArticlesScrollContent}
-              >
-                {savedArticles.map(article => (
-                  <ArticleCardWithThumbnail
-                    key={article.id}
-                    article={article}
-                  />
-                ))}
-              </ScrollView>
-            ))}
+          {savedArticles.length > 0 && (
+            <ScrollView horizontal>
+              {savedArticles.map(article => (
+                <ArticleCardWithThumbnail key={article.id} article={article} />
+              ))}
+            </ScrollView>
+          )}
         </View>
 
-        {/* Vocabulary Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>My Vocabulary</Text>
@@ -405,8 +332,6 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
         </View>
-        {/* Achievements */}
-        {/* Display fetched achievements or loading/empty/error states */}
         {achievementsStatus === 'loading' &&
           earnedAchievements.length === 0 && <ActivityIndicator />}
         {achievementsStatus === 'failed' && (
@@ -425,9 +350,7 @@ export default function ProfileScreen() {
               isDesktop && styles.wideScreenAchievements
             ]}
           >
-            {/* Map over fetched earnedAchievements */}
             {earnedAchievements.map(achievement => (
-              // Ensure AchievementCard expects the EarnedAchievement structure
               <AchievementCard
                 key={achievement.achievement_id}
                 achievement={achievement}
@@ -440,113 +363,93 @@ export default function ProfileScreen() {
   )
 }
 
-// Styles filled from original file
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.background
   },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  errorTextSmall: {
-    // Smaller error text for inline use
-    fontSize: 12,
-    color: Colors.light.error,
-    textAlign: 'center',
-    width: '100%',
-    paddingVertical: 10
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.light.background
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16
+    paddingVertical: 12,
+    backgroundColor: Colors.light.background
   },
   screenTitle: {
     fontFamily: 'Inter-Bold',
-    fontSize: 24,
+    fontSize: 22,
     color: Colors.light.text
   },
   settingsButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.light.cardBackground,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: Colors.light.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2
+    borderRadius: 22,
+    backgroundColor: Colors.light.background,
+    shadowColor: Colors.light.shadowSoft,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
+    padding: 10
   },
   scrollContent: {
-    padding: 20,
-    paddingBottom: 40
+    paddingHorizontal: 20
   },
   wideScreenContent: {
-    maxWidth: 1200,
+    maxWidth: 900,
     alignSelf: 'center',
     width: '100%'
   },
   profileSection: {
     flexDirection: 'row',
     marginBottom: 24,
-    alignItems: 'center' // Align items vertically
+    alignItems: 'flex-start'
   },
   profileImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    marginRight: 16
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    marginRight: 16,
+    borderWidth: 2,
+    borderColor: Colors.common.white
   },
-  profileInfo: {
-    flex: 1,
-    justifyContent: 'center'
-  },
+  profileInfo: { flex: 1, justifyContent: 'center' },
   profileName: {
     fontFamily: 'Inter-Bold',
-    fontSize: 22,
+    fontSize: 20,
     color: Colors.light.text,
-    marginBottom: 4
+    marginBottom: 2
   },
   profileSubtitle: {
     fontFamily: 'Inter-Regular',
-    fontSize: 14,
+    fontSize: 13,
     color: Colors.light.textSecondary,
-    marginBottom: 12
+    marginBottom: 10
   },
-  learningStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8 // Add some margin
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center'
-  },
-  progressTextContainer: {
-    marginLeft: 12
-  },
+  learningStatus: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+  progressContainer: { flexDirection: 'row', alignItems: 'center' },
+  progressTextContainer: { marginLeft: 10, alignItems: 'flex-start' },
   progressPercentage: {
     fontFamily: 'Inter-Bold',
-    fontSize: 16,
+    fontSize: 15,
     color: Colors.light.primary
   },
   progressLabel: {
     fontFamily: 'Inter-Regular',
-    fontSize: 12,
+    fontSize: 11,
     color: Colors.light.textSecondary
   },
   divider: {
     width: 1,
-    height: 40,
+    height: 36,
     backgroundColor: Colors.light.border,
     marginHorizontal: 16
   },
-  streakContainer: {
-    alignItems: 'center'
-  },
+  streakContainer: { alignItems: 'center' },
   streakValue: {
     fontFamily: 'Inter-Bold',
     fontSize: 18,
@@ -555,85 +458,86 @@ const styles = StyleSheet.create({
   },
   streakLabel: {
     fontFamily: 'Inter-Regular',
-    fontSize: 12,
+    fontSize: 11,
     color: Colors.light.textSecondary
   },
   statsContainer: {
     flexDirection: 'row',
     backgroundColor: Colors.light.cardBackground,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 8,
     marginBottom: 24,
-    shadowColor: Colors.light.shadow,
+    shadowColor: Colors.light.shadowSoft,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 2,
-    justifyContent: 'space-around' // Distribute items evenly
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+    justifyContent: 'space-around'
   },
   statItem: {
-    flex: 1, // Allow items to take equal space
+    flex: 1,
     alignItems: 'center',
-    maxWidth: 100 // Prevent items from getting too wide
+    paddingHorizontal: 4
   },
   statIconContainer: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: Colors.light.backgroundLight,
+    backgroundColor: Colors.light.backgroundSecondary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8
+    marginBottom: 6
   },
   statValue: {
     fontFamily: 'Inter-Bold',
-    fontSize: 18,
+    fontSize: 17,
     color: Colors.light.text
   },
   statLabel: {
     fontFamily: 'Inter-Regular',
-    fontSize: 12,
+    fontSize: 11,
     color: Colors.light.textSecondary,
     textAlign: 'center',
-    marginTop: 2 // Add margin top for label
+    marginTop: 2
   },
-  section: {
-    marginBottom: 24
-  },
+  section: { marginBottom: 28 },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16
+    marginBottom: 12
   },
   sectionTitle: {
     fontFamily: 'Inter-SemiBold',
-    fontSize: 18,
+    fontSize: 19,
     color: Colors.light.text
+  },
+  viewAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4
   },
   viewAllText: {
     fontFamily: 'Inter-Medium',
     fontSize: 14,
-    color: Colors.light.primary // Use primary color for links
+    color: Colors.light.primary,
+    marginRight: 2
   },
-  savedArticlesScrollContent: {
-    paddingRight: 20, // Ensure last item is visible
-    gap: 12 // Add gap between items
-  },
-  wideScreenArticles: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16 // Use gap for spacing
+  horizontalScrollContent: {
+    paddingVertical: 4,
+    paddingLeft: 2,
+    paddingRight: 20
   },
   vocabularyCard: {
     backgroundColor: Colors.light.cardBackground,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
-    shadowColor: Colors.light.shadow,
+    shadowColor: Colors.light.shadowSoft,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 2
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3
   },
   vocabularyHeader: {
     flexDirection: 'row',
@@ -646,16 +550,16 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-SemiBold',
     fontSize: 16,
     color: Colors.light.text,
-    marginBottom: 4
+    marginBottom: 2
   },
   vocabularyCount: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    fontSize: 13,
     color: Colors.light.textSecondary
   },
   practiceButton: {
     backgroundColor: Colors.light.primary,
-    borderRadius: 8,
+    borderRadius: 12,
     paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center'
@@ -663,63 +567,90 @@ const styles = StyleSheet.create({
   practiceButtonText: {
     fontFamily: 'Inter-SemiBold',
     fontSize: 14,
-    color: Colors.light.white
+    color: Colors.light.primaryContent
   },
-  achievementsContainer: {
-    flexDirection: 'column', // Default for mobile
-    gap: 12 // Use gap
-  },
-  wideScreenAchievements: {
+  achievementsGridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 16 // Use gap
+    justifyContent: 'space-between'
+  },
+  achievementCardMobile: {
+    width: '100%',
+    marginBottom: 12
+  },
+  achievementCardDesktop: {
+    width: '48.5%',
+    marginBottom: 12
   },
   emptySectionText: {
     color: Colors.light.textSecondary,
-    marginTop: 10,
     textAlign: 'center',
+    fontFamily: 'Inter-Regular',
+    paddingVertical: 30,
+    fontSize: 14
+  },
+  emptySectionTextSmall: {
+    color: Colors.light.textSecondary,
+    textAlign: 'center',
+    fontFamily: 'Inter-Regular',
+    paddingVertical: 10,
+    fontSize: 13
+  },
+  errorTextSmall: {
+    fontSize: 13,
+    color: Colors.light.error,
+    textAlign: 'center',
+    width: '100%',
+    paddingVertical: 10,
     fontFamily: 'Inter-Regular'
   },
   categoryProgressContainer: {
     backgroundColor: Colors.light.cardBackground,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
-    shadowColor: Colors.light.shadow,
+    shadowColor: Colors.light.shadowSoft,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 2
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3
   },
   categoryItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10
+    marginBottom: 10,
+    paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.light.borderSubtle
+  },
+  categoryItemLast: {
+    borderBottomWidth: 0,
+    marginBottom: 0,
+    paddingBottom: 0
   },
   categoryName: {
     fontFamily: 'Inter-Medium',
     fontSize: 14,
     color: Colors.light.text,
-    width: 100 // Fixed width for category name
+    width: 100
   },
   categoryBarContainer: {
     flex: 1,
     height: 8,
-    backgroundColor: Colors.light.backgroundLight,
+    backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: 4,
     marginHorizontal: 10,
     overflow: 'hidden'
   },
   categoryBar: {
     height: '100%',
-    backgroundColor: Colors.light.primary, // Use a consistent or category-specific color
+    backgroundColor: Colors.light.primary,
     borderRadius: 4
   },
   categoryTime: {
     fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: Colors.light.textSecondary,
-    minWidth: 50, // Ensure space for time
+    minWidth: 60,
     textAlign: 'right'
   },
   totalTimeContainer: {
@@ -728,7 +659,7 @@ const styles = StyleSheet.create({
     marginTop: 15,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: Colors.light.border,
+    borderTopColor: Colors.light.borderSubtle,
     justifyContent: 'center'
   },
   totalTimeText: {

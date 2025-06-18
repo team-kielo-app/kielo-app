@@ -71,7 +71,7 @@ const styles = StyleSheet.create({
   sidebar: {
     width: SIDEBAR_WIDTH,
     height: '100%',
-    backgroundColor: Colors.light.white,
+    backgroundColor: Colors.common.white,
     paddingTop: 40,
     paddingBottom: 20,
     paddingHorizontal: 20,

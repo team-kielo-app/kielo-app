@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
     margin: 4 // Add margin for spacing if gap not supported well
   },
   wordChipBank: {
-    backgroundColor: Colors.light.backgroundLight,
+    backgroundColor: Colors.light.backgroundSecondary,
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 15,
@@ -285,8 +285,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginVertical: 10
   },
-  feedbackCorrectBg: { backgroundColor: Colors.light.successLight },
-  feedbackIncorrectBg: { backgroundColor: Colors.light.errorLight },
+  feedbackCorrectBg: { backgroundColor: Colors.light.successBackground },
+  feedbackIncorrectBg: { backgroundColor: Colors.light.errorBackground },
   feedbackText: {
     marginLeft: 8,
     fontSize: 16,
@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
     minWidth: 100
   },
   secondaryButton: {
-    backgroundColor: Colors.light.backgroundLight,
+    backgroundColor: Colors.light.backgroundSecondary,
     borderWidth: 1,
     borderColor: Colors.light.border
   },
@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
     opacity: 0.7
   },
   buttonText: {
-    color: Colors.light.white,
+    color: Colors.common.white,
     fontWeight: 'bold',
     fontSize: 16
   }

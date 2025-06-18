@@ -7,18 +7,18 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Pressable,
-  StyleSheet as RNStyleSheet,
-  StatusBar
+  StatusBar,
+  RefreshControl,
+  Platform,
+  Alert
 } from 'react-native'
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
-import { ArrowLeft, X, Volume2 } from 'lucide-react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useSelector, useDispatch } from 'react-redux'
 
 import { Colors } from '@constants/Colors'
 import { useResponsiveDimensions } from '@hooks/useResponsiveDimensions'
-import { fetchSingleArticle } from '@features/articles/articlesActions'
 import { AppDispatch, RootState } from '@store/store'
 import { useRequireAuthAction } from '@hooks/useRequireAuthAction'
 import { format } from 'date-fns'
@@ -36,75 +36,116 @@ import { ArticleVocabularySection } from '@/components/reader/ArticleVocabularyS
 import {
   InteractiveDetailPopup,
   PopupContentMode
-} from '@/components/reader/InteractiveDetailPopup' // New Popup
+} from '@/components/reader/InteractiveDetailPopup'
 import {
   ArticleParagraph,
   WordOccurrence,
   GrammarOccurrence,
   BaseWordDetail,
-  GrammarDetail // Import types
+  GrammarDetail,
+  Article
 } from '@features/articles/types'
 import { useRefresh } from '@hooks/useRefresh'
-import { RefreshControl } from 'react-native'
 import { useEntity } from '@/hooks/useEntity'
 import { ARTICLE_SCHEMA_SINGLE } from '@entities/schemas'
-import { Article } from '@features/articles/types'
 import { fetchEntityByIdIfNeededThunk } from '@/features/entities/entityActions'
+import { ArrowLeft } from 'lucide-react-native'
 
-export default function ArticleScreen() {
+export default function ArticleScreen(): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const dispatch = useDispatch<AppDispatch>()
   const { isDesktop } = useResponsiveDimensions()
   const insets = useSafeAreaInsets()
 
-  const [isFetching, setIsFetching] = useState(false)
+  const [hasAttemptedFullFetch, setHasAttemptedFullFetch] = useState(false)
 
   const {
     data: article,
-    isLoading: isLoadingArticle,
-    error: articleError
+    isLoading: isLoadingArticleEntity,
+    error: articleEntityError
   } = useEntity<Article>(
-    'articles', // entityType
-    id, // entityId
+    'articles',
+    id,
     ARTICLE_SCHEMA_SINGLE,
-    articleId => `/news/articles/${articleId}`, // endpoint generator
-    { fetchPolicy: 'cache-and-network' } // Example policy
+    articleId => `/news/articles/${articleId}`,
+    {
+      fetchPolicy: 'cache-first'
+    }
   )
 
-  const publicationDateFormatted = useMemo(() => {
-    if (!article?.publication_date) return ''
-    return format(new Date(article.publication_date), 'MMMM dd, yyyy')
-  }, [article?.publication_date])
-
   useEffect(() => {
-    if (isFetching) return
+    if (!id || !dispatch) return
 
-    if (id && (!article || !article?.paragraphs)) {
-      setIsFetching(true)
-      dispatch(fetchSingleArticle(id, () => setIsFetching(false)))
+    if (
+      article &&
+      (!article.paragraphs || article.paragraphs.length === 0) &&
+      !hasAttemptedFullFetch &&
+      !isLoadingArticleEntity
+    ) {
+      console.log(
+        `Article ${id} is in cache but seems incomplete (no paragraphs). Forcing full fetch.`
+      )
+      setHasAttemptedFullFetch(true)
+      dispatch(
+        fetchEntityByIdIfNeededThunk({
+          entityType: 'articles',
+          id,
+          endpoint: `/news/articles/${id}`,
+          schema: ARTICLE_SCHEMA_SINGLE,
+          forceRefresh: true
+        })
+      )
+    } else if (
+      !article &&
+      !isLoadingArticleEntity &&
+      !articleEntityError &&
+      !hasAttemptedFullFetch
+    ) {
+      console.log(
+        `Article ${id} not in cache. Triggering initial fetch via useEntity (or forced if needed).`
+      )
+      setHasAttemptedFullFetch(true)
+      dispatch(
+        fetchEntityByIdIfNeededThunk({
+          entityType: 'articles',
+          id,
+          endpoint: `/news/articles/${id}`,
+          schema: ARTICLE_SCHEMA_SINGLE,
+          forceRefresh: true
+        })
+      )
     }
-  }, [id, dispatch])
+  }, [
+    id,
+    article,
+    dispatch,
+    hasAttemptedFullFetch,
+    isLoadingArticleEntity,
+    articleEntityError
+  ])
 
   const handleRefreshAction = useCallback(() => {
     if (!id) return Promise.resolve()
-    console.log(
-      `Dispatching fetchEntityByIdIfNeededThunk for refresh, ID: ${id}`
-    )
+    setHasAttemptedFullFetch(true)
     return dispatch(
       fetchEntityByIdIfNeededThunk({
         entityType: 'articles',
         id,
         endpoint: `/news/articles/${id}`,
         schema: ARTICLE_SCHEMA_SINGLE,
-        forceRefresh: true // Key for refresh
+        forceRefresh: true
       })
-    ).unwrap() // Use unwrap if you need to handle promise from thunk
+    )
   }, [dispatch, id])
 
   const [isPullRefreshing, handlePullRefresh] = useRefresh(handleRefreshAction)
 
-  // State for the new InteractiveDetailPopup
+  const publicationDateFormatted = useMemo(() => {
+    if (!article?.publication_date) return ''
+    return format(new Date(article.publication_date), 'MMMM dd, yyyy')
+  }, [article?.publication_date])
+
   const [popupVisible, setPopupVisible] = useState(false)
   const [popupContentMode, setPopupContentMode] =
     useState<PopupContentMode>(null)
@@ -115,48 +156,37 @@ export default function ArticleScreen() {
   const [focusedOccurrenceId, setFocusedOccurrenceId] = useState<string | null>(
     null
   )
-
-  const [popupPosition, setPopupPosition] = useState<{
-    screenY: number
+  const [popupPositionInternal, setPopupPositionInternal] = useState<{
     screenX: number
+    screenY: number
     width: number
     height: number
   } | null>(null)
-  const [isScrollLocked, setIsScrollLocked] = useState(false)
-
   const scrollViewRef = useRef<ScrollView>(null)
 
   const handleGoBack = () => {
     if (router.canGoBack()) router.back()
     else router.replace('/(main)/(tabs)/reader')
   }
-
-  const itemType = 'ArticleVersion' // Define the type for this screen
-  const itemId = id || '' // Ensure we have an ID
-
-  // Get saved status from Redux store
+  const itemType = 'ArticleVersion'
+  const itemId = id || ''
   const isSavedInStore = useSelector((state: RootState) =>
     selectIsItemSaved(state, itemType, itemId)
   )
-  // Local state for immediate UI feedback (optimistic update) and button loading
   const [isOptimisticallySaved, setIsOptimisticallySaved] =
     useState(isSavedInStore)
   const [isSaveLoading, setIsSaveLoading] = useState(false)
-
-  // Sync local optimistic state if the store changes (e.g., after list fetch)
   useEffect(() => {
     setIsOptimisticallySaved(isSavedInStore)
   }, [isSavedInStore])
-
   const handleSave = async () => {
     if (!itemId) return
     setIsSaveLoading(true)
-    setIsOptimisticallySaved(true) // Optimistic update
+    setIsOptimisticallySaved(true)
     showAuthDebugToast('info', 'Saving article...')
     try {
       await dispatch(saveItemThunk({ item_type: itemType, item_id: itemId }))
       showAuthDebugToast('success', 'Article Saved')
-      // No need to setIsOptimisticallySaved(true) again, store will update eventually
     } catch (err: any) {
       console.error('Save failed:', err)
       showAuthDebugToast(
@@ -164,7 +194,7 @@ export default function ArticleScreen() {
         'Save Failed',
         err?.message || 'Could not save article.'
       )
-      setIsOptimisticallySaved(false) // Revert optimistic update on error
+      setIsOptimisticallySaved(false)
     } finally {
       setIsSaveLoading(false)
     }
@@ -173,12 +203,11 @@ export default function ArticleScreen() {
   const handleUnsave = async () => {
     if (!itemId) return
     setIsSaveLoading(true)
-    setIsOptimisticallySaved(false) // Optimistic update
+    setIsOptimisticallySaved(false)
     showAuthDebugToast('info', 'Unsacing article...')
     try {
       await dispatch(unsaveItemThunk({ item_type: itemType, item_id: itemId }))
       showAuthDebugToast('success', 'Article Unsaved')
-      // Reducer handles removing from list, selector will update
     } catch (err: any) {
       console.error('Unsave failed:', err)
       showAuthDebugToast(
@@ -186,14 +215,13 @@ export default function ArticleScreen() {
         'Unsave Failed',
         err?.message || 'Could not unsave article.'
       )
-      setIsOptimisticallySaved(true) // Revert optimistic update on error
+      setIsOptimisticallySaved(true)
     } finally {
       setIsSaveLoading(false)
     }
   }
   const handleToggleSave = useRequireAuthAction(() => {
     if (isOptimisticallySaved) {
-      // Check optimistic state for action
       handleUnsave()
     } else {
       handleSave()
@@ -212,49 +240,36 @@ export default function ArticleScreen() {
       occurrenceId: string
     ) => {
       if (layout && (layout.width > 0 || layout.height > 0)) {
-        let finalPageY = layout.pageY
-        let finalPageX = layout.pageX
-
+        console.log(
+          `Showing popup for ${mode} occurrence ${occurrenceId} at position:`,
+          layout
+        )
         // Attempt to subtract Android status bar height from pageY
         // This assumes measureInWindow on Android includes the status bar
         const statusBarHeight = StatusBar.currentHeight || 0
-        finalPageY += statusBarHeight
 
         // It's also possible iOS includes safeArea.top in its pageY and Android doesn't,
         // or vice-versa. This requires more experimentation.
         // For now, let's focus on the Android status bar.
 
-        const newPopupPosition = {
-          screenY: finalPageY,
-          screenX: finalPageX,
+        setPopupPositionInternal({
+          screenX: layout.pageX,
+          screenY: layout.pageY + statusBarHeight,
           width: layout.width,
           height: layout.height
-        }
-
-        setPopupPosition(newPopupPosition)
+        })
         setPopupContentMode(mode)
         setFocusedOccurrenceId(occurrenceId)
         setPopupVisible(true)
-        setIsScrollLocked(true)
       } else {
-        console.warn('Could not get layout for popup.')
-        // Fallback or do nothing
+        console.warn('Could not get layout for popup from TappableTextSegment.')
       }
     },
     []
   )
 
   const handleWordSelect = useCallback(
-    (
-      occurrence: WordOccurrence,
-      paragraph: ArticleParagraph,
-      layout: {
-        pageX: number
-        pageY: number
-        width: number
-        height: number
-      } | null
-    ) => {
+    (occurrence: WordOccurrence, paragraph: ArticleParagraph, layout) => {
       setCurrentWordOccForPopup(occurrence)
       setCurrentGrammarOccForPopup(null)
       showPopupForOccurrence(layout, 'word', occurrence.occurrence_id)
@@ -263,16 +278,7 @@ export default function ArticleScreen() {
   )
 
   const handleGrammarSelect = useCallback(
-    (
-      occurrence: GrammarOccurrence,
-      paragraph: ArticleParagraph,
-      layout: {
-        pageX: number
-        pageY: number
-        width: number
-        height: number
-      } | null
-    ) => {
+    (occurrence: GrammarOccurrence, paragraph: ArticleParagraph, layout) => {
       setCurrentWordOccForPopup(null)
       setCurrentGrammarOccForPopup(occurrence)
       showPopupForOccurrence(layout, 'grammar', occurrence.occurrence_id)
@@ -283,25 +289,16 @@ export default function ArticleScreen() {
   const handleClosePopup = useCallback(() => {
     setPopupVisible(false)
     setFocusedOccurrenceId(null)
-    setPopupPosition(null)
-    setIsScrollLocked(false)
-    // Optional: Delay resetting data if needed for animations, but usually not necessary
-    // if the popup correctly handles null data.
-    // setCurrentWordOccForPopup(null);
   }, [])
 
   const saveWordAction = useCallback(
     (baseWord: BaseWordDetail) => {
-      // TODO: Implement actual saving logic. This might involve:
-
       console.log(
         'Save Word action triggered for:',
         baseWord.word_fi,
         baseWord.base_word_id
       )
       showAuthDebugToast('info', 'Save Word', `Word: ${baseWord.word_fi}`)
-      // dispatch(addWordToVocabularyThunk(baseWord.base_word_id, ...));
-      // handleClosePopup(); // Or let user close manually
     },
     [handleClosePopup]
   )
@@ -310,7 +307,6 @@ export default function ArticleScreen() {
     saveWordAction,
     'Login to save vocabulary.'
   )
-
   const saveGrammarAction = useCallback(
     (grammarItem: GrammarDetail) => {
       console.log(
@@ -323,8 +319,6 @@ export default function ArticleScreen() {
         'Save Grammar Note',
         `Note: ${grammarItem.name_en}`
       )
-      // dispatch(addGrammarNoteThunk(grammarItem.grammar_id, ...));
-      // handleClosePopup();
     },
     [handleClosePopup]
   )
@@ -334,60 +328,109 @@ export default function ArticleScreen() {
   )
 
   const handleBrandPress = () => {
-    // Future implementation:
-    // router.push({ pathname: '/(main)/brand/[id]', params: { id: article.brand.source_identifier } });
-    alert(`Brand page for ${article?.brand?.display_name} not implemented yet.`)
+    Alert.alert(`Brand: ${article?.brand?.display_name} (Not Implemented)`)
   }
-
   const handleShare = () => {
-    // TODO: Implement actual sharing logic (e.g., using Share from react-native)
-    alert('Share action not implemented')
+    Alert.alert('Share action not implemented')
   }
-
   const handlePlayArticleAudio = () => {
-    // TODO: Implement actual audio playback logic for the full article
-    alert('Full article audio playback not implemented yet.')
+    Alert.alert('Full article audio playback not implemented yet.')
   }
 
-  if (isLoadingArticle && !article) {
-    // Still loading initial data
+  const isLoading =
+    isLoadingArticleEntity ||
+    (hasAttemptedFullFetch && !article?.paragraphs && !articleEntityError)
+  const displayError = articleEntityError
+
+  if (isLoading && !article && !displayError) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={Colors.light.primary} />
-      </View>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={Colors.light.primary} />
+        </View>
+      </SafeAreaView>
     )
   }
 
-  if (articleError && !article) {
-    // Failed to load initial data
+  if (displayError && !article) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.errorContainer}>
-          {/* ... back button ... */}
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <View
+          style={[
+            styles.customHeaderMinimal,
+            { paddingTop: Platform.OS === 'android' ? insets.top : 0 }
+          ]}
+        >
+          <TouchableOpacity
+            onPress={handleGoBack}
+            style={styles.headerBackButtonMinimal}
+          >
+            <ArrowLeft size={22} color={Colors.common.white} />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.centered}>
           <Text style={styles.errorText}>
-            Failed to load article: {articleError}
+            Failed to load article: {displayError}
           </Text>
-          <TouchableOpacity onPress={handleRefreshAction}>
-            {' '}
-            {/* Use the thunk directly */}
-            <Text style={styles.errorRetry}>Retry</Text>
+          <TouchableOpacity
+            onPress={handleRefreshAction}
+            style={styles.retryButton}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
     )
   }
 
-  // Handle case where article might not exist (e.g., bad ID) even if not explicitly 'failed'
-  if (!article) {
+  if (
+    article &&
+    (!article.paragraphs || article.paragraphs.length === 0) &&
+    isLoading
+  ) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.errorContainer}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <View
+          style={[
+            styles.customHeaderMinimal,
+            { paddingTop: Platform.OS === 'android' ? insets.top : 0 }
+          ]}
+        >
           <TouchableOpacity
             onPress={handleGoBack}
-            style={styles.errorBackButton}
+            style={styles.headerBackButtonMinimal}
           >
-            <ArrowLeft size={20} color={Colors.light.text} />
+            <ArrowLeft size={22} color={Colors.common.white} />
           </TouchableOpacity>
+          <View style={{ width: 30 }} />
+        </View>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <Text style={{ marginTop: 10, color: Colors.light.textSecondary }}>
+            Loading full article content...
+          </Text>
+        </View>
+      </SafeAreaView>
+    )
+  }
+
+  if (!article) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <View
+          style={[
+            styles.customHeaderMinimal,
+            { paddingTop: Platform.OS === 'android' ? insets.top : 0 }
+          ]}
+        >
+          <TouchableOpacity
+            onPress={handleGoBack}
+            style={styles.headerBackButtonMinimal}
+          >
+            <ArrowLeft size={22} color={Colors.common.white} />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.centered}>
           <Text style={styles.errorText}>Article not found.</Text>
         </View>
       </SafeAreaView>
@@ -399,16 +442,13 @@ export default function ArticleScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.container} edges={['top']}>
         <View
-          style={[
-            styles.articleHeaderControlsContainer,
-            { top: insets.top } // Position below status bar
-          ]}
+          style={[styles.articleHeaderControlsContainer, { top: insets.top }]}
         >
           <ArticleHeaderControls
             onGoBack={handleGoBack}
             onToggleSave={handleToggleSave}
-            onShare={handleShare} // Pass the new handler
-            isSaveLoading={isSaveLoading || !itemId} // Combined disabled state
+            onShare={handleShare}
+            isSaveLoading={isSaveLoading}
             isArticleSaved={isOptimisticallySaved}
             isDesktop={isDesktop}
           />
@@ -416,28 +456,29 @@ export default function ArticleScreen() {
 
         <ScrollView
           ref={scrollViewRef}
-          // showsVerticalScrollIndicator={false}
           contentContainerStyle={[
             styles.scrollContent,
-            isDesktop && styles.wideScreenContent
+            isDesktop && styles.wideScreenContent,
+            { paddingBottom: insets.bottom + 20 }
           ]}
+          showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={isPullRefreshing}
-              onRefresh={handleRefreshAction}
+              onRefresh={handlePullRefresh}
               tintColor={Colors.light.primary}
               colors={[Colors.light.primary]}
             />
           }
         >
           <LinearGradient
-            colors={['rgba(0,0,0,0.25)', 'transparent']}
+            colors={['rgba(0,0,0,0.2)', Colors.common.transparent]}
             style={styles.headerGradient}
           />
-          {/* Article Content Area */}
+
           <View
             style={[
-              styles.articleContainer,
+              styles.articleContentContainer,
               isDesktop && styles.wideScreenArticleContainer
             ]}
           >
@@ -447,67 +488,72 @@ export default function ArticleScreen() {
               onBrandPress={handleBrandPress}
               isDesktop={isDesktop}
             />
-
-            {article?.id && (
-              <ArticleAudioPlayer
-                articleId={article.id}
-                onPlayPress={handlePlayArticleAudio}
-              />
+            {(!article.paragraphs || article.paragraphs.length === 0) &&
+              !isLoading && (
+                <View style={styles.centered}>
+                  <Text style={styles.errorText}>
+                    Article content (paragraphs) could not be loaded.
+                  </Text>
+                </View>
+              )}
+            {article.id &&
+              article.paragraphs &&
+              article.paragraphs.length > 0 && (
+                <>
+                  <ArticleAudioPlayer
+                    articleId={article.id}
+                    onPlayPress={handlePlayArticleAudio}
+                  />
+                  <ArticleParagraphsList
+                    paragraphs={article.paragraphs}
+                    onWordSelect={handleWordSelect}
+                    onGrammarSelect={handleGrammarSelect}
+                    focusedOccurrenceId={focusedOccurrenceId}
+                  />
+                </>
+              )}
+            {article.brand?.display_name && (
+              <View style={styles.sourceContainer}>
+                <Text style={styles.sourceText}>
+                  Source: {article.brand.display_name}
+                </Text>
+              </View>
             )}
-
-            <ArticleParagraphsList
-              paragraphs={article?.paragraphs}
-              onWordSelect={handleWordSelect}
-              onGrammarSelect={handleGrammarSelect}
-              focusedOccurrenceId={focusedOccurrenceId}
-            />
-            <View style={styles.sourceContainer}>
-              <Text style={styles.sourceText}>
-                Source: {article?.brand?.display_name || 'Unknown Source'}
-              </Text>
-            </View>
           </View>
 
-          <ArticleVocabularySection
-            vocabulary={article?.vocabulary}
-            isDesktop={isDesktop}
-          />
+          {article.vocabulary && article.vocabulary.length > 0 && (
+            <ArticleVocabularySection
+              vocabulary={article.vocabulary}
+              isDesktop={isDesktop}
+            />
+          )}
         </ScrollView>
 
-        {/* Click-outside catcher and Popup */}
-        {popupVisible && (
+        {popupVisible && popupPositionInternal && (
           <>
             <Pressable
-              style={RNStyleSheet.absoluteFill} // Covers the whole screen
+              style={StyleSheet.absoluteFill}
               onPress={handleClosePopup}
               accessibilityLabel="Close popup"
               accessibilityRole="button"
             />
-            {/* Render specific popup based on contentMode */}
-            {currentWordOccForPopup && popupContentMode === 'word' && (
-              <InteractiveDetailPopup
-                isVisible={popupVisible} // Controls animation within popup
-                contentMode={popupContentMode}
-                wordOccurrenceData={currentWordOccForPopup}
-                grammarOccurrenceData={null}
-                popupPosition={popupPosition}
-                onClose={handleClosePopup}
-                onSaveWord={handleSaveWord}
-                isDesktop={isDesktop}
-              />
-            )}
-            {currentGrammarOccForPopup && popupContentMode === 'grammar' && (
-              <InteractiveDetailPopup
-                isVisible={popupVisible}
-                contentMode={popupContentMode}
-                wordOccurrenceData={null}
-                grammarOccurrenceData={currentGrammarOccForPopup}
-                popupPosition={popupPosition}
-                onClose={handleClosePopup}
-                onSaveGrammar={handleSaveGrammar}
-                isDesktop={isDesktop}
-              />
-            )}
+            <InteractiveDetailPopup
+              isVisible={popupVisible}
+              contentMode={popupContentMode}
+              wordOccurrenceData={currentWordOccForPopup}
+              grammarOccurrenceData={currentGrammarOccForPopup}
+              popupPosition={popupPositionInternal}
+              onClose={handleClosePopup}
+              onSaveWord={handleSaveWord}
+              onSaveGrammar={handleSaveGrammar}
+              onLearnMoreWord={baseWord =>
+                Alert.alert('Learn More', baseWord.word_fi)
+              }
+              onLearnMoreGrammar={grammar =>
+                Alert.alert('Learn More', grammar.name_en)
+              }
+              isDesktop={isDesktop}
+            />
           </>
         )}
       </SafeAreaView>
@@ -526,89 +572,81 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20
   },
-  loadingContainer: { justifyContent: 'center', alignItems: 'center' },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20
-  },
-  errorText: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 18,
-    color: Colors.light.text,
-    marginBottom: 16
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: 40, // Ensure space at the bottom
-    zIndex: 1
-  },
-  wideScreenContent: {
+  customHeaderMinimal: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     alignItems: 'center'
   },
+  headerBackButtonMinimal: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  errorText: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 16,
+    color: Colors.light.error,
+    textAlign: 'center',
+    marginBottom: 16
+  },
+  retryButton: {
+    backgroundColor: Colors.common.white,
+    borderWidth: 1,
+    borderColor: Colors.common.black,
+    paddingVertical: 10,
+    paddingHorizontal: 25,
+    borderRadius: 25
+  },
+  retryButtonText: {
+    color: Colors.common.black,
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 15
+  },
+
+  scrollContent: {
+    flexGrow: 1,
+    paddingTop: 60
+  },
+  wideScreenContent: {},
   headerGradient: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    height: 100,
-    zIndex: 2
+    height: 80,
+    zIndex: 1
   },
   articleHeaderControlsContainer: {
     position: 'absolute',
     left: 0,
     right: 0,
-    zIndex: 3
+    zIndex: 10
   },
-  articleContainer: {
-    padding: 20,
-    backgroundColor: Colors.light.background,
-    marginTop: 40, // Pull content up slightly over image bottom
-    zIndex: 1 // Ensure content is above image if overlap occurs
+  articleContentContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 10,
+    backgroundColor: Colors.common.transparent,
+    zIndex: 2
   },
   wideScreenArticleContainer: {
-    // This style applies to the main content container in ArticleScreen
-    maxWidth: 760, // Max width for the content area on desktop
+    maxWidth: 768,
     width: '100%',
-    borderRadius: 0, // No rounding needed if not visually distinct from background
-    paddingTop: 20 // Add padding at the top if marginTop is 0
-  },
-  brand: {
-    fontSize: 15,
-    paddingVertical: 8,
-    fontFamily: 'Inter-SemiBold',
-    color: Colors.light.primary // Or brand color
-  },
-  date: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: Colors.light.textSecondary
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 20,
-    gap: 6
-  },
-  tag: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 14,
-    color: Colors.light.text,
-    marginLeft: 8
-  },
-  audioDuration: {
-    backgroundColor: Colors.light.backgroundLight,
-    marginBottom: 24
+    alignSelf: 'center'
   },
   sourceContainer: {
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: Colors.light.border,
-    paddingTop: 16
+    paddingTop: 16,
+    marginTop: 24
   },
   sourceText: {
     fontFamily: 'Inter-Regular',
-    fontSize: 14,
+    fontSize: 13,
     color: Colors.light.textSecondary,
     fontStyle: 'italic'
   }

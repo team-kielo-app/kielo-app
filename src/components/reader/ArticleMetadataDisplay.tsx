@@ -1,36 +1,35 @@
 import React from 'react'
 import { View, Text, StyleSheet, Pressable } from 'react-native'
-import { Article } from '@features/articles/types' // Your Article type
+import { Article } from '@features/articles/types'
 import { Colors } from '@constants/Colors'
 
 interface ArticleMetadataDisplayProps {
-  article: Article | null | undefined // The full article object or relevant parts
+  article: Article | null | undefined
   publicationDateFormatted: string
   onBrandPress: () => void
-  isDesktop?: boolean // Optional for styling differences
+  isDesktop?: boolean
 }
 
-export const ArticleMetadataDisplay: React.FC<ArticleMetadataDisplayProps> = ({
+export function ArticleMetadataDisplay({
   article,
   publicationDateFormatted,
   onBrandPress,
   isDesktop = false
-}) => {
+}: ArticleMetadataDisplayProps): React.ReactElement | null {
   if (!article) {
-    // Or render a skeleton/placeholder if article is loading
     return null
   }
 
+  const displayCategory =
+    article.category && article.tags?.includes(article.category)
+
   return (
-    <>
-      <View style={styles.articleMetadata}>
-        {article.category && (
-          <Text style={styles.articleCategory}>
-            {article.category.toUpperCase()}
-          </Text>
-        )}
-        {/* Date was previously here, but publicationDateFormatted is more complete */}
-      </View>
+    <View style={styles.metaDisplayContainer}>
+      {displayCategory && (
+        <Text style={styles.articleCategoryText}>
+          {article.category?.toUpperCase()}
+        </Text>
+      )}
       <Text
         style={[styles.articleTitle, isDesktop && styles.desktopArticleTitle]}
       >
@@ -47,98 +46,107 @@ export const ArticleMetadataDisplay: React.FC<ArticleMetadataDisplayProps> = ({
         </Text>
       )}
 
-      {/* Tags Container */}
       {article.tags && article.tags.length > 0 && (
         <View style={styles.tagsContainer}>
           {article.tags.map(tag => (
-            <Text key={tag} style={styles.tag}>
-              {tag}
-            </Text>
+            <View key={tag} style={styles.tagChip}>
+              <Text style={styles.tagText}>{tag}</Text>
+            </View>
           ))}
         </View>
       )}
 
-      {/* Meta Container: Brand and Full Date */}
-      <View style={styles.metaContainer}>
+      <View style={styles.bylineContainer}>
         {article.brand?.display_name && (
-          <Pressable onPress={onBrandPress} hitSlop={10}>
-            <Text style={styles.brand}>{article.brand.display_name}</Text>
+          <Pressable
+            onPress={onBrandPress}
+            hitSlop={10}
+            style={styles.brandPressable}
+          >
+            <Text style={styles.brandText}>{article.brand.display_name}</Text>
           </Pressable>
         )}
+        {article.brand?.display_name && publicationDateFormatted && (
+          <Text style={styles.bylineSeparator}>•</Text>
+        )}
         {publicationDateFormatted && (
-          <Text style={styles.date}>{publicationDateFormatted}</Text>
+          <Text style={styles.dateText}>{publicationDateFormatted}</Text>
         )}
       </View>
-    </>
+    </View>
   )
 }
 
-// Styles are copied and adapted from ArticleScreen.tsx
 const styles = StyleSheet.create({
-  articleMetadata: {
-    flexDirection: 'row',
-    justifyContent: 'space-between', // Or 'flex-start' if only category is present
-    alignItems: 'center',
-    marginBottom: 12
-    // marginTop: 10, // This was in ArticleScreen, will be part of the parent's layout
-  },
-  articleCategory: {
+  metaDisplayContainer: {},
+  articleCategoryText: {
     fontFamily: 'Inter-SemiBold',
-    fontSize: 14,
-    color: Colors.light.primary
+    fontSize: 13,
+    color: Colors.light.primary,
+    textTransform: 'uppercase',
+    marginBottom: 8
   },
   articleTitle: {
     fontFamily: 'Inter-Bold',
-    fontSize: 24, // Mobile default
+    fontSize: 26,
     color: Colors.light.text,
     marginBottom: 8,
-    lineHeight: 32
+    lineHeight: 34
   },
   desktopArticleTitle: {
-    fontSize: 28, // Larger for desktop
-    lineHeight: 36
+    fontSize: 30,
+    lineHeight: 38
   },
   articleSubtitle: {
     fontFamily: 'Inter-Regular',
-    fontSize: 16, // Mobile default
+    fontSize: 17,
     color: Colors.light.textSecondary,
-    marginBottom: 20,
-    lineHeight: 24
+    marginBottom: 16,
+    lineHeight: 25
   },
   desktopArticleSubtitle: {
-    fontSize: 18, // Larger for desktop
+    fontSize: 19,
     lineHeight: 28
   },
   tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 20,
-    gap: 6
+    marginBottom: 16,
+    gap: 8
   },
-  tag: {
-    backgroundColor: Colors.light.backgroundLight,
-    color: Colors.light.textSecondary,
-    fontSize: 11,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    overflow: 'hidden',
-    fontFamily: 'Inter-Medium'
+  tagChip: {
+    backgroundColor: Colors.light.backgroundSecondary,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.light.borderSubtle
   },
-  metaContainer: {
+  tagText: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 12,
+    color: Colors.light.textSecondary
+  },
+  bylineContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10, // Or adjust as needed before audio player/paragraphs
-    gap: 10,
-    flexWrap: 'wrap' // Allow wrapping if brand + date is too long
+    marginBottom: 12,
+    flexWrap: 'wrap',
+    gap: 6
   },
-  brand: {
-    fontSize: 15,
-    // paddingVertical: 8, // Removed for cleaner alignment with date
+  brandPressable: {},
+  brandText: {
+    fontSize: 14,
     fontFamily: 'Inter-SemiBold',
     color: Colors.light.primary
   },
-  date: {
+  bylineSeparator: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 14,
+    color: Colors.light.textTertiary,
+    paddingHorizontal: 2
+  },
+  dateText: {
     fontSize: 14,
     fontFamily: 'Inter-Regular',
     color: Colors.light.textSecondary

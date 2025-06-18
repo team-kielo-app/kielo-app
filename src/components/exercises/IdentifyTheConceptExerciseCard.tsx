@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
     textAlign: 'center'
   },
   sentenceBox: {
-    backgroundColor: Colors.light.backgroundLight,
+    backgroundColor: Colors.light.backgroundSecondary,
     paddingVertical: 12,
     paddingHorizontal: 15,
     borderRadius: 8,
@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
   },
   optionsContainer: { marginBottom: 20 },
   optionButton: {
-    backgroundColor: Colors.light.white,
+    backgroundColor: Colors.common.white,
     padding: 15,
     borderRadius: 8,
     marginBottom: 10,
@@ -171,11 +171,11 @@ const styles = StyleSheet.create({
   },
   optionCorrect: {
     borderColor: Colors.light.success,
-    backgroundColor: Colors.light.successLight
+    backgroundColor: Colors.light.successBackground
   },
   optionIncorrect: {
     borderColor: Colors.light.error,
-    backgroundColor: Colors.light.errorLight
+    backgroundColor: Colors.light.errorBackground
   },
   optionText: {
     fontSize: 16,
@@ -202,5 +202,5 @@ const styles = StyleSheet.create({
   submitButton: { backgroundColor: Colors.light.primary },
   nextButton: { backgroundColor: Colors.light.accent },
   buttonDisabled: { backgroundColor: Colors.light.border },
-  buttonText: { color: Colors.light.white, fontWeight: 'bold', fontSize: 16 }
+  buttonText: { color: Colors.common.white, fontWeight: 'bold', fontSize: 16 }
 })

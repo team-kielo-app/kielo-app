@@ -121,15 +121,14 @@ export const FlashcardExerciseCard: React.FC<FlashcardExerciseCardProps> = ({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: Colors.light.cardBackground,
-    borderRadius: 12,
+    backgroundColor: Colors.light.quizQuestionCardBg,
+    borderRadius: 24,
     padding: 20,
     marginVertical: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
     minHeight: 250,
     justifyContent: 'space-between'
   },
@@ -175,7 +174,7 @@ const styles = StyleSheet.create({
   buttonGood: { backgroundColor: Colors.light.success },
   buttonBad: { backgroundColor: Colors.light.error },
   buttonText: {
-    color: Colors.light.white,
+    color: Colors.common.white,
     fontWeight: 'bold',
     fontSize: 16
   }

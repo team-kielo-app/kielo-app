@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.light.border, // Use theme color
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.2,
     shadowRadius: 1.0,
     elevation: 1
   },

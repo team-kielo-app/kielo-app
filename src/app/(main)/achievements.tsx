@@ -1,91 +1,102 @@
-import React from 'react'
+import React, { useEffect, useCallback } from 'react'
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
-  ActivityIndicator
+  ActivityIndicator,
+  RefreshControl,
+  TouchableOpacity
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useProtectedRoute } from '@hooks/useProtectedRoute'
 import { Colors } from '@constants/Colors'
 import { ScreenHeader } from '@components/common/ScreenHeader'
-import { AchievementCard } from '@/components/profile/AchievementCard' // Assuming exists
+import { AchievementCard } from '@/components/profile/AchievementCard'
+import { useResponsiveDimensions } from '@/hooks/useResponsiveDimensions'
+import { useSelector, useDispatch } from 'react-redux'
+import { AppDispatch, RootState } from '@/store/store'
+import {
+  selectEarnedAchievements,
+  selectAchievementsStatus
+} from '@features/achievements/achievementsSlice'
+import { useRefresh } from '@hooks/useRefresh'
+import { fetchEarnedAchievementsThunk } from '@/features/achievements/achievementsActions'
 
-// Filled Mock achievements data
-const mockAchievements = [
-  {
-    id: '1',
-    title: 'First Steps',
-    description: 'Complete your first article',
-    progress: 1,
-    total: 1,
-    color: Colors.light.success,
-    earned: true
-  },
-  {
-    id: '2',
-    title: 'Word Collector',
-    description: 'Learn 100 Finnish words',
-    progress: 145,
-    total: 100,
-    color: Colors.light.primary,
-    earned: true
-  },
-  {
-    id: '3',
-    title: 'Dedicated Reader',
-    description: 'Read articles for 5 days in a row',
-    progress: 7,
-    total: 5,
-    color: Colors.light.accent,
-    earned: true
-  },
-  {
-    id: '4',
-    title: 'Vocabulary Master',
-    description: 'Learn 500 Finnish words',
-    progress: 145,
-    total: 500,
-    color: Colors.light.warning,
-    earned: false
-  },
-  {
-    id: '5',
-    title: 'Weekend Warrior',
-    description: 'Study for 60 mins on a weekend',
-    progress: 30,
-    total: 60,
-    color: Colors.light.info,
-    earned: false
-  },
-  {
-    id: '6',
-    title: 'Grammar Guru',
-    description: 'Complete 10 grammar exercises',
-    progress: 5,
-    total: 10,
-    color: Colors.light.success,
-    earned: false
-  },
-  {
-    id: '7',
-    title: 'Night Owl',
-    description: 'Study after 10 PM',
-    progress: 1,
-    total: 1,
-    color: Colors.light.textSecondary,
-    earned: true
-  }
-]
-
-export default function AchievementsScreen() {
+export default function AchievementsScreen(): React.ReactElement | null {
   const { isLoading: isAuthLoading, isAuthenticated } = useProtectedRoute()
-  // TODO: Fetch actual achievements
+  const dispatch = useDispatch<AppDispatch>()
+  const { isDesktop } = useResponsiveDimensions()
+  const insets = useSafeAreaInsets()
 
-  if (isAuthLoading) {
-    /* ... loading state ... */
+  const earnedAchievements = useSelector(selectEarnedAchievements)
+  const achievementsStatus = useSelector(selectAchievementsStatus)
+
+  const fetchData = useCallback(() => {
+    if (
+      isAuthenticated &&
+      (achievementsStatus === 'idle' || achievementsStatus === 'failed')
+    ) {
+      dispatch(fetchEarnedAchievementsThunk())
+    }
+  }, [dispatch, isAuthenticated, achievementsStatus])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  const [isPullRefreshing, handlePullRefresh] = useRefresh(async () => {
+    if (isAuthenticated) {
+      await dispatch(fetchEarnedAchievementsThunk())
+    }
+  })
+
+  if (isAuthLoading || !isAuthenticated) {
+    return (
+      <View style={styles.fullScreenLoader}>
+        <ScreenHeader
+          title="Achievements"
+          fallbackPath="/(main)/(tabs)/profile"
+        />
+        <View style={styles.loaderContainer}>
+          <ActivityIndicator size="large" color={Colors.light.primary} />
+        </View>
+      </View>
+    )
   }
-  if (!isAuthenticated) return null
+
+  const renderEmptyList = () => {
+    if (achievementsStatus === 'loading') {
+      return (
+        <View style={styles.centeredMessageContainer}>
+          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <Text style={styles.infoText}>Loading achievements...</Text>
+        </View>
+      )
+    }
+    if (achievementsStatus === 'failed') {
+      return (
+        <View style={styles.centeredMessageContainer}>
+          <Text style={styles.errorText}>Could not load achievements.</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={fetchData}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )
+    }
+    if (achievementsStatus === 'succeeded' && earnedAchievements.length === 0) {
+      return (
+        <View style={styles.centeredMessageContainer}>
+          <Text style={styles.emptyText}>
+            No achievements earned yet. Keep learning!
+          </Text>
+        </View>
+      )
+    }
+    return null
+  }
+
+  const numColumns = isDesktop ? 3 : 2
 
   return (
     <View style={styles.container}>
@@ -94,38 +105,83 @@ export default function AchievementsScreen() {
         fallbackPath="/(main)/(tabs)/profile"
       />
       <FlatList
-        data={mockAchievements}
-        keyExtractor={item => item.id}
+        data={earnedAchievements}
+        keyExtractor={item => item.achievement_id}
         renderItem={({ item }) => (
-          <AchievementCard achievement={item} style={styles.achievementCard} />
+          <View style={styles.cardWrapper}>
+            <AchievementCard achievement={item} />
+          </View>
         )}
-        contentContainerStyle={styles.listContent}
-        numColumns={2}
-        columnWrapperStyle={styles.columnWrapper}
-        ListEmptyComponent={
-          <Text style={styles.emptyText}>No achievements earned yet.</Text>
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: insets.bottom + 20 }
+        ]}
+        numColumns={numColumns}
+        ListEmptyComponent={renderEmptyList}
+        refreshControl={
+          <RefreshControl
+            refreshing={isPullRefreshing}
+            onRefresh={handlePullRefresh}
+            tintColor={Colors.light.primary}
+          />
         }
+        showsVerticalScrollIndicator={false}
       />
     </View>
   )
 }
 
-// Styles based on previous implementation
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.light.background },
-  listContent: { padding: 20 },
-  columnWrapper: {
-    justifyContent: 'space-between',
-    marginBottom: 16
+  container: {
+    flex: 1,
+    backgroundColor: Colors.light.backgroundSecondary
   },
-  achievementCard: {
-    // Style passed to AchievementCard component
-    width: '48%' // Ensure width allows for gap
+  fullScreenLoader: { flex: 1, backgroundColor: Colors.light.background },
+  loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  listContent: {
+    padding: 16
+  },
+  cardWrapper: {
+    flex: 1 / (useResponsiveDimensions().isDesktop ? 3 : 2),
+    maxWidth: '48.5%',
+    margin: '0.75%'
+  },
+  centeredMessageContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 50,
+    minHeight: 200
+  },
+  infoText: {
+    marginTop: 10,
+    fontSize: 15,
+    color: Colors.light.textSecondary,
+    fontFamily: 'Inter-Regular'
   },
   emptyText: {
     textAlign: 'center',
-    marginTop: 50,
+    fontSize: 15,
     color: Colors.light.textSecondary,
     fontFamily: 'Inter-Regular'
+  },
+  errorText: {
+    textAlign: 'center',
+    fontSize: 15,
+    color: Colors.light.error,
+    fontFamily: 'Inter-Medium',
+    marginBottom: 10
+  },
+  retryButton: {
+    marginTop: 10,
+    backgroundColor: Colors.light.primary,
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 20
+  },
+  retryButtonText: {
+    color: Colors.light.primaryContent,
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 14
   }
 })

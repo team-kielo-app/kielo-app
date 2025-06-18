@@ -3,28 +3,23 @@ import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native'
 import { useRouter } from 'expo-router'
 import { LogIn } from 'lucide-react-native'
 import { Colors } from '@constants/Colors'
-import { User } from '@features/auth/types' // Assuming User type from auth
+import { User } from '@features/auth/types'
 import { nameParser } from '@utils/string'
 
 interface HomeHeaderProps {
-  isAuthenticated: boolean
   user: User | null
 }
 
-export const HomeHeader: React.FC<HomeHeaderProps> = ({
-  isAuthenticated,
-  user
-}) => {
+export const HomeHeader: React.FC<HomeHeaderProps> = ({ user }) => {
   const router = useRouter()
 
   return (
     <View style={styles.profileSection}>
       <View style={styles.headerTextContainer}>
-        {isAuthenticated && user ? (
+        {user ? (
           <>
             <Text style={styles.headerTitle}>
-              Hei{' '}
-              {nameParser(user.displayName || 'Kielo User', { ellipsis: '' })}!
+              Hei, {nameParser(user.displayName || 'User', { ellipsis: '' })}!
               👋
             </Text>
             <Text style={styles.headerSubtitle}>
@@ -40,7 +35,7 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
           </>
         )}
       </View>
-      {isAuthenticated && user ? (
+      {user ? (
         <TouchableOpacity
           onPress={() => router.push('/(main)/(tabs)/profile')}
           accessibilityLabel="View your profile"
@@ -80,13 +75,12 @@ const styles = StyleSheet.create({
   headerTextContainer: { flex: 1, marginRight: 16 },
   headerTitle: {
     fontFamily: 'Inter-Bold',
-    fontSize: 28,
-    color: Colors.light.text,
-    marginBottom: 4
+    fontSize: 24,
+    color: Colors.light.text
   },
   headerSubtitle: {
     fontFamily: 'Inter-Regular',
-    fontSize: 16,
+    fontSize: 14,
     color: Colors.light.textSecondary
   },
   profileImage: { width: 50, height: 50, borderRadius: 25 },

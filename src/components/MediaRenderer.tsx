@@ -303,7 +303,7 @@ export const MediaRenderer: React.FC<MediaRendererProps> = React.memo(
               <ActivityIndicator
                 size="large"
                 style={styles.videoSpinner}
-                color={Colors.light.white}
+                color={Colors.common.white}
               />
             )}
             <VideoView
@@ -485,7 +485,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 8, // Reduced horizontal padding for audio player
     paddingVertical: 12, // Standard vertical padding
-    backgroundColor: Colors.light.white,
+    backgroundColor: Colors.common.white,
     borderWidth: 1,
     borderColor: Colors.light.border
   },
@@ -507,7 +507,7 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   failedText: {
-    color: Colors.light.white,
+    color: Colors.common.white,
     fontSize: 10,
     fontWeight: 'bold'
   }

@@ -176,21 +176,22 @@ export default function SignupScreen() {
       return (
         <Pressable
           style={({ pressed }) => [
-            styles.socialButton,
+            authStyles.socialButton,
             (disabled || isLoading) && authStyles.buttonDisabled,
             pressed &&
               !(disabled || isLoading) && {
-                backgroundColor: pressedColors[provider] || Colors.light.border
+                backgroundColor: pressedColors[provider]
               },
-            !pressed && {
-              backgroundColor:
-                brandColors[provider] || Colors.light.cardBackground
-            }
+            !pressed && { backgroundColor: brandColors[provider] }
           ]}
           onPress={onPress}
           disabled={disabled || isLoading}
         >
-          <FontAwesome name={iconName as any} size={20} color="white" />
+          <FontAwesome
+            name={iconName as any}
+            size={20}
+            color={Colors.light.primaryContent}
+          />
         </Pressable>
       )
     },
@@ -353,7 +354,7 @@ export default function SignupScreen() {
             disabled={isLoading}
           >
             {isLoading ? (
-              <ActivityIndicator color={Colors.light.white} />
+              <ActivityIndicator color={Colors.common.white} />
             ) : (
               <Text style={authStyles.actionButtonText}>Register</Text>
             )}
@@ -381,7 +382,11 @@ export default function SignupScreen() {
 
 const styles = StyleSheet.create({
   signupFooterContainer: { gap: 20 },
-  loginLinkContainer: { flexDirection: 'row', alignItems: 'center' },
+  loginLinkContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
   footerText: {
     fontSize: 14,
     fontFamily: 'Inter-Regular',

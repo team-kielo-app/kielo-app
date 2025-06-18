@@ -296,7 +296,7 @@ export const CustomScrollView: React.FC<CustomScrollViewProps> = ({
             >
               <ChevronUp
                 size={SCROLL_ARROW_ICON_SIZE}
-                color={Colors.light.white}
+                color={Colors.common.white}
               />
             </TouchableOpacity>
           </Animated.View>
@@ -317,7 +317,7 @@ export const CustomScrollView: React.FC<CustomScrollViewProps> = ({
             >
               <ChevronDown
                 size={SCROLL_ARROW_ICON_SIZE}
-                color={Colors.light.white}
+                color={Colors.common.white}
               />
             </TouchableOpacity>
           </Animated.View>
@@ -344,7 +344,7 @@ export const CustomScrollView: React.FC<CustomScrollViewProps> = ({
             >
               <ChevronLeft
                 size={SCROLL_ARROW_ICON_SIZE}
-                color={Colors.light.white}
+                color={Colors.common.white}
               />
             </TouchableOpacity>
           </Animated.View>
@@ -367,7 +367,7 @@ export const CustomScrollView: React.FC<CustomScrollViewProps> = ({
             >
               <ChevronRight
                 size={SCROLL_ARROW_ICON_SIZE}
-                color={Colors.light.white}
+                color={Colors.common.white}
               />
             </TouchableOpacity>
           </Animated.View>

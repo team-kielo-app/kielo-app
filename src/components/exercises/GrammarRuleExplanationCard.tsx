@@ -35,14 +35,14 @@ export const GrammarRuleExplanationCard: React.FC<
       fontWeight: 'bold',
       marginTop: 10,
       marginBottom: 5,
-      color: Colors.light.primary
+      color: Colors.light.secondary
     },
     heading2: {
       fontSize: 20,
       fontWeight: 'bold',
       marginTop: 8,
       marginBottom: 4,
-      color: Colors.light.primary
+      color: Colors.light.secondary
     },
     strong: { fontWeight: 'bold', color: Colors.light.text }, // Ensure bold text is visible
     em: { fontStyle: 'italic' },
@@ -58,7 +58,7 @@ export const GrammarRuleExplanationCard: React.FC<
       >
         <Text style={styles.title}>Grammar Explanation</Text>
         {/* item_id_fk is now part of KLearnExerciseBase, so it's always available if KLearn sends it */}
-        <Text style={styles.conceptInfo}>Focus: {exercise.item_id_fk}</Text>
+        {/* <Text style={styles.conceptInfo}>Focus: {exercise.item_id_fk}</Text> */}
 
         <Markdown style={markdownStyles}>{exercise.prompt}</Markdown>
       </ScrollView>
@@ -77,17 +77,15 @@ export const GrammarRuleExplanationCard: React.FC<
 // Styles (mostly the same, ensure explanationText or markdown body style is appropriate)
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: Colors.light.cardBackground,
-    borderRadius: 12,
-    paddingVertical: 20,
+    backgroundColor: Colors.light.quizQuestionCardBg,
+    borderRadius: 24,
+    padding: 20,
     marginVertical: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
-    flex: 1,
-    maxHeight: '85%'
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+    flex: 1
   },
   scrollContainer: {
     flex: 1
@@ -100,7 +98,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     fontFamily: 'Inter-Bold',
-    color: Colors.light.primary,
+    color: Colors.light.secondary,
     marginBottom: 15
   },
   conceptInfo: {
@@ -124,10 +122,10 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   acknowledgeButton: {
-    backgroundColor: Colors.light.primary
+    backgroundColor: Colors.light.secondary
   },
   buttonText: {
-    color: Colors.light.white,
+    color: Colors.common.white,
     fontWeight: 'bold',
     fontSize: 16,
     fontFamily: 'Inter-SemiBold'

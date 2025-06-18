@@ -1,252 +1,339 @@
-// src/components/reviews/WordReviewCard.tsx
-import React, { useState, useEffect } from 'react'
+import React from 'react'
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator
+  Image,
+  Alert
 } from 'react-native'
-import { Volume2 } from 'lucide-react-native' // For pronunciation
-import { ReviewItem, ReviewOutcomePayload } from '@features/reviews/types'
+import { Volume2, Star } from 'lucide-react-native'
+import { ReviewItem } from '@features/reviews/types'
 import { Colors } from '@constants/Colors'
+
+const wordIconUrl = 'https://cdn-icons-png.flaticon.com/512/2490/2490396.png'
 
 interface WordReviewCardProps {
   item: ReviewItem
-  onReviewed: (outcome: ReviewOutcomePayload) => void
+  isFlipped: boolean
+  onFlip: () => void
 }
 
-export const WordReviewCard: React.FC<WordReviewCardProps> = ({
+export function WordReviewCard({
   item,
-  onReviewed
-}) => {
-  const [isFlipped, setIsFlipped] = useState(false)
-  const [showExample, setShowExample] = useState(false)
-
-  // Reset flip state when item changes
-  useEffect(() => {
-    setIsFlipped(false)
-    setShowExample(false)
-  }, [item])
-
-  const handleOutcome = (success: boolean) => {
-    onReviewed({
-      interaction_success: success,
-      review_timestamp_client: new Date().toISOString(),
-      review_interaction_type: 'nsr_word_flashcard_self_assess' // Specific type for NSR word review
-    })
-    // State reset (isFlipped, showExample) handled by useEffect on item change
+  isFlipped,
+  onFlip
+}: WordReviewCardProps): React.ReactElement {
+  const playPronunciation = (
+    textToSpeak?: string | null,
+    lang?: 'fi' | 'en'
+  ) => {
+    const text =
+      textToSpeak ||
+      (isFlipped ? item.primary_translation_en : item.display_text)
+    if (!text) return
+    const actualLang = lang || (isFlipped ? 'en' : 'fi')
+    Alert.alert('Play Audio', `Playing: "${text}" (lang: ${actualLang})`)
   }
 
-  const playPronunciation = () => {
-    // TODO: Implement actual audio playback using item.pronunciation_ipa or a dedicated audio URL if available
-    if (item.pronunciation_ipa) {
-      Alert.alert(
-        'Pronunciation',
-        `Simulating play for: ${item.pronunciation_ipa}`
-      )
-    } else {
-      Alert.alert('Pronunciation', 'No IPA available.')
-    }
+  if (!isFlipped) {
+    return (
+      <TouchableOpacity
+        onPress={onFlip}
+        activeOpacity={0.95}
+        style={styles.flashcardShell}
+      >
+        <View style={[styles.cardFace, styles.cardFront]}>
+          {item.cefr_level && (
+            <View style={styles.cefrBadge}>
+              <Star
+                size={12}
+                color={Colors.light.warning}
+                style={{ marginRight: 4 }}
+                fill={Colors.light.warning}
+              />
+              <Text style={styles.cefrText}>{item.cefr_level}</Text>
+            </View>
+          )}
+          <View
+            style={[
+              styles.cardIconContainer,
+              { backgroundColor: Colors.light.flashcardIconBgFront }
+            ]}
+          >
+            <Image source={{ uri: wordIconUrl }} style={styles.cardIconImage} />
+          </View>
+          <Text style={styles.termText}>{item.display_text}</Text>
+          {item.review_reason && (
+            <Text style={styles.reviewReasonText}>{item.review_reason}</Text>
+          )}
+          {!item.review_reason && (
+            <Text style={styles.instructionText}>Tap to see translation</Text>
+          )}
+
+          <TouchableOpacity
+            style={[
+              styles.playButton,
+              { backgroundColor: Colors.light.flashcardAudioButtonFrontBg }
+            ]}
+            onPress={e => {
+              e.stopPropagation()
+              playPronunciation(item.display_text, 'fi')
+            }}
+          >
+            <Volume2
+              size={24}
+              color={Colors.light.flashcardAudioButtonFrontIcon}
+            />
+          </TouchableOpacity>
+
+          <View style={styles.langFooter}>
+            <View
+              style={[
+                styles.langCircle,
+                { backgroundColor: Colors.light.flashcardLangCircleFI }
+              ]}
+            >
+              <Text
+                style={[
+                  styles.langAbbreviation,
+                  { color: Colors.light.flashcardLangTextFI }
+                ]}
+              >
+                FI
+              </Text>
+            </View>
+            <Text style={styles.langName}>Finnish</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    )
   }
 
   return (
-    <View style={styles.card}>
-      <TouchableOpacity
-        style={styles.flipContainer}
-        onPress={() => setIsFlipped(!isFlipped)}
-        activeOpacity={0.8}
-      >
-        {!isFlipped ? (
-          <View style={styles.front}>
-            <Text style={styles.displayText}>{item.display_text}</Text>
-            {item.part_of_speech && (
-              <Text style={styles.posText}>({item.part_of_speech})</Text>
-            )}
-            <Text style={styles.tapToRevealText}>(Tap to reveal meaning)</Text>
-          </View>
-        ) : (
-          <View style={styles.back}>
-            <Text style={styles.translationText}>
-              {item.primary_translation_en || 'N/A'}
-            </Text>
-
-            {item.pronunciation_ipa && (
-              <TouchableOpacity
-                style={styles.pronunciationContainer}
-                onPress={playPronunciation}
-              >
-                <Volume2 size={18} color={Colors.light.primary} />
-                <Text style={styles.ipaText}>{item.pronunciation_ipa}</Text>
-              </TouchableOpacity>
-            )}
-
-            {item.cefr_level && (
-              <Text style={styles.detailLabel}>
-                CEFR: <Text style={styles.detailValue}>{item.cefr_level}</Text>
-              </Text>
-            )}
-
-            {item.example_sentence_fi && (
-              <TouchableOpacity
-                onPress={() => setShowExample(!showExample)}
-                style={styles.exampleToggle}
-              >
-                <Text style={styles.exampleToggleText}>
-                  {showExample ? 'Hide' : 'Show'} Example
-                </Text>
-              </TouchableOpacity>
-            )}
-            {showExample && item.example_sentence_fi && (
-              <Text style={styles.exampleSentenceText}>
-                "{item.example_sentence_fi}"
-              </Text>
-            )}
+    <TouchableOpacity
+      onPress={onFlip}
+      activeOpacity={0.95}
+      style={styles.flashcardShell}
+    >
+      <View style={[styles.cardFace, styles.cardBack]}>
+        {item.cefr_level && (
+          <View style={styles.cefrBadge}>
+            <Star
+              size={12}
+              color={Colors.light.warning}
+              style={{ marginRight: 4 }}
+              fill={Colors.light.warning}
+            />
+            <Text style={styles.cefrText}>{item.cefr_level}</Text>
           </View>
         )}
-      </TouchableOpacity>
-
-      {isFlipped && (
-        <View style={styles.actions}>
-          <TouchableOpacity
-            style={[styles.button, styles.buttonBad]}
-            onPress={() => handleOutcome(false)}
-          >
-            <Text style={styles.buttonText}>Didn't Know</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.button, styles.buttonGood]}
-            onPress={() => handleOutcome(true)}
-          >
-            <Text style={styles.buttonText}>Knew It!</Text>
-          </TouchableOpacity>
+        <View
+          style={[
+            styles.cardIconContainer,
+            { backgroundColor: Colors.light.flashcardIconBgBack }
+          ]}
+        >
+          <Image source={{ uri: wordIconUrl }} style={styles.cardIconImage} />
         </View>
-      )}
-    </View>
+        <Text style={styles.termText}>
+          {item.primary_translation_en || 'N/A'}
+        </Text>
+        {item.part_of_speech && (
+          <Text style={styles.detailTextSmallSemibold}>
+            {item.part_of_speech}
+          </Text>
+        )}
+        {item.pronunciation_ipa && (
+          <Text style={styles.pronunciationText}>{item.pronunciation_ipa}</Text>
+        )}
+        {item.word_examples &&
+          item.word_examples.length > 0 &&
+          item.word_examples[0].sentence_fi && (
+            <View style={styles.exampleBox}>
+              <Text style={styles.exampleLabel}>Example:</Text>
+              <Text style={styles.exampleSentence}>
+                {item.word_examples[0].sentence_fi}
+              </Text>
+            </View>
+          )}
+
+        <TouchableOpacity
+          style={[
+            styles.playButton,
+            { backgroundColor: Colors.light.flashcardAudioButtonBackBg }
+          ]}
+          onPress={e => {
+            e.stopPropagation()
+            playPronunciation(item.primary_translation_en, 'en')
+          }}
+        >
+          <Volume2
+            size={24}
+            color={Colors.light.flashcardAudioButtonBackIcon}
+          />
+        </TouchableOpacity>
+
+        <View style={styles.langFooter}>
+          <View
+            style={[
+              styles.langCircle,
+              { backgroundColor: Colors.light.flashcardLangCircleEnBg }
+            ]}
+          >
+            <Text
+              style={[
+                styles.langAbbreviation,
+                { color: Colors.light.flashcardLangCircleEnText }
+              ]}
+            >
+              EN
+            </Text>
+          </View>
+          <Text style={styles.langName}>English</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
   )
 }
 
-// Add Alert import for placeholder pronunciation
-import { Alert } from 'react-native'
-
 const styles = StyleSheet.create({
-  card: {
+  flashcardShell: {
+    width: '100%',
+    height: '100%',
     backgroundColor: Colors.light.cardBackground,
-    borderRadius: 16, // Slightly more rounded
-    padding: 25,
-    marginVertical: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 4,
-    minHeight: 300, // Good height for flashcards
-    justifyContent: 'space-between'
+    borderRadius: 24,
+    shadowColor: Colors.light.shadowSoft,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8
   },
-  flipContainer: {
+  cardFace: {
     flex: 1,
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative'
+  },
+  cardFront: {},
+  cardBack: {},
+  cefrBadge: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.light.backgroundSecondary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12
+  },
+  cefrText: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 11,
+    color: Colors.light.textSecondary
+  },
+  cardIconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingBottom: 10
-  },
-  front: { alignItems: 'center' },
-  back: {
-    alignItems: 'center', // Center back content too
-    width: '100%' // Ensure back content takes full width for alignment
-  },
-  displayText: {
-    fontSize: 36, // Larger for the main word
-    fontFamily: 'Inter-Bold',
-    color: Colors.light.text,
-    marginBottom: 8,
-    textAlign: 'center'
-  },
-  posText: {
-    fontSize: 16,
-    fontFamily: 'Inter-Regular',
-    color: Colors.light.textSecondary,
-    marginBottom: 15
-  },
-  tapToRevealText: {
-    fontSize: 14,
-    fontFamily: 'Inter-Medium',
-    color: Colors.light.primary,
-    marginTop: 10
-  },
-  translationText: {
-    fontSize: 28, // Prominent translation
-    fontFamily: 'Inter-SemiBold',
-    color: Colors.light.primary,
-    textAlign: 'center',
-    marginBottom: 15
-  },
-  pronunciationContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.light.backgroundLight,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
     marginBottom: 12
   },
-  ipaText: {
-    fontSize: 15,
+  cardIconImage: {
+    width: 40,
+    height: 40,
+    resizeMode: 'contain'
+  },
+  termText: {
+    fontSize: 28,
+    fontFamily: 'Inter-Bold',
+    color: Colors.light.flashcardTermText,
+    textAlign: 'center',
+    marginHorizontal: 10,
+    marginBottom: 4
+  },
+  reviewReasonText: {
+    fontSize: 13,
     fontFamily: 'Inter-Regular',
-    color: Colors.light.textSecondary,
-    marginLeft: 8
-  },
-  detailLabel: {
-    fontSize: 15,
-    fontFamily: 'Inter-Medium',
-    color: Colors.light.textSecondary,
-    marginBottom: 3
-  },
-  detailValue: {
-    fontFamily: 'Inter-Regular',
-    color: Colors.light.text
-  },
-  exampleToggle: {
-    marginTop: 10,
-    marginBottom: 5,
-    paddingVertical: 5
-  },
-  exampleToggleText: {
-    fontSize: 14,
-    fontFamily: 'Inter-Medium',
-    color: Colors.light.accent
-  },
-  exampleSentenceText: {
-    fontSize: 15,
-    fontFamily: 'Inter-RegularItalic', // Assuming you have italic font
     color: Colors.light.textSecondary,
     textAlign: 'center',
+    marginBottom: 16,
+    lineHeight: 18,
     paddingHorizontal: 10
   },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 20,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: Colors.light.border
+  instructionText: {
+    fontSize: 13,
+    fontFamily: 'Inter-Regular',
+    color: Colors.light.flashcardInstructionText,
+    textAlign: 'center',
+    marginBottom: 16
   },
-  button: {
-    paddingVertical: 12,
-    paddingHorizontal: 20, // Ensure good tap area
-    borderRadius: 25, // Pill shape
-    minWidth: 140, // Make buttons wider
+  detailTextSmallSemibold: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: Colors.light.textSecondary,
+    marginBottom: 4
+  },
+  pronunciationText: {
+    fontSize: 14,
+    fontFamily: 'Inter-MediumItalic',
+    color: Colors.light.flashcardPronunciationText,
+    marginBottom: 10
+  },
+  exampleBox: {
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginVertical: 8,
+    alignSelf: 'stretch'
+  },
+  exampleLabel: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 11,
+    color: Colors.light.textTertiary,
+    marginBottom: 2
+  },
+  exampleSentence: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+    lineHeight: 18,
+    textAlign: 'center'
+  },
+  playButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000', // Add subtle shadow to buttons
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
-    elevation: 2
+    marginTop: 12
   },
-  buttonGood: { backgroundColor: Colors.light.success },
-  buttonBad: { backgroundColor: Colors.light.error },
-  buttonText: {
-    color: Colors.light.white,
-    fontFamily: 'Inter-Bold',
-    fontSize: 16
+  langFooter: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  langCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  langAbbreviation: {
+    fontSize: 10,
+    fontFamily: 'Inter-Bold'
+  },
+  langName: {
+    fontSize: 12,
+    fontFamily: 'Inter-Regular',
+    color: Colors.light.flashcardTermText,
+    marginLeft: 6
   }
 })

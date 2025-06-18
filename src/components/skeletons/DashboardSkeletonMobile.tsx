@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    backgroundColor: Colors.light.white,
+    backgroundColor: Colors.common.white,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: Colors.light.border,
     paddingHorizontal: 10,

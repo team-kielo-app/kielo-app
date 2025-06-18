@@ -4,9 +4,9 @@ import { StyleSheet } from 'react-native'
 import { Colors } from '@constants/Colors'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
-export default function AuthLayout() {
+export default function AuthLayout(): React.ReactElement {
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <Stack screenOptions={{ headerShown: false }} />
     </SafeAreaView>
   )

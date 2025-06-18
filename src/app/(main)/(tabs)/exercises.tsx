@@ -1,4 +1,3 @@
-// src/app/(main)/(tabs)/exercises.tsx
 import React, { useEffect } from 'react'
 import {
   View,
@@ -6,16 +5,19 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator
+  ActivityIndicator,
+  Image
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import {
   Brain,
   MessageSquare,
   ListChecks,
-  Puzzle,
+  MicVocal,
   ChevronRight,
-  Sparkles // For suggested lessons
+  Sparkles,
+  Volume2,
+  Trophy
 } from 'lucide-react-native'
 import { Colors } from '@constants/Colors'
 import { useRequireAuthAction } from '@hooks/useRequireAuthAction'
@@ -24,39 +26,33 @@ import { useRouter } from 'expo-router'
 import { useDispatch, useSelector } from 'react-redux'
 import { AppDispatch, RootState } from '@/store/store'
 
-// Let's assume a new slice for "suggested lessons" (WPR)
-// This is a simplified version. In reality, these would be fetched.
 import {
   fetchSuggestedLessonsThunk,
   selectSuggestedLessons,
-  selectSuggestedLessonsStatus,
-  SuggestedLesson // Define this type
-} from '@features/lessons/lessonsSlice' // Assuming a lessonsSlice exists
+  selectSuggestedLessonsStatus
+} from '@features/lessons/lessonsSlice'
 import { LessonData } from '@/features/lessons/types'
-import { DailyChallenge } from '@/components/home/DailyChallenge'
 
-// Existing categories - can be static or fetched if they become dynamic
 const exerciseCategories = [
   {
-    id: 'nsr_review_session', // More specific ID
-    title: 'Daily Review (SRS)', // Clearer title
+    id: 'nsr_review_session',
+    title: 'Daily Flashcards',
     description: 'Practice words & grammar due for review',
-    icon: <Brain size={24} color={Colors.light.white} />,
+    icon: <Brain size={24} color={Colors.light.primaryContent} />,
     color: Colors.light.primary,
-    targetPath: '/(main)/exercises/review-session' // Correct path
+    targetPath: '/(main)/exercises/review-session'
   }
 ]
 
-export default function ExercisesScreen() {
+export default function ExercisesScreen(): React.ReactElement {
   const { isDesktop } = useResponsiveDimensions()
   const router = useRouter()
   const dispatch = useDispatch<AppDispatch>()
 
-  const suggestedLessons = useSelector(selectSuggestedLessons) // From lessonsSlice
-  const lessonsStatus = useSelector(selectSuggestedLessonsStatus) // From lessonsSlice
+  const suggestedLessons = useSelector(selectSuggestedLessons)
+  const lessonsStatus = useSelector(selectSuggestedLessonsStatus)
 
   useEffect(() => {
-    // Fetch suggested lessons (WPR)
     if (lessonsStatus === 'idle') {
       dispatch(fetchSuggestedLessonsThunk({ max_suggestions: 3 }))
     }
@@ -74,9 +70,7 @@ export default function ExercisesScreen() {
   }
 
   const handleSuggestedLessonPress = (lesson: LessonData) => {
-    // lesson is now LessonData
     navigateToScreen(`/(main)/exercises/player`, {
-      // Path no longer needs [lesson_id]
       lessonDataString: JSON.stringify(lesson)
     })
   }
@@ -93,11 +87,29 @@ export default function ExercisesScreen() {
           isDesktop && styles.wideScreenContent
         ]}
       >
-        <DailyChallenge
-          onStartChallenge={() => router.push('/(main)/challenges/daily')}
-        />
+        <Text style={styles.sectionTitle}>Daily Challenge</Text>
+        <TouchableOpacity
+          style={styles.challengeCard}
+          onPress={() => router.push('/(main)/challenges/daily')}
+          accessibilityRole="button"
+          accessibilityLabel="Start daily challenge: Complete a News Article"
+        >
+          <View style={styles.challengeContent}>
+            <View style={styles.challengeIconContainer}>
+              <Trophy size={24} color={Colors.common.white} />
+            </View>
+            <View style={styles.challengeTextContainer}>
+              <Text style={styles.challengeTitle}>Complete a News Article</Text>
+              <Text style={styles.challengeSubtitle}>
+                Read and learn 5 new words
+              </Text>
+            </View>
+          </View>
+          <View style={styles.challengeContentRight}>
+            <ChevronRight size={20} color={Colors.light.textSecondary} />
+          </View>
+        </TouchableOpacity>
 
-        {/* Suggested Lessons (WPR) */}
         <Text style={styles.sectionTitle}>Recommended For You</Text>
         {lessonsStatus === 'loading' && (
           <ActivityIndicator
@@ -119,8 +131,13 @@ export default function ExercisesScreen() {
             style={styles.suggestionCard}
             onPress={() => handleSuggestedLessonPress(lesson)}
           >
-            <View style={styles.suggestionIconContainer}>
-              <Sparkles size={22} color={Colors.light.white} />
+            <View
+              style={[
+                styles.suggestionIconContainer,
+                { backgroundColor: Colors.light.accentOrange }
+              ]}
+            >
+              <Sparkles size={22} color={Colors.light.primaryContent} />
             </View>
             <View style={styles.suggestionTextContainer}>
               <Text style={styles.suggestionTitle}>{lesson.lesson_title}</Text>
@@ -135,7 +152,6 @@ export default function ExercisesScreen() {
           </TouchableOpacity>
         ))}
 
-        {/* Static Exercise Categories */}
         <Text style={styles.sectionTitle}>Practice Areas</Text>
         <View
           style={[
@@ -172,15 +188,17 @@ export default function ExercisesScreen() {
           ))}
         </View>
 
-        {/* Word of the Day (Can remain static or be fetched) */}
         <Text style={styles.sectionTitle}>Word of the Day</Text>
         <View style={styles.wordOfDayCard}>
-          {/* ... Word of the day content ... */}
           <View style={styles.wordOfDayHeader}>
             <Text style={styles.finnishWord}>tervetuloa</Text>
             <Text style={styles.pronunciation}>/ter·ve·tu·lo·a/</Text>
           </View>
           <Text style={styles.englishTranslation}>welcome</Text>
+          <TouchableOpacity style={styles.wodListenButton}>
+            <Volume2 size={18} color={Colors.light.primary} />
+            <Text style={styles.wodListenButtonText}>Listen</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -194,7 +212,8 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 20,
-    paddingVertical: 16
+    paddingTop: 10,
+    paddingBottom: 12
   },
   headerTitle: {
     fontFamily: 'Inter-Bold',
@@ -202,12 +221,12 @@ const styles = StyleSheet.create({
     color: Colors.light.text
   },
   content: {
-    padding: 20,
+    paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 40
+    paddingBottom: 90
   },
   wideScreenContent: {
-    maxWidth: 1200,
+    maxWidth: 768,
     alignSelf: 'center',
     width: '100%'
   },
@@ -215,40 +234,86 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-SemiBold',
     fontSize: 18,
     color: Colors.light.text,
-    marginTop: 20,
-    marginBottom: 16
+    marginTop: 24,
+    marginBottom: 12
   },
   errorText: {
     textAlign: 'center',
     color: Colors.light.error,
-    marginVertical: 15
+    marginVertical: 15,
+    fontFamily: 'Inter-Regular'
   },
   emptySectionText: {
     textAlign: 'center',
     color: Colors.light.textSecondary,
     marginVertical: 15,
-    paddingHorizontal: 20
+    paddingHorizontal: 20,
+    fontFamily: 'Inter-Regular'
   },
-  // Suggested Lesson Card
-  suggestionCard: {
+
+  challengeCard: {
     backgroundColor: Colors.light.cardBackground,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    shadowColor: Colors.light.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
+    shadowColor: Colors.light.shadowSoft,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
     shadowRadius: 4,
-    elevation: 2
+    elevation: 3
+  },
+  challengeContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 1,
+    marginRight: 8,
+    flex: 1
+  },
+  challengeContentRight: {},
+  challengeIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.light.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12
+  },
+  challengeTextContainer: {
+    flex: 1
+  },
+  challengeTitle: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 16,
+    color: Colors.light.text,
+    marginBottom: 4
+  },
+  challengeSubtitle: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 14,
+    color: Colors.light.textSecondary
+  },
+  suggestionCard: {
+    backgroundColor: Colors.light.cardBackground,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: Colors.light.shadowSoft,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3
   },
   suggestionIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.light.accent, // Example color
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12
@@ -267,51 +332,49 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: Colors.light.textSecondary,
-    marginBottom: 4
+    marginBottom: 4,
+    lineHeight: 18
   },
   suggestionMeta: {
     fontFamily: 'Inter-Medium',
     fontSize: 12,
     color: Colors.light.primary
   },
-  // Exercise Category Card (retained styles)
   exercisesGrid: {
-    flexDirection: 'column', // Mobile: column
-    gap: 12
+    flexDirection: 'column',
+    gap: 16
   },
   wideScreenExercisesGrid: {
-    flexDirection: 'row', // Desktop: row
-    flexWrap: 'wrap',
-    justifyContent: 'space-between', // Distribute cards
-    gap: 16 // Gap between cards
+    flexDirection: 'row',
+    flexWrap: 'wrap'
   },
   exerciseCard: {
     backgroundColor: Colors.light.cardBackground,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
-    shadowColor: Colors.light.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
+    shadowColor: Colors.light.shadowSoft,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
     shadowRadius: 4,
-    elevation: 2,
-    width: '100%', // Mobile: full width
-    minHeight: 150, // Ensure cards have some height
+    elevation: 3,
+    width: '100%',
+    minHeight: 160,
     justifyContent: 'space-between'
   },
   wideScreenExerciseCard: {
-    width: '48%' // Desktop: roughly 2 per row, accounting for gap
+    width: 'calc(50% - 8px)'
   },
   exerciseIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12
   },
   exerciseTitle: {
     fontFamily: 'Inter-SemiBold',
-    fontSize: 17,
+    fontSize: 18,
     color: Colors.light.text,
     marginBottom: 4
   },
@@ -320,36 +383,39 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.light.textSecondary,
     marginBottom: 12,
-    flexGrow: 1 // Allow description to take space
+    lineHeight: 20,
+    flexGrow: 1
   },
   exerciseInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 'auto' // Push to bottom
+    marginTop: 'auto'
   },
   exerciseCount: {
-    // Renamed to "Explore" or similar
     fontFamily: 'Inter-Medium',
     fontSize: 14,
     color: Colors.light.textSecondary
   },
-  // Word of the Day Card (retained styles)
   wordOfDayCard: {
     backgroundColor: Colors.light.cardBackground,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 20,
     marginBottom: 24,
-    shadowColor: Colors.light.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
+    shadowColor: Colors.light.shadowSoft,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
     shadowRadius: 4,
-    elevation: 2
+    elevation: 3,
+    alignItems: 'center'
   },
-  wordOfDayHeader: { marginBottom: 8 },
+  wordOfDayHeader: {
+    alignItems: 'center',
+    marginBottom: 8
+  },
   finnishWord: {
     fontFamily: 'Inter-Bold',
-    fontSize: 24,
+    fontSize: 26,
     color: Colors.light.text,
     marginBottom: 4
   },
@@ -357,11 +423,26 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     fontSize: 14,
     color: Colors.light.textSecondary,
-    marginBottom: 8
+    marginBottom: 12
   },
   englishTranslation: {
     fontFamily: 'Inter-SemiBold',
     fontSize: 18,
-    color: Colors.light.primary
+    color: Colors.light.primary,
+    marginBottom: 16
+  },
+  wodListenButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.light.primaryLight,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20
+  },
+  wodListenButtonText: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 14,
+    color: Colors.light.primary,
+    marginLeft: 6
   }
 })

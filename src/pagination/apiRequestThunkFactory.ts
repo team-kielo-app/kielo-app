@@ -118,10 +118,10 @@ export function createApiRequestThunk({
         const finalResponse = {
           ...normalizedData, // Includes result, entities from normalization
           nextPageKey:
-            response?.nextPageKey ?? normalizedData.nextPageKey ?? null, // Prioritize raw response keys
+            response?.next_page_key ?? normalizedData.nextPageKey ?? null, // Prioritize raw response keys
           prevPageKey:
-            response?.prevPageKey ?? normalizedData.prevPageKey ?? null,
-          totalCount: response?.totalCount ?? normalizedData.totalCount ?? 0
+            response?.prev_page_key ?? normalizedData.prevPageKey ?? null,
+          totalCount: response?.total_count ?? normalizedData.totalCount ?? 0
         }
 
         // Dispatch success action

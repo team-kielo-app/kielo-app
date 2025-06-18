@@ -1,28 +1,34 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   TextInput,
   FlatList,
-  ActivityIndicator
+  ActivityIndicator,
+  TouchableOpacity,
+  ScrollView,
+  RefreshControl,
+  Platform,
+  Alert
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
-import { Search, Plus } from 'lucide-react-native'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Search, PlusCircle } from 'lucide-react-native'
 import { Colors } from '@constants/Colors'
-import { ArticleCard } from '@/components/reader/ArticleCard' // Assuming component exists
+import { ArticleCard } from '@/components/reader/ArticleCard'
 import { useRouter } from 'expo-router'
 import { useResponsiveDimensions } from '@hooks/useResponsiveDimensions'
 import { useSelector, useDispatch } from 'react-redux'
 import { fetchArticles } from '@features/articles/articlesActions'
 import { AppDispatch, RootState } from '@store/store'
-import { selectIsAuthenticated, selectUser } from '@features/auth/authSelectors'
+import { selectUser } from '@features/auth/authSelectors'
 import { selectPaginatedData } from '@pagination/selectors'
+import { useRefresh } from '@hooks/useRefresh'
+import { Article } from '@features/articles/types'
+import { LinearGradient } from 'expo-linear-gradient'
 
-// Filled from original file
 const CATEGORIES = [
+  { id: 'all', name: 'All' },
   { id: 'news', name: 'News' },
   { id: 'culture', name: 'Culture' },
   { id: 'sports', name: 'Sports' },
@@ -30,286 +36,341 @@ const CATEGORIES = [
   { id: 'technology', name: 'Technology' }
 ]
 
-export default function ReaderScreen() {
+const ARTICLES_PAGINATION_KEY = (
+  userId?: string,
+  categoryId: string = 'all',
+  searchQuery: string = ''
+) => {
+  const userPrefix = userId ? `user-${userId}` : 'public'
+  const categorySuffix = categoryId === 'all' ? '' : `-cat-${categoryId}`
+  const searchSuffix = searchQuery
+    ? `-search-${encodeURIComponent(searchQuery.substring(0, 15))}`
+    : ''
+  return `${userPrefix}-articles-feed${categorySuffix}${searchSuffix}`
+}
+
+export default function ReaderScreen(): React.ReactElement {
   const router = useRouter()
   const { isDesktop } = useResponsiveDimensions()
   const dispatch = useDispatch<AppDispatch>()
+  const user = useSelector((state: RootState) => selectUser(state))
+  const insets = useSafeAreaInsets()
+  const tabBarHeight = 70 + 15 + insets.bottom
 
-  const isAuthenticated = useSelector(selectIsAuthenticated)
-  const userState = useSelector((state: RootState) => selectUser(state))
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('all')
+  const [isSearchFocused, setIsSearchFocused] = useState(false)
+  const searchRef = useRef<TextInput>(null)
 
-  const paginationKey = isAuthenticated
-    ? `${userState?.id}-articles-feed`
-    : 'articlesPublic'
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery)
+    }, 500)
+    return () => clearTimeout(handler)
+  }, [searchQuery])
+
+  const currentPaginationKey = ARTICLES_PAGINATION_KEY(
+    user?.id,
+    selectedCategory,
+    debouncedSearchQuery
+  )
+
   const { data: articles, pagination } = useSelector((state: RootState) =>
     selectPaginatedData(
       'articles',
       'articlePagination',
-      paginationKey,
-      true
+      currentPaginationKey,
+      false
     )(state)
   )
 
-  // Fetch initial articles
+  const fetchArticlesList = useCallback(
+    (options?: { reset?: boolean; fetchNext?: boolean }) => {
+      let queryParams: Record<string, any> = {}
+      if (selectedCategory !== 'all') {
+        queryParams.category = selectedCategory
+      }
+      if (debouncedSearchQuery) {
+        queryParams.q = debouncedSearchQuery
+      }
+      dispatch(
+        fetchArticles(currentPaginationKey, {
+          ...options,
+          additionalQueryParams: queryParams
+        })
+      )
+    },
+    [dispatch, currentPaginationKey, selectedCategory, debouncedSearchQuery]
+  )
+
   useEffect(() => {
-    if (!pagination.isLoading && !pagination.error && articles.length < 5) {
-      dispatch(fetchArticles(paginationKey, { reset: true }))
+    if (!pagination.isLoading && !pagination.hasFetched) {
+      fetchArticlesList({ reset: true })
     }
-  }, [dispatch, paginationKey])
+  }, [fetchArticlesList, pagination.isLoading, pagination.hasFetched])
 
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState('all')
-  const [isSearchFocused, setIsSearchFocused] = useState(false)
-  const searchRef = useRef(null)
-
-  const filteredArticles = articles.filter(article => {
-    // Handle potential missing category property gracefully
-    const articleCategoryLower = article.category?.toLowerCase() || ''
-    const selectedCategoryLower = selectedCategory.toLowerCase()
-
-    const matchesCategory =
-      selectedCategoryLower === 'all' ||
-      articleCategoryLower === selectedCategoryLower
-    const matchesSearch =
-      !searchQuery ||
-      article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (article.subtitle &&
-        article.subtitle.toLowerCase().includes(searchQuery.toLowerCase())) // Check if subtitle exists
-
-    return matchesCategory && matchesSearch
+  const [isRefreshing, handleRefresh] = useRefresh(async () => {
+    await fetchArticlesList({ reset: true, forceRefresh: true })
   })
 
+  const handleLoadMore = () => {
+    if (!pagination.isLoading && pagination.hasMore) {
+      fetchArticlesList({ fetchNext: true })
+    }
+  }
+
   const handleAddArticle = () => {
-    // TODO: Implement navigation or modal for adding articles
-    alert('Add article feature not implemented.')
+    Alert.alert(
+      'Add Article',
+      'Feature to add new articles is not yet implemented.'
+    )
+  }
+
+  const renderFooter = () => {
+    if (!pagination.isLoading && !pagination.hasMore && articles.length > 0) {
+      return <Text style={styles.listEndText}>No more articles.</Text>
+    }
+    if (pagination.isLoading && articles.length > 0) {
+      return (
+        <ActivityIndicator
+          style={{ marginVertical: 20 }}
+          color={Colors.light.primary}
+        />
+      )
+    }
+    return null
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Reader</Text>
-        <View style={styles.headerRightButtons}>
-          {/* TODO: Add guard if adding requires auth */}
+    <LinearGradient
+      colors={[Colors.common.white, Colors.light.backgroundSecondary]}
+      style={styles.gradientBackground}
+    >
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Reader</Text>
           <TouchableOpacity
             style={styles.headerButton}
             onPress={handleAddArticle}
           >
-            <Plus size={22} color={Colors.light.text} />
+            <PlusCircle size={24} color={Colors.light.text} />
           </TouchableOpacity>
         </View>
-      </View>
 
-      {/* Search Input */}
-      <View style={styles.searchContainer}>
-        <View
-          style={[
-            styles.searchInputContainer,
-            isSearchFocused && styles.searchInputFocused
-          ]}
-        >
-          <Search size={20} color={Colors.light.textSecondary} />
-          <TextInput
-            ref={searchRef}
-            style={styles.searchInput}
-            placeholder="Search articles..."
-            placeholderTextColor={Colors.light.textSecondary}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            onFocus={() => setIsSearchFocused(true)}
-            onBlur={() => setIsSearchFocused(false)}
-          />
-        </View>
-      </View>
-
-      {/* Categories */}
-      <View style={styles.categoriesContainer}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoriesScrollContent}
-        >
-          <TouchableOpacity
+        <View style={styles.searchContainer}>
+          <View
             style={[
-              styles.categoryButton,
-              selectedCategory === 'all' && styles.categoryButtonActive
+              styles.searchInputContainer,
+              isSearchFocused && styles.searchInputFocused
             ]}
-            onPress={() => setSelectedCategory('all')}
           >
-            <Text
-              style={[
-                styles.categoryButtonText,
-                selectedCategory === 'all' && styles.categoryButtonTextActive
-              ]}
-            >
-              All
-            </Text>
-          </TouchableOpacity>
-          {CATEGORIES.map(category => (
-            <TouchableOpacity
-              key={category.id}
-              style={[
-                styles.categoryButton,
-                selectedCategory === category.id && styles.categoryButtonActive
-              ]}
-              onPress={() => setSelectedCategory(category.id)}
-            >
-              <Text
-                style={[
-                  styles.categoryButtonText,
-                  selectedCategory === category.id &&
-                    styles.categoryButtonTextActive
-                ]}
-              >
-                {category.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* Articles List */}
-      {pagination.isLoading && articles.length === 0 ? (
-        <ActivityIndicator
-          style={styles.loader}
-          size="large"
-          color={Colors.light.primary}
-        />
-      ) : (
-        <FlatList
-          data={filteredArticles}
-          keyExtractor={item => item.id}
-          renderItem={({ item }) => (
-            <ArticleCard
-              article={item}
-              // Navigate to article detail within main group
-              onPress={() => router.push(`/(main)/reader/${item.id}`)}
+            <Search size={20} color={Colors.light.textTertiary} />
+            <TextInput
+              ref={searchRef}
+              style={styles.searchInput}
+              placeholder="Search articles..."
+              placeholderTextColor={Colors.light.textTertiary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              // onFocus={() => setIsSearchFocused(true)}
+              // onBlur={() => setIsSearchFocused(false)}
+              returnKeyType="search"
+              onSubmitEditing={() => fetchArticlesList({ reset: true })}
             />
-          )}
-          contentContainerStyle={[
-            styles.articlesContainer,
-            isDesktop && styles.wideScreenArticlesContainer
-          ]}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>
-              No articles found matching your criteria.
-            </Text>
-          }
-          // TODO: Add onEndReached for pagination
-          // onEndReached={() => dispatch(fetchArticles(userState?.id))}
-          // onEndReachedThreshold={0.5}
-          // ListFooterComponent={pagination.isLoading ? <ActivityIndicator style={{ marginVertical: 20 }} /> : null}
-        />
-      )}
-    </SafeAreaView>
+          </View>
+        </View>
+
+        <View style={styles.categoriesContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoriesScrollContent}
+          >
+            {CATEGORIES.map(category => (
+              <TouchableOpacity
+                key={category.id}
+                style={[
+                  styles.categoryButton,
+                  selectedCategory === category.id &&
+                    styles.categoryButtonActive
+                ]}
+                onPress={() => {
+                  setSelectedCategory(category.id)
+                }}
+              >
+                <Text
+                  style={[
+                    styles.categoryButtonText,
+                    selectedCategory === category.id &&
+                      styles.categoryButtonTextActive
+                  ]}
+                >
+                  {category.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        {pagination.isLoading && articles.length === 0 ? (
+          <View style={styles.centeredLoader}>
+            <ActivityIndicator size="large" color={Colors.light.primary} />
+          </View>
+        ) : (
+          <FlatList
+            data={articles}
+            keyExtractor={item => item.id}
+            renderItem={({ item }) => (
+              <ArticleCard
+                article={item}
+                onPress={() => router.push(`/(main)/reader/${item.id}`)}
+              />
+            )}
+            contentContainerStyle={[
+              styles.articlesContainer,
+              isDesktop && styles.wideScreenArticlesContainer,
+              { paddingBottom: tabBarHeight + 20 }
+            ]}
+            ListEmptyComponent={
+              !pagination.isLoading && articles.length === 0 ? (
+                <Text style={styles.emptyText}>
+                  No articles found for "{selectedCategory}"{' '}
+                  {debouncedSearchQuery
+                    ? `matching "${debouncedSearchQuery}"`
+                    : ''}
+                  .
+                </Text>
+              ) : null
+            }
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleRefresh}
+                tintColor={Colors.light.primary}
+              />
+            }
+            onEndReached={handleLoadMore}
+            onEndReachedThreshold={0.7}
+            ListFooterComponent={renderFooter}
+            showsVerticalScrollIndicator={false}
+          />
+        )}
+      </SafeAreaView>
+    </LinearGradient>
   )
 }
 
-// Styles filled from original file
 const styles = StyleSheet.create({
+  gradientBackground: { flex: 1 },
   container: {
-    flex: 1,
-    backgroundColor: Colors.light.background
+    flex: 1
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16
+    paddingVertical: 12,
+    backgroundColor: Colors.light.background
   },
   headerTitle: {
     fontFamily: 'Inter-Bold',
-    fontSize: 24,
+    fontSize: 22,
     color: Colors.light.text
   },
-  headerRightButtons: {
-    flexDirection: 'row'
-  },
   headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.light.cardBackground,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 12
+    padding: 6
   },
   searchContainer: {
     paddingHorizontal: 20,
-    marginBottom: 16
+    paddingVertical: 12,
+    backgroundColor: Colors.light.background
   },
   searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.light.cardBackground,
+    backgroundColor: Colors.light.cardBackgroundSubtle,
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 8,
     borderWidth: 1,
-    borderColor: 'transparent', // Default no border
-    shadowColor: Colors.light.shadow, // Subtle shadow
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1
+    borderColor: Colors.light.borderSubtle
   },
   searchInputFocused: {
-    borderColor: Colors.light.primary
+    borderColor: Colors.light.primary,
+    shadowColor: Colors.light.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2
   },
   searchInput: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 10,
     fontFamily: 'Inter-Regular',
-    fontSize: 16,
-    color: Colors.light.text,
-    outlineStyle: 'none'
+    fontSize: 15,
+    color: Colors.light.text
   },
   categoriesContainer: {
-    marginBottom: 16
+    paddingVertical: 8,
+    backgroundColor: Colors.light.background,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+    marginBottom: 8
   },
   categoriesScrollContent: {
     paddingHorizontal: 16,
-    gap: 8 // Add gap between buttons
+    paddingVertical: 4,
+    gap: 10
   },
   categoryButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: Colors.light.cardBackground,
-    // marginHorizontal: 4, // Use gap instead
-    borderWidth: 1, // Add border for definition
-    borderColor: Colors.light.border
+    backgroundColor: Colors.light.cardBackgroundSubtle,
+    borderWidth: 1,
+    borderColor: Colors.light.borderSubtle
   },
   categoryButtonActive: {
     backgroundColor: Colors.light.primary,
-    borderColor: Colors.light.primary // Match border color
+    borderColor: Colors.light.primary
   },
   categoryButtonText: {
     fontFamily: 'Inter-Medium',
-    fontSize: 14,
+    fontSize: 13,
     color: Colors.light.textSecondary
   },
   categoryButtonTextActive: {
-    color: Colors.light.white
+    color: Colors.light.primaryContent,
+    fontFamily: 'Inter-SemiBold'
   },
   articlesContainer: {
-    paddingHorizontal: 20, // Ensure padding for list items
-    paddingBottom: 20 // Add padding at the bottom
-    // paddingTop: 8, // Removed, header provides spacing
+    paddingHorizontal: 20,
+    paddingTop: 10
   },
   wideScreenArticlesContainer: {
-    // justifyContent: "space-between", // Let items flow with padding
-    gap: 4, // Use gap for spacing between cards
-    maxWidth: 1200,
+    maxWidth: 768,
     alignSelf: 'center',
-    width: '100%',
-    paddingHorizontal: 20 // Apply consistent padding
+    width: '100%'
   },
-  loader: { marginTop: 50 },
+  centeredLoader: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
   emptyText: {
     textAlign: 'center',
     marginTop: 50,
     color: Colors.light.textSecondary,
-    paddingHorizontal: 40
+    paddingHorizontal: 40,
+    fontSize: 15,
+    fontFamily: 'Inter-Regular'
+  },
+  listEndText: {
+    textAlign: 'center',
+    color: Colors.light.textTertiary,
+    paddingVertical: 20,
+    fontFamily: 'Inter-Regular'
   }
 })

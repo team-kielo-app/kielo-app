@@ -18,7 +18,6 @@ import {
 } from '@lib/api'
 import { RootState, AppDispatch, AppThunk } from '@store/store'
 import * as tokenStorage from '@lib/tokenStorage'
-import { showAuthDebugToast } from '@lib/debugToast'
 import { router } from 'expo-router'
 import { ApiError } from '@lib/ApiError'
 import { GoogleSignin } from '@react-native-google-signin/google-signin'
@@ -355,25 +354,13 @@ export const logoutUser = (): AppThunk => async dispatch => {
 }
 
 export const initializeAuthThunk =
-  (): AppThunk<Promise<void>> =>
-  async (dispatch: AppDispatch, getState: () => RootState) => {
+  (): AppThunk<Promise<void>> => async (dispatch: AppDispatch) => {
     try {
       dispatch(initializeAuthRequest())
       const storedData = await tokenStorage.getStoredTokens()
       const { token, refreshToken, expiresAt } = storedData
 
-      console.log({ token, refreshToken, expiresAt, now: Date.now() })
-
-      showAuthDebugToast(
-        'info',
-        'Auth Debug',
-        `Expires At: ${expiresAt}\n Now: ${Date.now()}`
-      )
-
       if (token && refreshToken && expiresAt && expiresAt > Date.now()) {
-        console.log(
-          'InitializeAuth: Auth initialized successfully (tokens valid).'
-        )
         dispatch(initializeAuthSuccess())
       } else {
         let reason = 'No valid tokens found in storage.'

@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+// src/app/(main)/settings/change-password.tsx
+import React, { useState, useEffect, useRef } from 'react' // Added useEffect, useRef
 import {
   View,
   Text,
@@ -6,39 +7,88 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  ActivityIndicator
+  ActivityIndicator,
+  Alert, // For feedback
+  TouchableOpacity, // For password visibility toggle
+  Platform
 } from 'react-native'
 import { useProtectedRoute } from '@hooks/useProtectedRoute'
 import { Colors } from '@constants/Colors'
 import { ScreenHeader } from '@components/common/ScreenHeader'
 import { showPlatformAlert } from '@lib/platformAlert'
+import { Eye, EyeOff } from 'lucide-react-native' // Icons for password visibility
+// import { changePasswordThunk } from '@features/auth/authActions'; // Assuming this thunk exists or will be created
+// import { useDispatch } from 'react-redux';
+// import { AppDispatch } from '@store/store';
 
-// Mock update action
-const mockChangePassword = (data: any) =>
-  new Promise((resolve, reject) => {
+// Mock update action (replace with actual thunk)
+const mockChangePassword = (data: any): Promise<{ message: string }> => {
+  console.log(
+    'Mock changing password with:',
+    data.currentPassword,
+    data.newPassword
+  )
+  return new Promise((resolve, reject) => {
     setTimeout(() => {
       if (data.currentPassword === 'password123') {
-        // Simulate checking current password
-        resolve(true)
+        resolve({ message: 'Password updated successfully.' })
       } else {
         reject(new Error('Incorrect current password.'))
       }
     }, 1000)
   })
+}
 
-export default function ChangePasswordScreen() {
+export default function ChangePasswordScreen(): React.ReactElement | null {
   const { isLoading: isAuthLoading, isAuthenticated } = useProtectedRoute()
+  // const dispatch = useDispatch<AppDispatch>();
 
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmNewPassword, setConfirmNewPassword] = useState('')
+
+  const [isCurrentPasswordVisible, setIsCurrentPasswordVisible] =
+    useState(false)
+  const [isNewPasswordVisible, setIsNewPasswordVisible] = useState(false)
+  const [isConfirmNewPasswordVisible, setIsConfirmNewPasswordVisible] =
+    useState(false)
+
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+
+  const newPasswordInputRef = useRef<TextInput>(null)
+  const confirmNewPasswordInputRef = useRef<TextInput>(null)
+
+  // Clear messages after a timeout
+  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null
+    if (error || successMessage) {
+      timer = setTimeout(() => {
+        setError(null)
+        setSuccessMessage(null)
+      }, 4000)
+    }
+    return () => {
+      if (timer) clearTimeout(timer)
+    }
+  }, [error, successMessage])
 
   const handleUpdatePassword = async () => {
     setError(null)
-    if (!currentPassword || !newPassword || !confirmNewPassword) {
-      setError('Please fill in all fields.')
+    setSuccessMessage(null)
+
+    if (
+      !currentPassword.trim() ||
+      !newPassword.trim() ||
+      !confirmNewPassword.trim()
+    ) {
+      setError('Please fill in all password fields.')
+      return
+    }
+    if (newPassword.length < 6) {
+      // Example password policy
+      setError('New password must be at least 6 characters long.')
       return
     }
     if (newPassword !== confirmNewPassword) {
@@ -49,72 +99,139 @@ export default function ChangePasswordScreen() {
       setError('New password cannot be the same as the current password.')
       return
     }
-    // TODO: Add password strength validation
 
     setIsLoading(true)
     try {
-      await mockChangePassword({ currentPassword, newPassword })
-      showPlatformAlert('Success', 'Password updated successfully.')
+      // Replace with actual thunk:
+      // await dispatch(changePasswordThunk({ current_password: currentPassword, new_password: newPassword })).unwrap();
+      const result = await mockChangePassword({ currentPassword, newPassword })
+      setSuccessMessage(result.message)
       setCurrentPassword('')
       setNewPassword('')
       setConfirmNewPassword('')
     } catch (err: any) {
-      setError(err.message || 'Failed to update password.')
+      setError(err.message || 'Failed to update password. Please try again.')
     } finally {
       setIsLoading(false)
     }
   }
 
-  if (isAuthLoading) {
-    /* ... loading state ... */
+  if (isAuthLoading || !isAuthenticated) {
+    return (
+      <View style={styles.fullScreenLoader}>
+        <ScreenHeader
+          title="Change Password"
+          fallbackPath="/(main)/settings/"
+        />
+        <View style={styles.loaderContainer}>
+          <ActivityIndicator size="large" color={Colors.light.primary} />
+        </View>
+      </View>
+    )
   }
-  if (!isAuthenticated) return null
+
+  const renderPasswordInput = (
+    label: string,
+    value: string,
+    onChangeText: (text: string) => void,
+    isVisible: boolean,
+    toggleVisibility: () => void,
+    onSubmitEditing?: () => void,
+    inputRef?: React.RefObject<TextInput>
+  ) => (
+    <View style={styles.fieldContainer}>
+      <Text style={styles.label}>{label}</Text>
+      <View
+        style={[
+          styles.passwordInputWrapper,
+          isLoading && styles.inputDisabledWrapper
+        ]}
+      >
+        <TextInput
+          ref={inputRef}
+          style={[
+            styles.input,
+            styles.passwordInputOnly,
+            isLoading && styles.inputDisabled
+          ]}
+          value={value}
+          onChangeText={onChangeText}
+          secureTextEntry={!isVisible}
+          editable={!isLoading}
+          placeholder={`Enter ${label.toLowerCase()}`}
+          placeholderTextColor={Colors.light.textPlaceholder}
+          autoCapitalize="none"
+          returnKeyType={onSubmitEditing ? 'next' : 'done'}
+          onSubmitEditing={onSubmitEditing}
+          blurOnSubmit={!onSubmitEditing} // Only blur if it's the last input
+        />
+        <TouchableOpacity
+          onPress={toggleVisibility}
+          style={styles.passwordVisibilityButton}
+          disabled={isLoading}
+        >
+          {isVisible ? (
+            <EyeOff size={20} color={Colors.light.textSecondary} />
+          ) : (
+            <Eye size={20} color={Colors.light.textSecondary} />
+          )}
+        </TouchableOpacity>
+      </View>
+    </View>
+  )
 
   return (
     <View style={styles.container}>
       <ScreenHeader title="Change Password" fallbackPath="/(main)/settings/" />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
         {error && <Text style={styles.errorText}>{error}</Text>}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Current Password</Text>
-          <TextInput
-            style={styles.input}
-            value={currentPassword}
-            onChangeText={setCurrentPassword}
-            secureTextEntry
-            editable={!isLoading}
-            placeholderTextColor="#888"
-          />
-        </View>
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>New Password</Text>
-          <TextInput
-            style={styles.input}
-            value={newPassword}
-            onChangeText={setNewPassword}
-            secureTextEntry
-            editable={!isLoading}
-            placeholderTextColor="#888"
-          />
-        </View>
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Confirm New Password</Text>
-          <TextInput
-            style={styles.input}
-            value={confirmNewPassword}
-            onChangeText={setConfirmNewPassword}
-            secureTextEntry
-            editable={!isLoading}
-            placeholderTextColor="#888"
-          />
-        </View>
+        {successMessage && (
+          <Text style={styles.successText}>{successMessage}</Text>
+        )}
+
+        {renderPasswordInput(
+          'Current Password',
+          currentPassword,
+          setCurrentPassword,
+          isCurrentPasswordVisible,
+          () => setIsCurrentPasswordVisible(v => !v),
+          () => newPasswordInputRef.current?.focus()
+        )}
+
+        {renderPasswordInput(
+          'New Password',
+          newPassword,
+          setNewPassword,
+          isNewPasswordVisible,
+          () => setIsNewPasswordVisible(v => !v),
+          () => confirmNewPasswordInputRef.current?.focus(),
+          newPasswordInputRef
+        )}
+
+        {renderPasswordInput(
+          'Confirm New Password',
+          confirmNewPassword,
+          setConfirmNewPassword,
+          isConfirmNewPasswordVisible,
+          () => setIsConfirmNewPasswordVisible(v => !v),
+          handleUpdatePassword, // Submit on final input
+          confirmNewPasswordInputRef
+        )}
+
         <Pressable
-          style={[styles.button, isLoading && styles.buttonDisabled]}
+          style={({ pressed }) => [
+            styles.button,
+            isLoading && styles.buttonDisabled,
+            pressed && !isLoading && styles.buttonPressed
+          ]}
           onPress={handleUpdatePassword}
           disabled={isLoading}
         >
           {isLoading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={Colors.light.primaryContent} />
           ) : (
             <Text style={styles.buttonText}>Update Password</Text>
           )}
@@ -124,11 +241,21 @@ export default function ChangePasswordScreen() {
   )
 }
 
-// Styles adapted from settings screen
+// Using similar styles to profile-info.tsx for consistency
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.light.background },
-  scrollContent: { padding: 20 },
-  fieldContainer: { marginBottom: 20 },
+  container: {
+    flex: 1,
+    backgroundColor: Colors.light.backgroundSecondary
+  },
+  fullScreenLoader: { flex: 1, backgroundColor: Colors.light.background },
+  loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40
+  },
+  fieldContainer: {
+    marginBottom: 20
+  },
   label: {
     fontSize: 14,
     fontFamily: 'Inter-Medium',
@@ -136,39 +263,91 @@ const styles = StyleSheet.create({
     marginBottom: 8
   },
   input: {
-    width: '100%',
-    height: 50,
-    borderColor: Colors.light.border,
-    borderWidth: 1,
-    paddingHorizontal: 15,
-    borderRadius: 8,
+    // Base style for text input part
+    flex: 1, // Take available space within wrapper
+    minHeight: 50,
+    paddingHorizontal: 16,
+    paddingVertical: Platform.OS === 'ios' ? 14 : 10,
     fontSize: 16,
-    backgroundColor: '#fff',
-    color: Colors.light.text,
-    fontFamily: 'Inter-Regular'
+    fontFamily: 'Inter-Regular',
+    color: Colors.light.text
+  },
+  passwordInputWrapper: {
+    // Wrapper for password input + icon
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.light.inputBackground,
+    borderColor: Colors.light.inputBorder,
+    borderWidth: 1,
+    borderRadius: 10,
+    width: '100%'
+  },
+  passwordInputOnly: {
+    // Style for the TextInput itself when inside a wrapper
+    borderWidth: 0, // No border on the TextInput as wrapper has it
+    paddingRight: 0 // Avoid double padding with icon button
+  },
+  passwordVisibilityButton: {
+    padding: 14 // Make icon tappable
+  },
+  inputDisabled: {
+    // For the TextInput when disabled
+    color: Colors.light.textTertiary
+  },
+  inputDisabledWrapper: {
+    // For the wrapper when disabled
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderColor: Colors.light.borderSubtle
   },
   button: {
     width: '100%',
-    height: 50,
-    paddingVertical: 15,
+    height: 52,
     backgroundColor: Colors.light.primary,
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 10
+    marginTop: 10,
+    shadowColor: Colors.light.shadowSoft,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2
   },
-  buttonDisabled: { backgroundColor: Colors.light.border, opacity: 0.7 },
+  buttonPressed: {
+    backgroundColor: Colors.light.primaryLight
+  },
+  buttonDisabled: {
+    backgroundColor: Colors.light.buttonDisabledBackground,
+    shadowOpacity: 0,
+    elevation: 0
+  },
   buttonText: {
-    color: '#fff',
+    color: Colors.light.primaryContent,
     fontSize: 16,
-    fontWeight: 'bold',
     fontFamily: 'Inter-SemiBold'
   },
   errorText: {
     color: Colors.light.error,
+    backgroundColor: Colors.light.errorBackground,
+    padding: 10,
+    borderRadius: 8,
     marginBottom: 15,
     textAlign: 'center',
-    fontWeight: 'bold',
-    fontFamily: 'Inter-SemiBold'
+    fontFamily: 'Inter-Medium',
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: Colors.light.error
+  },
+  successText: {
+    color: Colors.light.success,
+    backgroundColor: Colors.light.successBackground,
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 15,
+    textAlign: 'center',
+    fontFamily: 'Inter-Medium',
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: Colors.light.success
   }
 })

@@ -7,20 +7,22 @@ import {
   TouchableOpacity,
   Switch,
   Platform,
-  ActivityIndicator
+  ActivityIndicator,
+  Alert
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   User,
-  Shield,
+  ShieldCheck,
   LogOut,
   Bell,
   Moon,
-  VolumeX,
-  Globe,
+  Volume2,
+  Globe2,
   Eye,
   HelpCircle,
-  ChevronRight
+  ChevronRight,
+  Lock
 } from 'lucide-react-native'
 import { Colors } from '@constants/Colors'
 import { useResponsiveDimensions } from '@/hooks/useResponsiveDimensions'
@@ -32,8 +34,10 @@ import Constants from 'expo-constants'
 import { useProtectedRoute } from '@hooks/useProtectedRoute'
 import { ScreenHeader } from '@components/common/ScreenHeader'
 
-// --- Reusable Internal Components (Filled from original file) ---
-type SettingSectionProps = { title: string; children: React.ReactNode }
+interface SettingSectionProps {
+  title: string
+  children: React.ReactNode
+}
 const SettingSection: React.FC<SettingSectionProps> = ({ title, children }) => (
   <View style={styles.section}>
     <Text style={styles.sectionTitle}>{title}</Text>
@@ -41,13 +45,14 @@ const SettingSection: React.FC<SettingSectionProps> = ({ title, children }) => (
   </View>
 )
 
-type SettingItemProps = {
+interface SettingItemProps {
   icon: React.ReactNode
   title: string
   description?: string
   rightElement?: React.ReactNode
   showChevron?: boolean
   onPress?: () => void
+  itemTextColor?: string
 }
 const SettingItem: React.FC<SettingItemProps> = ({
   icon,
@@ -55,7 +60,8 @@ const SettingItem: React.FC<SettingItemProps> = ({
   description,
   rightElement,
   showChevron = false,
-  onPress
+  onPress,
+  itemTextColor
 }) => (
   <TouchableOpacity
     style={styles.settingItem}
@@ -66,7 +72,13 @@ const SettingItem: React.FC<SettingItemProps> = ({
     <View style={styles.settingItemLeft}>
       <View style={styles.iconContainer}>{icon}</View>
       <View style={styles.settingTextContainer}>
-        <Text style={styles.settingTitle} numberOfLines={1}>
+        <Text
+          style={[
+            styles.settingTitle,
+            itemTextColor ? { color: itemTextColor } : {}
+          ]}
+          numberOfLines={1}
+        >
           {title}
         </Text>
         {description && (
@@ -79,45 +91,52 @@ const SettingItem: React.FC<SettingItemProps> = ({
     {(rightElement || showChevron) && (
       <View style={styles.settingItemRight}>
         {rightElement}
-        {showChevron && (
-          <ChevronRight size={18} color={Colors.light.textSecondary} />
+        {showChevron && !rightElement && (
+          <ChevronRight size={18} color={Colors.light.textTertiary} />
         )}
       </View>
     )}
   </TouchableOpacity>
 )
-// -------------------------------------------------------------------------
 
-export default function SettingsScreen() {
+export default function SettingsScreen(): React.ReactElement | null {
   const { isLoading: isAuthLoading, isAuthenticated } = useProtectedRoute()
   const { isDesktop } = useResponsiveDimensions()
   const dispatch = useDispatch<AppDispatch>()
   const router = useRouter()
+  const insets = useSafeAreaInsets()
 
   const [notifications, setNotifications] = useState(true)
   const [darkMode, setDarkMode] = useState(false)
   const [soundEffects, setSoundEffects] = useState(true)
-  const [fontSizeIndex, setFontSizeIndex] = useState(1)
+
   const fontSizes = ['Small', 'Medium', 'Large']
+  const [fontSizeIndex, setFontSizeIndex] = useState(1)
+
   const languages = [
     { id: 'fi', name: 'Finnish' },
-    { id: 'sv', name: 'Swedish' } /* ... more langs */
+    { id: 'en', name: 'English' }
   ]
   const [selectedLanguage, setSelectedLanguage] = useState(languages[0])
 
   const handleLogout = () => {
-    dispatch(logoutUser())
+    Alert.alert('Confirm Logout', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: () => dispatch(logoutUser())
+      }
+    ])
   }
 
   if (isAuthLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ScreenHeader title="Settings" />
-        <ActivityIndicator
-          style={{ flex: 1 }}
-          size="large"
-          color={Colors.light.primary}
-        />
+      <View style={styles.fullScreenLoader}>
+        <ScreenHeader title="Settings" fallbackPath="/(main)/(tabs)/profile" />
+        <View style={styles.loaderContainer}>
+          <ActivityIndicator size="large" color={Colors.light.primary} />
+        </View>
       </View>
     )
   }
@@ -129,32 +148,33 @@ export default function SettingsScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.contentContainer,
-          isDesktop && styles.wideScreenContent
+          isDesktop && styles.wideScreenContent,
+          { paddingBottom: insets.bottom + 20 }
         ]}
-        // showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={false}
       >
         <SettingSection title="Account">
           <SettingItem
             icon={<User size={20} color={Colors.light.primary} />}
             title="Profile Information"
-            description="Edit your personal information"
+            description="Edit your personal details"
             showChevron
             onPress={() => router.push('/(main)/settings/profile-info')}
           />
           <SettingItem
-            icon={<Shield size={20} color={Colors.light.success} />}
+            icon={<ShieldCheck size={20} color={Colors.light.accentGreen} />}
             title="Change Password"
             description="Update your account password"
             showChevron
             onPress={() => router.push('/(main)/settings/change-password')}
           />
           <SettingItem
-            icon={<Shield size={20} color={Colors.light.primary} />}
+            icon={<Lock size={20} color={Colors.light.textSecondary} />}
             title="Privacy Settings"
-            description="Manage your data privacy preferences"
+            description="Manage your data preferences"
             showChevron
             onPress={() => {
-              alert('Navigate to Privacy (Not Implemented)')
+              Alert.alert('Navigate', 'Privacy Settings (Not Implemented)')
             }}
           />
         </SettingSection>
@@ -172,17 +192,19 @@ export default function SettingsScreen() {
                   false: Colors.light.border,
                   true: Colors.light.primary
                 }}
-                thumbColor={Colors.light.white}
-                {...Platform.select({
-                  web: { activeThumbColor: Colors.light.white }
-                })}
+                thumbColor={
+                  notifications
+                    ? Colors.light.primaryLight
+                    : Colors.light.borderSubtle
+                }
+                ios_backgroundColor={Colors.light.border}
               />
             }
           />
           <SettingItem
             icon={<Moon size={20} color={Colors.light.textSecondary} />}
             title="Dark Mode"
-            description="Switch themes (not implemented)"
+            description="Toggle theme (not implemented)"
             rightElement={
               <Switch
                 value={darkMode}
@@ -191,17 +213,19 @@ export default function SettingsScreen() {
                   false: Colors.light.border,
                   true: Colors.light.primary
                 }}
-                thumbColor={Colors.light.white}
-                {...Platform.select({
-                  web: { activeThumbColor: Colors.light.white }
-                })}
+                thumbColor={
+                  darkMode
+                    ? Colors.light.primaryLight
+                    : Colors.light.borderSubtle
+                }
+                ios_backgroundColor={Colors.light.border}
               />
             }
           />
           <SettingItem
-            icon={<VolumeX size={20} color={Colors.light.accent} />}
+            icon={<Volume2 size={20} color={Colors.light.accentOrange} />}
             title="Sound Effects"
-            description="Toggle sound effects"
+            description="Toggle in-app sounds"
             rightElement={
               <Switch
                 value={soundEffects}
@@ -210,220 +234,159 @@ export default function SettingsScreen() {
                   false: Colors.light.border,
                   true: Colors.light.primary
                 }}
-                thumbColor={Colors.light.white}
-                {...Platform.select({
-                  web: { activeThumbColor: Colors.light.white }
-                })}
+                thumbColor={
+                  soundEffects
+                    ? Colors.light.primaryLight
+                    : Colors.light.borderSubtle
+                }
+                ios_backgroundColor={Colors.light.border}
               />
             }
           />
         </SettingSection>
 
-        <SettingSection title="Content">
+        <SettingSection title="Content & Display">
           <SettingItem
-            icon={<Globe size={20} color={Colors.light.success} />}
-            title="Target Language"
+            icon={<Globe2 size={20} color={Colors.light.accentGreen} />}
+            title="App Language"
             description={selectedLanguage.name}
             showChevron
             onPress={() => {
-              alert('Select Language (Not Implemented)')
+              Alert.alert(
+                'Select Language',
+                'Language selection (Not Implemented)'
+              )
             }}
           />
           <SettingItem
-            icon={<Eye size={20} color={Colors.light.accent} />}
+            icon={<Eye size={20} color={Colors.light.secondary} />}
             title="Font Size"
-            description="Adjust text size"
-            rightElement={
-              <View style={styles.fontSizeSelector}>
-                {fontSizes.map((size, index) => (
-                  <TouchableOpacity
-                    key={size}
-                    style={[
-                      styles.fontSizeButton,
-                      fontSizeIndex === index && styles.fontSizeButtonActive
-                    ]}
-                    onPress={() => setFontSizeIndex(index)}
-                  >
-                    <Text
-                      style={[
-                        styles.fontSizeButtonText,
-                        fontSizeIndex === index &&
-                          styles.fontSizeButtonTextActive
-                      ]}
-                    >
-                      {size}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            }
+            description={fontSizes[fontSizeIndex]}
+            showChevron
+            onPress={() => {
+              Alert.alert(
+                'Adjust Font Size',
+                'Font size adjustment (Not Implemented)'
+              )
+            }}
           />
         </SettingSection>
 
-        <SettingSection title="Support">
+        <SettingSection title="Support & Info">
           <SettingItem
             icon={<HelpCircle size={20} color={Colors.light.info} />}
             title="Help Center"
-            description="Frequently asked questions"
+            description="FAQs and support"
             showChevron
             onPress={() => {
-              alert('Navigate to Help Center (Not Implemented)')
+              Alert.alert('Navigate', 'Help Center (Not Implemented)')
             }}
           />
           <SettingItem
             icon={<LogOut size={20} color={Colors.light.error} />}
             title="Sign Out"
             onPress={handleLogout}
+            itemTextColor={Colors.light.error}
           />
         </SettingSection>
 
         <View style={styles.footer}>
           <Text style={styles.versionText}>
-            Kielo.app v{Constants.expoConfig?.version}
+            Kielo.app v{Constants.expoConfig?.version || '1.0.0'}
           </Text>
-          <Text style={styles.copyrightText}>© 2025. All rights reserved.</Text>
+          <Text style={styles.copyrightText}>
+            © {new Date().getFullYear()}. All rights reserved.
+          </Text>
         </View>
       </ScrollView>
     </View>
   )
 }
 
-// Styles filled from original file
 const styles = StyleSheet.create({
-  loadingContainer: { flex: 1, backgroundColor: Colors.light.background },
-  container: { flex: 1, backgroundColor: Colors.light.background },
-  // header: { // Removed as ScreenHeader is used
-  //   flexDirection: "row",
-  //   alignItems: "center",
-  //   paddingHorizontal: 16,
-  //   paddingVertical: Platform.OS === "ios" ? 12 : 16,
-  // },
-  // backButton: { // Removed as ScreenHeader handles back
-  //   padding: 8,
-  //   zIndex: 1,
-  // },
-  // headerTitle: { // Removed as ScreenHeader handles title
-  //   fontFamily: "Inter-Bold",
-  //   fontSize: 24,
-  //   color: Colors.light.text,
-  // },
+  container: { flex: 1, backgroundColor: Colors.light.backgroundSecondary },
+  fullScreenLoader: { flex: 1, backgroundColor: Colors.light.background },
+  loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   contentContainer: {
-    padding: 20,
-    paddingBottom: 40
+    padding: 20
   },
   wideScreenContent: {
-    maxWidth: 600,
+    maxWidth: 640,
     alignSelf: 'center',
     width: '100%'
   },
   section: {
-    marginBottom: 24
+    marginBottom: 28
   },
   sectionTitle: {
     fontFamily: 'Inter-SemiBold',
-    fontSize: 16,
+    fontSize: 15,
     color: Colors.light.textSecondary,
-    marginBottom: 12,
-    paddingHorizontal: 4 // Add slight horizontal padding for title
+    marginBottom: 10,
+    paddingHorizontal: 8,
+    textTransform: 'uppercase'
   },
   sectionContent: {
     backgroundColor: Colors.light.cardBackground,
     borderRadius: 12,
-    overflow: 'hidden', // Important for borderRadius on children
-    shadowColor: Colors.light.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 2,
-    borderWidth: Platform.OS === 'android' ? 0 : 1, // Add subtle border on iOS/Web
-    borderColor: Colors.light.border
+    overflow: 'hidden',
+    shadowColor: Colors.light.shadowSoft,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2
   },
   settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 14,
     paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
-    width: '100%',
-    backgroundColor: Colors.light.cardBackground // Ensure background color
-    // Remove border from last item - handled via overflow: hidden on parent now
-    // '&:last-child': {
-    //     borderBottomWidth: 0,
-    // }
+    backgroundColor: Colors.light.cardBackground,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.light.borderSubtle
   },
   settingItemLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexShrink: 1,
+    flex: 1,
     marginRight: 8
   },
   iconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.light.backgroundLight,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: Colors.light.backgroundSecondary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14
   },
   settingTextContainer: {
-    flex: 1 // Allow text to take available space
+    flex: 1
   },
   settingTitle: {
     fontFamily: 'Inter-SemiBold',
-    fontSize: 15,
+    fontSize: 16,
     color: Colors.light.text
   },
   settingDescription: {
     fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: Colors.light.textSecondary,
-    marginTop: 3
+    marginTop: 2
   },
   settingItemRight: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 'auto', // Push to the right
-    gap: 8 // Space between element and chevron
-  },
-  fontSizeSelector: {
-    flexDirection: 'row',
-    backgroundColor: Colors.light.backgroundLight,
-    borderRadius: 8,
-    padding: 2,
-    borderWidth: 1, // Add subtle border
-    borderColor: Colors.light.border
-  },
-  fontSizeButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 6
-  },
-  fontSizeButtonActive: {
-    backgroundColor: Colors.light.primary,
-    shadowColor: Colors.light.primary, // Add shadow to active button
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
-    elevation: 2
-  },
-  fontSizeButtonText: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 12,
-    color: Colors.light.textSecondary
-  },
-  fontSizeButtonTextActive: {
-    color: Colors.light.white
+    alignItems: 'center'
   },
   footer: {
     alignItems: 'center',
-    marginTop: 30
+    marginTop: 30,
+    paddingBottom: 10
   },
   versionText: {
     fontFamily: 'Inter-Medium',
-    fontSize: 14,
-    color: Colors.light.textSecondary,
+    fontSize: 13,
+    color: Colors.light.textTertiary,
     marginBottom: 4
   },
   copyrightText: {

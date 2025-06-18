@@ -1,73 +1,116 @@
 import React from 'react'
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  ActivityIndicator
-} from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 import { Link } from 'expo-router'
 import { ChevronRight } from 'lucide-react-native'
 import { Colors } from '@constants/Colors'
 import { ArticleCardWithThumbnail } from '@components/reader/ArticleCardWithThumbnail'
 import { CustomFlatList } from '@/components/common/CustomFlatList'
-import { Article } from '@features/articles/types' // Your Article type
-import { PaginationStateType } from '@pagination/types' // Your PaginationStateType
+import { Article } from '@features/articles/types'
+import { PaginationStateType } from '@pagination/types'
+import { useResponsiveDimensions } from '@/hooks/useResponsiveDimensions'
+import { ArticleCardWithThumbnailSkeleton } from '@/components/skeletons/ArticleCardWithThumbnailSkeleton'
 
 interface FeaturedArticlesProps {
   articles: Article[]
-  pagination: PaginationStateType // Pass the relevant pagination state
-  // Potentially add onEndReached, onRefresh if this component manages its own fetching,
-  // but for now, assuming HomeScreen passes data.
+  pagination: PaginationStateType
+  onLoadMore?: () => void
+  title?: string
+  viewAllPath?: string
 }
 
-export const FeaturedArticles: React.FC<FeaturedArticlesProps> = ({
+const NUM_SKELETONS_INITIAL = 3
+
+export function FeaturedArticles({
   articles,
-  pagination
-}) => {
-  const showArticleLoading = pagination.isLoading && articles.length === 0
+  pagination,
+  onLoadMore,
+  title = 'Featured Articles',
+  viewAllPath = '/(main)/(tabs)/reader'
+}: FeaturedArticlesProps): React.ReactElement | null {
+  const { isMobile } = useResponsiveDimensions()
+
+  const showInitialLoadingSkeleton =
+    pagination.isLoading && articles.length === 0 && !pagination.error
+  const showLoadMoreSkeleton =
+    pagination.isLoading && articles.length > 0 && pagination.hasMore
+
   const renderItem = ({ item }: { item: Article }) => (
-    <ArticleCardWithThumbnail article={item} size="medium" />
+    <ArticleCardWithThumbnail
+      article={item}
+      size={isMobile ? 'small' : 'medium'}
+    />
   )
+
+  const renderSkeletonItem = (keySuffix: string | number) => (
+    <View key={`skeleton-${keySuffix}`}>
+      <ArticleCardWithThumbnailSkeleton size={isMobile ? 'small' : 'medium'} />
+    </View>
+  )
+
+  if (pagination.error && articles.length === 0) {
+    return (
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>{title}</Text>
+        </View>
+        <Text style={styles.errorText}>
+          Could not load {title.toLowerCase()}. Please try again later.
+        </Text>
+      </View>
+    )
+  }
+
+  if (
+    !showInitialLoadingSkeleton &&
+    articles.length === 0 &&
+    !pagination.error
+  ) {
+    return null
+  }
 
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Featured Articles</Text>
-        <Link href="/(main)/(tabs)/reader" asChild>
-          <TouchableOpacity
-            style={styles.seeAllButton}
-            accessibilityRole="link"
-            accessibilityLabel="See all articles"
-          >
-            <Text style={styles.seeAllText}>See all</Text>
-            <ChevronRight size={16} color={Colors.light.textSecondary} />
-          </TouchableOpacity>
-        </Link>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        {(!showInitialLoadingSkeleton || articles.length > 0) && (
+          <Link href={viewAllPath as any} asChild>
+            <TouchableOpacity
+              style={styles.seeAllButton}
+              accessibilityRole="link"
+              accessibilityLabel={`See all ${title.toLowerCase()}`}
+            >
+              <Text style={styles.seeAllText}>See all</Text>
+              <ChevronRight size={16} color={Colors.common.gray[500]} />
+            </TouchableOpacity>
+          </Link>
+        )}
       </View>
 
-      {showArticleLoading ? (
-        <View style={styles.centeredSection}>
-          <ActivityIndicator size="large" color={Colors.light.primary} />
+      {showInitialLoadingSkeleton ? (
+        <View style={styles.skeletonContainer}>
+          {Array.from({ length: NUM_SKELETONS_INITIAL }).map((_, index) =>
+            renderSkeletonItem(`initial-${index}`)
+          )}
         </View>
       ) : (
         <CustomFlatList
           horizontal
           data={articles}
-          renderItem={renderItem} // Your existing renderItem
+          renderItem={renderItem}
           keyExtractor={item => item.id}
+          showsHorizontalScrollIndicator
           showScrollShadows={false}
-          // You can pass other FlatList props directly:
-          // initialNumToRender={5}
-          // windowSize={11}
+          onEndReached={onLoadMore}
+          onEndReachedThreshold={1}
+          ListFooterComponent={
+            showLoadMoreSkeleton ? renderSkeletonItem('footer-loading') : null
+          }
         />
       )}
     </View>
   )
 }
 
-// Styles copied and adapted from HomeScreen
 const styles = StyleSheet.create({
   section: {
     marginBottom: 28
@@ -76,36 +119,37 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8
+    marginBottom: 4
   },
   sectionTitle: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 18,
-    color: Colors.light.text
+    fontFamily: 'Inter-Bold',
+    color: Colors.light.text,
+    fontSize: 20
   },
   seeAllButton: {
     flexDirection: 'row',
-    alignItems: 'center'
+    alignItems: 'center',
+    paddingVertical: 4
   },
   seeAllText: {
     fontFamily: 'Inter-Medium',
     fontSize: 14,
-    color: Colors.light.primary,
+    color: Colors.common.gray[500],
     marginRight: 2
   },
-  centeredSection: {
-    height: 150, // Or adjust based on ArticleCardWithThumbnail height
+  skeletonContainer: {
+    flexDirection: 'row',
+    paddingLeft: 2,
+    paddingVertical: 4
+  },
+  errorText: {
+    fontFamily: 'Inter-Regular',
+    color: Colors.light.textSecondary,
+    fontSize: 14,
+    textAlign: 'center',
+    paddingVertical: 20,
+    minHeight: 180,
     justifyContent: 'center',
     alignItems: 'center'
-  },
-  articleList: {
-    paddingRight: 20, // Ensures last item isn't cut off visually
-    gap: 12 // Add gap between cards
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: Colors.light.textSecondary,
-    width: 250, // Give some width to the empty message container
-    paddingVertical: 50 // Make it visible
   }
 })

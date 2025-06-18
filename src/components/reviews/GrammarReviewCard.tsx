@@ -1,303 +1,297 @@
-// src/components/reviews/GrammarReviewCard.tsx
-import React, { useState, useEffect } from 'react'
+import React from 'react'
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView
+  ScrollView,
+  Image
 } from 'react-native'
-import {
-  ReviewItem,
-  ReviewOutcomePayload,
-  ReviewItemExerciseSnippet
-} from '@features/reviews/types'
+import { ReviewItem } from '@features/reviews/types'
 import { Colors } from '@constants/Colors'
-import { Check, X } from 'lucide-react-native'
-import Markdown from 'react-native-markdown-display' // For rendering rule summary
+import {
+  BookText,
+  Info,
+  AlertTriangle as IconAlertTriangle
+} from 'lucide-react-native'
+import Markdown from 'react-native-markdown-display'
+
+const grammarIconUrl = 'https://cdn-icons-png.flaticon.com/512/3259/3259689.png'
 
 interface GrammarReviewCardProps {
   item: ReviewItem
-  onReviewed: (outcome: ReviewOutcomePayload) => void
+  isFlipped: boolean
+  onFlip: () => void
 }
 
-export const GrammarReviewCard: React.FC<GrammarReviewCardProps> = ({
+export function GrammarReviewCard({
   item,
-  onReviewed
-}) => {
-  const [selectedOption, setSelectedOption] = useState<string | null>(null)
-  const [showAnswer, setShowAnswer] = useState(false) // For MCQ type exercises
-
-  // Reset state when item changes
-  useEffect(() => {
-    setSelectedOption(null)
-    setShowAnswer(false)
-  }, [item])
-
-  const hasExerciseSnippet = !!item.exercise_snippet
-  const exercise = item.exercise_snippet // Already typed as ReviewItemExerciseSnippet | undefined
-
-  const handleSelfAssessmentOutcome = (success: boolean) => {
-    onReviewed({
-      interaction_success: success,
-      review_timestamp_client: new Date().toISOString(),
-      review_interaction_type: 'nsr_grammar_self_assess'
-    })
+  isFlipped,
+  onFlip
+}: GrammarReviewCardProps): React.ReactElement {
+  const markdownBodyStyle = {
+    fontSize: 14,
+    lineHeight: 20,
+    color: Colors.light.textSecondary
   }
-
-  const handleMcqOptionSelect = (option: string) => {
-    if (showAnswer) return
-    setSelectedOption(option)
+  const markdownHeadingStyle = {
+    fontFamily: 'Inter-SemiBold',
+    color: Colors.light.primary,
+    marginTop: 8,
+    marginBottom: 4
   }
-
-  const handleSubmitMcq = () => {
-    if (!selectedOption || !exercise || exercise.exercise_type !== 'mcq') return
-    setShowAnswer(true)
-    // Outcome reported when "Next" is clicked after seeing feedback
-  }
-
-  const handleMcqNext = () => {
-    if (
-      !exercise ||
-      exercise.exercise_type !== 'mcq' ||
-      selectedOption === null
-    )
-      return
-    const isCorrect = selectedOption === exercise.correct_answer
-    onReviewed({
-      interaction_success: isCorrect,
-      review_timestamp_client: new Date().toISOString(),
-      review_interaction_type: 'nsr_grammar_mcq' // Specific type
-    })
-  }
-
   const markdownStyles = StyleSheet.create({
-    /* ... (same as GrammarRuleExplanationCard) ... */
-    body: { fontSize: 16, lineHeight: 24, color: Colors.light.text },
-    strong: { fontWeight: 'bold' }
+    body: markdownBodyStyle,
+    heading2: { ...markdownHeadingStyle, fontSize: 15 },
+    heading3: { ...markdownHeadingStyle, fontSize: 14 },
+    list_item: { marginVertical: 2 },
+    bullet_list_icon: {
+      color: Colors.light.primary,
+      marginRight: 4,
+      fontSize: 16
+    },
+    ordered_list_icon: {
+      color: Colors.light.primary,
+      marginRight: 4,
+      fontSize: 14,
+      fontFamily: 'Inter-Medium'
+    }
   })
 
-  return (
-    <ScrollView
-      style={styles.card}
-      contentContainerStyle={styles.scrollContent}
-    >
-      <Text style={styles.title}>{item.display_text}</Text>
-      <Text style={styles.detailTextSmall}>
-        Grammar Review{' '}
-        {item.grammar_category ? `(${item.grammar_category})` : ''}
-      </Text>
-
-      {item.grammar_rule_summary_en && (
-        <View style={styles.explanationBox}>
-          <Text style={styles.explanationTitle}>Key Idea:</Text>
-          <Markdown style={markdownStyles}>
-            {item.grammar_rule_summary_en}
-          </Markdown>
-        </View>
-      )}
-
-      {hasExerciseSnippet && exercise && exercise.exercise_type === 'mcq' && (
-        <View style={styles.exerciseContainer}>
-          <Text style={styles.exercisePrompt}>{exercise.prompt}</Text>
-          {exercise.options?.map((option, index) => (
-            <TouchableOpacity
-              key={index}
-              style={[
-                styles.optionButton,
-                selectedOption === option && styles.optionSelected,
-                showAnswer &&
-                  option === exercise.correct_answer &&
-                  styles.optionCorrect,
-                showAnswer &&
-                  selectedOption === option &&
-                  option !== exercise.correct_answer &&
-                  styles.optionIncorrect
-              ]}
-              onPress={() => handleMcqOptionSelect(option)}
-              disabled={showAnswer}
-            >
-              <Text style={styles.optionText}>{option}</Text>
-            </TouchableOpacity>
-          ))}
-          {showAnswer && (
-            <Text
-              style={[
-                styles.feedbackText,
-                selectedOption === exercise.correct_answer
-                  ? styles.feedbackCorrectText
-                  : styles.feedbackIncorrectText
-              ]}
-            >
-              {selectedOption === exercise.correct_answer
-                ? 'Correct!'
-                : `Correct answer: ${exercise.correct_answer}`}
-            </Text>
+  if (!isFlipped) {
+    return (
+      <TouchableOpacity
+        onPress={onFlip}
+        activeOpacity={0.95}
+        style={styles.flashcardShell}
+      >
+        <View style={[styles.cardFace, styles.cardFront]}>
+          {item.cefr_level && (
+            <View style={styles.cefrBadge}>
+              <Text style={styles.cefrText}>{item.cefr_level}</Text>
+            </View>
           )}
+          <View
+            style={[
+              styles.cardIconContainer,
+              { backgroundColor: Colors.light.secondaryLight }
+            ]}
+          >
+            <Image
+              source={{ uri: grammarIconUrl }}
+              style={styles.cardIconImage}
+            />
+          </View>
+          <Text style={styles.termText}>
+            {item.display_text || item.grammar_name_fi || 'Grammar Concept'}
+          </Text>
+          {item.grammar_category && (
+            <Text style={styles.categoryText}>{item.grammar_category}</Text>
+          )}
+          <Text style={styles.instructionText}>
+            Tap to see details & examples
+          </Text>
         </View>
-      )}
-      {/* Add other exercise_snippet types here if KLearn sends them for NSR grammar */}
+      </TouchableOpacity>
+    )
+  }
 
-      <View style={styles.actions}>
-        {
-          !hasExerciseSnippet ? ( // Self-assessment buttons
-            <>
-              <TouchableOpacity
-                style={[styles.button, styles.buttonBad]}
-                onPress={() => handleSelfAssessmentOutcome(false)}
-              >
-                <Text style={styles.buttonText}>Review Again</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.button, styles.buttonGood]}
-                onPress={() => handleSelfAssessmentOutcome(true)}
-              >
-                <Text style={styles.buttonText}>Understood</Text>
-              </TouchableOpacity>
-            </>
-          ) : exercise?.exercise_type === 'mcq' ? ( // MCQ buttons
-            !showAnswer ? (
-              <TouchableOpacity
-                style={[
-                  styles.button,
-                  styles.submitButton,
-                  !selectedOption && styles.buttonDisabled
-                ]}
-                onPress={handleSubmitMcq}
-                disabled={!selectedOption}
-              >
-                <Text style={styles.buttonText}>Check Answer</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={[styles.button, styles.nextButton]}
-                onPress={handleMcqNext}
-              >
-                <Text style={styles.buttonText}>Next</Text>
-              </TouchableOpacity>
-            )
-          ) : null /* Add buttons for other snippet types */
-        }
+  return (
+    <TouchableOpacity
+      onPress={onFlip}
+      activeOpacity={0.95}
+      style={styles.flashcardShell}
+    >
+      <View style={[styles.cardFace, styles.cardBack]}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: 10 }}
+        >
+          <Text style={styles.termTextBack}>
+            {item.display_text || item.grammar_name_fi}
+          </Text>
+
+          {item.grammar_explanation_en && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                <Info
+                  size={15}
+                  color={Colors.light.primary}
+                  style={{ marginRight: 4 }}
+                />{' '}
+                Key Idea
+              </Text>
+              <Markdown style={markdownStyles}>
+                {item.grammar_explanation_en}
+              </Markdown>
+            </View>
+          )}
+
+          {item.grammar_examples && item.grammar_examples.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                <BookText
+                  size={15}
+                  color={Colors.light.primary}
+                  style={{ marginRight: 4 }}
+                />{' '}
+                Examples
+              </Text>
+              {item.grammar_examples.slice(0, 2).map((ex, index) => (
+                <View key={index} style={styles.exampleItem}>
+                  <Text style={styles.exampleFi}>{ex.sentence_fi}</Text>
+                  {ex.translation_en && (
+                    <Text style={styles.exampleEn}>"{ex.translation_en}"</Text>
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
+
+          {item.common_mistakes_en && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                <IconAlertTriangle
+                  size={15}
+                  color={Colors.light.warning}
+                  style={{ marginRight: 4 }}
+                />{' '}
+                Common Mistake
+              </Text>
+              <Text style={styles.detailTextNormal}>
+                {item.common_mistakes_en}
+              </Text>
+            </View>
+          )}
+        </ScrollView>
       </View>
-    </ScrollView>
+    </TouchableOpacity>
   )
 }
 
-// Styles (similar to WordReviewCard and GrammarRuleExplanationCard, adapt as needed)
 const styles = StyleSheet.create({
-  card: {
+  flashcardShell: {
+    width: '100%',
+    height: '100%',
     backgroundColor: Colors.light.cardBackground,
-    borderRadius: 16,
-    padding: 20, // Adjusted padding
-    marginVertical: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 4,
-    maxHeight: '90%' // Allow more height for grammar explanations
+    borderRadius: 24,
+    shadowColor: Colors.light.shadowSoft,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+    overflow: 'hidden'
   },
-  scrollContent: {
-    paddingBottom: 20
+  cardFace: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    alignItems: 'center'
   },
-  title: {
-    fontSize: 26, // Larger title for grammar concept
+  cardFront: {
+    justifyContent: 'center'
+  },
+  cardBack: {
+    justifyContent: 'flex-start'
+  },
+  cefrBadge: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    backgroundColor: Colors.light.backgroundSecondary,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.light.borderSubtle
+  },
+  cefrText: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 10,
+    color: Colors.light.textSecondary
+  },
+  cardIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12
+  },
+  cardIconImage: {
+    width: 36,
+    height: 36,
+    resizeMode: 'contain'
+  },
+  termText: {
+    fontSize: 26,
     fontFamily: 'Inter-Bold',
     color: Colors.light.text,
-    marginBottom: 5,
-    textAlign: 'center'
+    textAlign: 'center',
+    marginBottom: 4
   },
-  detailTextSmall: {
+  termTextBack: {
+    fontSize: 22,
+    fontFamily: 'Inter-Bold',
+    color: Colors.light.text,
+    textAlign: 'center',
+    marginBottom: 12
+  },
+  categoryText: {
     fontSize: 14,
     fontFamily: 'Inter-Regular',
     color: Colors.light.textSecondary,
     textAlign: 'center',
-    marginBottom: 15
+    marginBottom: 20
   },
-  explanationBox: {
-    backgroundColor: Colors.light.backgroundLight,
-    padding: 15,
-    borderRadius: 10,
-    marginVertical: 10
-  },
-  explanationTitle: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-    color: Colors.light.primary,
-    marginBottom: 8
-  },
-  // Exercise specific styles (for MCQ snippet)
-  exerciseContainer: {
-    marginTop: 15,
-    marginBottom: 10, // Reduced margin before actions
-    borderTopWidth: 1,
-    borderTopColor: Colors.light.border,
-    paddingTop: 15
-  },
-  exercisePrompt: {
-    fontSize: 17,
-    fontFamily: 'Inter-Medium',
-    color: Colors.light.text,
-    marginBottom: 15
-  },
-  optionButton: {
-    backgroundColor: Colors.light.white, // Make options stand out
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: Colors.light.border
-  },
-  optionSelected: {
-    borderColor: Colors.light.primary,
-    backgroundColor: Colors.light.primaryLight
-  },
-  optionCorrect: {
-    borderColor: Colors.light.success,
-    backgroundColor: Colors.light.successLight
-  },
-  optionIncorrect: {
-    borderColor: Colors.light.error,
-    backgroundColor: Colors.light.errorLight
-  },
-  optionText: {
-    fontSize: 16,
+  instructionText: {
+    fontSize: 13,
     fontFamily: 'Inter-Regular',
-    color: Colors.light.text
+    color: Colors.light.textTertiary,
+    textAlign: 'center',
+    marginTop: 8
   },
-  feedbackText: { marginTop: 10, fontSize: 15, fontFamily: 'Inter-Medium' },
-  feedbackCorrectText: { color: Colors.light.success },
-  feedbackIncorrectText: { color: Colors.light.error },
-  // Actions
-  actions: {
+  section: {
+    alignSelf: 'stretch',
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.light.borderSubtle
+  },
+  sectionLast: {
+    borderBottomWidth: 0,
+    marginBottom: 0,
+    paddingBottom: 0
+  },
+  sectionTitle: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 15,
+    color: Colors.light.text,
+    marginBottom: 6,
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 25, // Increased margin
-    paddingTop: 20, // Increased padding
-    borderTopWidth: 1,
-    borderTopColor: Colors.light.border
+    alignItems: 'center'
   },
-  button: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 25,
-    minWidth: 140,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
-    elevation: 2
+  detailTextNormal: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 14,
+    color: Colors.light.textSecondary,
+    lineHeight: 20
   },
-  buttonGood: { backgroundColor: Colors.light.success },
-  buttonBad: { backgroundColor: Colors.light.error },
-  submitButton: { backgroundColor: Colors.light.primary, flex: 1 },
-  nextButton: { backgroundColor: Colors.light.accent, flex: 1 },
-  buttonDisabled: { backgroundColor: Colors.light.border, opacity: 0.7 },
-  buttonText: {
-    color: Colors.light.white,
-    fontFamily: 'Inter-Bold',
-    fontSize: 16
+  exampleItem: {
+    marginBottom: 8,
+    backgroundColor: Colors.light.backgroundSecondary,
+    padding: 8,
+    borderRadius: 6
+  },
+  exampleFi: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 14,
+    color: Colors.light.text,
+    marginBottom: 2
+  },
+  exampleEn: {
+    fontFamily: 'Inter-RegularItalic',
+    fontSize: 13,
+    color: Colors.light.textSecondary
   }
 })
