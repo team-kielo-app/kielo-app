@@ -5,15 +5,11 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
-  Image
+  ActivityIndicator
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import {
   Brain,
-  MessageSquare,
-  ListChecks,
-  MicVocal,
   ChevronRight,
   Sparkles,
   Volume2,
@@ -24,7 +20,7 @@ import { useRequireAuthAction } from '@hooks/useRequireAuthAction'
 import { useResponsiveDimensions } from '@/hooks/useResponsiveDimensions'
 import { useRouter } from 'expo-router'
 import { useDispatch, useSelector } from 'react-redux'
-import { AppDispatch, RootState } from '@/store/store'
+import { AppDispatch } from '@/store/store'
 
 import {
   fetchSuggestedLessonsThunk,

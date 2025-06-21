@@ -1,8 +1,14 @@
+// src/features/challenges/challengesSlice.ts
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit'
 import { apiClient } from '@lib/api'
 import type { AppDispatch, RootState } from '@store/store'
-import type { ChallengesState, DailyChallenge } from './types'
+import type {
+  ChallengesState,
+  DailyChallenge,
+  DailyChallengeApiResponse
+} from './types'
 import { ApiError } from '@lib/ApiError'
+import type { ApiStatusType } from '@lib/api.d'
 
 const initialState: ChallengesState = {
   currentDailyChallenge: null,
@@ -12,18 +18,69 @@ const initialState: ChallengesState = {
   updateError: null
 }
 
+// --- POLLING HELPER ---
+const POLLING_INTERVAL_MS = 3000
+const MAX_POLLING_ATTEMPTS = 30 // 30 seconds timeout
+
+async function pollForReadyResponse<T>(
+  endpoint: string,
+  dispatch: AppDispatch
+): Promise<T> {
+  let attempts = 0
+  while (attempts < MAX_POLLING_ATTEMPTS) {
+    const { response, body } = await apiClient.getWithResponse<T>(
+      endpoint,
+      dispatch
+    )
+
+    if (response.status === 200) {
+      return body
+    }
+
+    if (response.status === 202) {
+      console.log(
+        `[Polling] Received 202 for ${endpoint}. Waiting ${POLLING_INTERVAL_MS}ms. Attempt ${
+          attempts + 1
+        }/${MAX_POLLING_ATTEMPTS}`
+      )
+      await new Promise(resolve => setTimeout(resolve, POLLING_INTERVAL_MS))
+      attempts++
+    } else {
+      throw new ApiError(
+        `Unexpected status code ${response.status} during polling.`,
+        response.status,
+        body
+      )
+    }
+  }
+  throw new Error(
+    'Challenge generation timed out. Please try again in a moment.'
+  )
+}
+
+// --- THUNKS ---
 export const fetchDailyChallengeThunk = createAsyncThunk<
-  DailyChallenge,
+  DailyChallenge, // We will transform the API response to this type before fulfilling
   { date?: string } | void,
   { dispatch: AppDispatch; rejectValue: string }
 >('challenges/fetchDaily', async (args, { dispatch, rejectWithValue }) => {
   try {
     const queryParams = args?.date ? `?date=${args.date}` : ''
-    const response = await apiClient.get<DailyChallenge>(
-      `/me/challenges/daily${queryParams}`,
+    const endpoint = `/me/challenges/daily${queryParams}`
+
+    // Poll for the API response which has the `sections_json` field
+    const apiResponse = await pollForReadyResponse<DailyChallengeApiResponse>(
+      endpoint,
       dispatch
     )
-    return response
+
+    // Transform the API response to match our state's structure
+    const challengeForState: DailyChallenge = {
+      ...apiResponse,
+      sections: apiResponse.sections_json // Rename the field
+    }
+
+    return challengeForState
   } catch (error: any) {
     const message =
       error instanceof ApiError
@@ -44,12 +101,19 @@ export const updateDailyChallengeStatusThunk = createAsyncThunk<
   'challenges/updateStatus',
   async ({ challengeId, newStatus }, { dispatch, rejectWithValue }) => {
     try {
-      const response = await apiClient.put<DailyChallenge>(
+      // Assuming the PUT response might also use sections_json. If so, we transform it.
+      // If it returns the final state shape directly, no transform is needed here.
+      // Let's assume it returns the same API shape for consistency.
+      const apiResponse = await apiClient.put<DailyChallengeApiResponse>(
         `/me/challenges/${challengeId}/status`,
         { new_status: newStatus },
         dispatch
       )
-      return response
+      const challengeForState: DailyChallenge = {
+        ...apiResponse,
+        sections: apiResponse.sections_json
+      }
+      return challengeForState
     } catch (error: any) {
       const message =
         error instanceof ApiError
@@ -98,11 +162,12 @@ const challengesSlice = createSlice({
       .addCase(
         fetchDailyChallengeThunk.fulfilled,
         (state, action: PayloadAction<DailyChallenge>) => {
+          // The payload is already in the correct `DailyChallenge` shape with `sections`
           state.currentDailyChallenge = {
             ...action.payload,
             sections: action.payload.sections.map(s => ({
               ...s,
-              is_completed: s.is_completed || false
+              is_completed: s.is_completed || false // Ensure client-side flag is present
             }))
           }
           state.status = 'succeeded'
@@ -119,6 +184,7 @@ const challengesSlice = createSlice({
       .addCase(
         updateDailyChallengeStatusThunk.fulfilled,
         (state, action: PayloadAction<DailyChallenge>) => {
+          // Payload is also the correct shape here
           state.currentDailyChallenge = action.payload
           state.updateStatus = 'succeeded'
         }

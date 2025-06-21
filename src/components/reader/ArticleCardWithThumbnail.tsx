@@ -145,14 +145,13 @@ const styles = StyleSheet.create({
     elevation: 3,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.light.borderSubtle,
-    marginRight: 8,
-    marginLeft: 3,
-    marginVertical: 6
+    flex: 1
   },
   cardContentWrapper: {
     backgroundColor: Colors.light.cardBackground,
     borderRadius: 12,
-    overflow: 'hidden'
+    overflow: 'hidden',
+    flex: 1
   },
   imageOuterContainer: {
     position: 'relative',

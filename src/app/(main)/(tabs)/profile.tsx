@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useCallback } from 'react'
 import {
   View,
   Text,
@@ -21,7 +21,6 @@ import {
   Clock
 } from 'lucide-react-native'
 import { Colors } from '@constants/Colors'
-import { ArticleCardWithThumbnail } from '@/components/reader/ArticleCardWithThumbnail'
 import { ProgressRing } from '@/components/profile/ProgressRing'
 import { fetchProgressThunk } from '@features/progress/progressActions'
 import {
@@ -36,15 +35,19 @@ import {
 import { AchievementCard } from '@/components/profile/AchievementCard'
 import { useResponsiveDimensions } from '@hooks/useResponsiveDimensions'
 import { useSelector, useDispatch } from 'react-redux'
-import { fetchArticles } from '@features/articles/articlesActions'
 import { AppDispatch, RootState } from '@store/store'
 import { selectUser } from '@features/auth/authSelectors'
-import { selectPaginatedData } from '@pagination/selectors'
 import { useRouter, Link } from 'expo-router'
 import { useProtectedRoute } from '@hooks/useProtectedRoute'
 import { nameParser } from '@/utils/string'
 import { useFloatingTabBarHeight } from '@/hooks/useFloatingTabBarHeight'
 import { useRefresh } from '@/hooks/useRefresh'
+import { FeaturedArticles } from '@/components/home/FeaturedArticles'
+import { fetchSavedItemsThunk } from '@features/savedItems/savedItemsActions'
+import {
+  selectHydratedSavedArticles,
+  selectSavedItemsStatus
+} from '@/features/savedItems/savedItemsSlice'
 
 export default function ProfileScreen() {
   const { isLoading: isAuthLoading, isAuthenticated } = useProtectedRoute()
@@ -52,56 +55,71 @@ export default function ProfileScreen() {
   const dispatch = useDispatch<AppDispatch>()
   const router = useRouter()
   const floatingTabBarHeight = useFloatingTabBarHeight()
-  const [isRefreshing, handleRefresh] = useRefresh(() => {
-    if (isAuthenticated && userState?.id) {
-      if (!savedArticlesPagination.isLoading) {
-        dispatch(
-          fetchArticles(`${userState.id}-saved`, {
-            reset: true
-          })
-        )
-      }
-      if (progressStatus === 'idle') {
-        dispatch(fetchProgressThunk())
-      }
-      if (achievementsStatus === 'idle') {
-        dispatch(fetchEarnedAchievementsThunk())
-      }
-    }
-  })
 
+  // --- Selectors for state ---
   const userState = useSelector((state: RootState) => selectUser(state))
-  const { data: savedArticles, pagination: savedArticlesPagination } =
-    useSelector((state: RootState) =>
-      selectPaginatedData(
-        'articles',
-        'articlePagination',
-        `${userState?.id}-saved`,
-        true
-      )(state)
-    )
   const progressSummary = useSelector(selectProgressSummary)
   const progressStatus = useSelector(selectProgressStatus)
   const earnedAchievements = useSelector(selectEarnedAchievements)
   const achievementsStatus = useSelector(selectAchievementsStatus)
 
-  useEffect(() => {
-    if (isAuthenticated && userState?.id) {
-      if (!savedArticlesPagination.isLoading) {
-        dispatch(
-          fetchArticles(`${userState.id}-saved`, {
-            reset: true
-          })
-        )
+  // Correct way to get saved articles
+  const savedArticles = useSelector(selectHydratedSavedArticles)
+  const savedItemsStatus = useSelector(selectSavedItemsStatus)
+  const savedItemsError = useSelector(
+    (state: RootState) => state.savedItems.error
+  )
+
+  // --- Unified Data Fetching Logic ---
+  const fetchProfileData = useCallback(async () => {
+    if (isAuthenticated) {
+      const promises: Promise<any>[] = []
+      // Fetch progress if needed
+      if (progressStatus === 'idle' || progressStatus === 'failed') {
+        promises.push(dispatch(fetchProgressThunk()))
       }
-      if (progressStatus === 'idle') {
-        dispatch(fetchProgressThunk())
+      // Fetch achievements if needed
+      if (achievementsStatus === 'idle' || achievementsStatus === 'failed') {
+        promises.push(dispatch(fetchEarnedAchievementsThunk()))
       }
-      if (achievementsStatus === 'idle') {
-        dispatch(fetchEarnedAchievementsThunk())
+      // Fetch saved items if needed
+      if (savedItemsStatus === 'idle' || savedItemsStatus === 'failed') {
+        promises.push(dispatch(fetchSavedItemsThunk()))
+      }
+      if (promises.length > 0) {
+        await Promise.all(promises)
       }
     }
-  }, [dispatch, isAuthenticated, userState?.id])
+  }, [
+    dispatch,
+    isAuthenticated,
+    progressStatus,
+    achievementsStatus,
+    savedItemsStatus
+  ])
+
+  useEffect(() => {
+    fetchProfileData()
+  }, [fetchProfileData])
+
+  const [isRefreshing, handleRefresh] = useRefresh(fetchProfileData)
+
+  // Mock pagination state for FeaturedArticles component from savedItems state
+  const savedArticlesPagination = {
+    isLoading: savedItemsStatus === 'loading' && savedArticles.length === 0,
+    error: savedItemsError,
+    hasMore: false, // Saved items list is not paginated
+    hasFetched: savedItemsStatus === 'succeeded' || savedArticles.length > 0,
+    // Add other default fields to satisfy the type
+    ids: [],
+    currentPage: 1,
+    pageSize: 20,
+    nextPageKey: null,
+    prevPageKey: null,
+    totalCount: savedArticles.length,
+    hasReachedEnd: true,
+    lastSuccessfulFetchAt: null
+  }
 
   if (isAuthLoading || !isAuthenticated || !userState) {
     return (
@@ -283,28 +301,16 @@ export default function ProfileScreen() {
             </View>
           )}
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Saved Articles</Text>
-            <Link href="/(main)/saved-articles" asChild>
-              <TouchableOpacity>
-                <Text style={styles.viewAllText}>View all</Text>
-              </TouchableOpacity>
-            </Link>
-          </View>
-          {savedArticlesPagination.isLoading && savedArticles.length === 0 && (
-            <ActivityIndicator />
-          )}
-          {!savedArticlesPagination.isLoading && savedArticles.length === 0 && (
-            <Text style={styles.emptySectionText}>No saved articles yet.</Text>
-          )}
-          {savedArticles.length > 0 && (
-            <ScrollView horizontal>
-              {savedArticles.map(article => (
-                <ArticleCardWithThumbnail key={article.id} article={article} />
-              ))}
-            </ScrollView>
-          )}
+        {/* --- REPLACED SECTION FOR SAVED ARTICLES --- */}
+        <View style={styles.savedArticlesSection}>
+          <FeaturedArticles
+            title="My Library"
+            viewAllPath="/(main)/saved-articles"
+            articles={savedArticles}
+            pagination={savedArticlesPagination}
+            marginHorizontal={20}
+            onLoadMore={() => {}} // No pagination for this list on this screen
+          />
         </View>
 
         <View style={styles.section}>
@@ -332,32 +338,45 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
         </View>
-        {achievementsStatus === 'loading' &&
-          earnedAchievements.length === 0 && <ActivityIndicator />}
-        {achievementsStatus === 'failed' && (
-          <Text style={styles.errorTextSmall}>Failed to load achievements</Text>
-        )}
-        {achievementsStatus !== 'loading' &&
-          earnedAchievements.length === 0 && (
-            <Text style={styles.emptySectionText}>
-              No achievements earned yet.
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Achievements</Text>
+            <Link href="/(main)/achievements" asChild>
+              <TouchableOpacity>
+                <Text style={styles.viewAllText}>View all</Text>
+              </TouchableOpacity>
+            </Link>
+          </View>
+          {achievementsStatus === 'loading' &&
+            earnedAchievements.length === 0 && <ActivityIndicator />}
+          {achievementsStatus === 'failed' && (
+            <Text style={styles.errorTextSmall}>
+              Failed to load achievements
             </Text>
           )}
-        {earnedAchievements.length > 0 && (
-          <View
-            style={[
-              styles.achievementsContainer,
-              isDesktop && styles.wideScreenAchievements
-            ]}
-          >
-            {earnedAchievements.map(achievement => (
-              <AchievementCard
-                key={achievement.achievement_id}
-                achievement={achievement}
-              />
-            ))}
-          </View>
-        )}
+          {achievementsStatus === 'succeeded' &&
+            earnedAchievements.length === 0 && (
+              <Text style={styles.emptySectionText}>
+                No achievements earned yet.
+              </Text>
+            )}
+          {earnedAchievements.length > 0 && (
+            <View
+              style={[
+                styles.achievementsContainer,
+                isDesktop && styles.wideScreenAchievements
+              ]}
+            >
+              {earnedAchievements.slice(0, 4).map(achievement => (
+                <AchievementCard
+                  key={achievement.achievement_id}
+                  achievement={achievement}
+                />
+              ))}
+            </View>
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   )
@@ -513,21 +532,11 @@ const styles = StyleSheet.create({
     fontSize: 19,
     color: Colors.light.text
   },
-  viewAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 4
-  },
   viewAllText: {
     fontFamily: 'Inter-Medium',
     fontSize: 14,
     color: Colors.light.primary,
     marginRight: 2
-  },
-  horizontalScrollContent: {
-    paddingVertical: 4,
-    paddingLeft: 2,
-    paddingRight: 20
   },
   vocabularyCard: {
     backgroundColor: Colors.light.cardBackground,
@@ -569,32 +578,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.light.primaryContent
   },
-  achievementsGridContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between'
-  },
-  achievementCardMobile: {
-    width: '100%',
-    marginBottom: 12
-  },
-  achievementCardDesktop: {
-    width: '48.5%',
-    marginBottom: 12
-  },
   emptySectionText: {
     color: Colors.light.textSecondary,
     textAlign: 'center',
     fontFamily: 'Inter-Regular',
     paddingVertical: 30,
     fontSize: 14
-  },
-  emptySectionTextSmall: {
-    color: Colors.light.textSecondary,
-    textAlign: 'center',
-    fontFamily: 'Inter-Regular',
-    paddingVertical: 10,
-    fontSize: 13
   },
   errorTextSmall: {
     fontSize: 13,
@@ -621,11 +610,6 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.light.borderSubtle
-  },
-  categoryItemLast: {
-    borderBottomWidth: 0,
-    marginBottom: 0,
-    paddingBottom: 0
   },
   categoryName: {
     fontFamily: 'Inter-Medium',
@@ -667,5 +651,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.light.textSecondary,
     marginLeft: 6
+  },
+  achievementsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -6 // Gutter compensation
+  },
+  wideScreenAchievements: {
+    justifyContent: 'flex-start'
+  },
+  savedArticlesSection: {
+    marginHorizontal: -20
   }
 })

@@ -16,6 +16,7 @@ interface FeaturedArticlesProps {
   onLoadMore?: () => void
   title?: string
   viewAllPath?: string
+  marginHorizontal?: number
 }
 
 const NUM_SKELETONS_INITIAL = 3
@@ -25,7 +26,8 @@ export function FeaturedArticles({
   pagination,
   onLoadMore,
   title = 'Featured Articles',
-  viewAllPath = '/(main)/(tabs)/reader'
+  viewAllPath = '/(main)/(tabs)/reader',
+  marginHorizontal = 0
 }: FeaturedArticlesProps): React.ReactElement | null {
   const { isMobile } = useResponsiveDimensions()
 
@@ -35,14 +37,16 @@ export function FeaturedArticles({
     pagination.isLoading && articles.length > 0 && pagination.hasMore
 
   const renderItem = ({ item }: { item: Article }) => (
-    <ArticleCardWithThumbnail
-      article={item}
-      size={isMobile ? 'small' : 'medium'}
-    />
+    <View style={styles.articleCardContainer}>
+      <ArticleCardWithThumbnail
+        article={item}
+        size={isMobile ? 'small' : 'medium'}
+      />
+    </View>
   )
 
   const renderSkeletonItem = (keySuffix: string | number) => (
-    <View key={`skeleton-${keySuffix}`}>
+    <View style={styles.articleCardContainer} key={keySuffix}>
       <ArticleCardWithThumbnailSkeleton size={isMobile ? 'small' : 'medium'} />
     </View>
   )
@@ -50,10 +54,10 @@ export function FeaturedArticles({
   if (pagination.error && articles.length === 0) {
     return (
       <View style={styles.section}>
-        <View style={styles.sectionHeader}>
+        <View style={[styles.sectionHeader, { marginHorizontal }]}>
           <Text style={styles.sectionTitle}>{title}</Text>
         </View>
-        <Text style={styles.errorText}>
+        <Text style={[styles.errorText, { marginHorizontal }]}>
           Could not load {title.toLowerCase()}. Please try again later.
         </Text>
       </View>
@@ -70,7 +74,7 @@ export function FeaturedArticles({
 
   return (
     <View style={styles.section}>
-      <View style={styles.sectionHeader}>
+      <View style={[styles.sectionHeader, { marginHorizontal }]}>
         <Text style={styles.sectionTitle}>{title}</Text>
         {(!showInitialLoadingSkeleton || articles.length > 0) && (
           <Link href={viewAllPath as any} asChild>
@@ -87,7 +91,7 @@ export function FeaturedArticles({
       </View>
 
       {showInitialLoadingSkeleton ? (
-        <View style={styles.skeletonContainer}>
+        <View style={[styles.skeletonContainer, { marginHorizontal }]}>
           {Array.from({ length: NUM_SKELETONS_INITIAL }).map((_, index) =>
             renderSkeletonItem(`initial-${index}`)
           )}
@@ -102,6 +106,10 @@ export function FeaturedArticles({
           showScrollShadows={false}
           onEndReached={onLoadMore}
           onEndReachedThreshold={1}
+          contentContainerStyle={{
+            paddingHorizontal: marginHorizontal,
+            paddingVertical: 4
+          }}
           ListFooterComponent={
             showLoadMoreSkeleton ? renderSkeletonItem('footer-loading') : null
           }
@@ -141,6 +149,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingLeft: 2,
     paddingVertical: 4
+  },
+  articleCardContainer: {
+    marginRight: 8,
+    marginLeft: 3,
+    marginVertical: 6,
+    flex: 1
   },
   errorText: {
     fontFamily: 'Inter-Regular',

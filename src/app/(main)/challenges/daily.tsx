@@ -398,10 +398,9 @@ export default function DailyChallengeScreen(): React.ReactElement {
                     </Text>
                   )}
                 {section.type === 'spaced_repetition_review' &&
-                  (section as ChallengeNSRSection).target_review_count && (
+                  (section as ChallengeNSRSection).items && (
                     <Text style={styles.sectionSubtitleText}>
-                      Complete{' '}
-                      {(section as ChallengeNSRSection).target_review_count}{' '}
+                      Complete {(section as ChallengeNSRSection).items.length}{' '}
                       reviews
                     </Text>
                   )}

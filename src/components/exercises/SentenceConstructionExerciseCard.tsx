@@ -1,4 +1,3 @@
-// src/components/exercises/SentenceConstructionExerciseCard.tsx
 import React, { useState, useEffect, useMemo } from 'react'
 import {
   View,
@@ -8,23 +7,18 @@ import {
   ScrollView
 } from 'react-native'
 import { Colors } from '@constants/Colors'
-import { Shuffle, RotateCw, ThumbsUp, Check, X } from 'lucide-react-native' // Assuming lucide-react-native
+import { RotateCw, ThumbsUp, X } from 'lucide-react-native'
 
-// Define a type for the exercise data this card expects
 export interface SentenceConstructionExerciseCardExercise {
   exercise_type: 'sentence_builder'
-  // KLearn should provide the target sentence and its translation.
-  // Scrambled words can be derived by Kielo Backend or Frontend.
   target_sentence_fi: string
   translation_en: string
-  grammar_focus?: string // Optional: e.g., "Partitive Plural"
-  // item_id_fk?: string; // Optional: ID of the main grammar concept or word being tested
-  // item_type_fk?: string; // Optional: "word" or "grammar"
+  grammar_focus?: string
 }
 
 interface SentenceConstructionExerciseCardCardProps {
   exercise: SentenceConstructionExerciseCardExercise
-  onAnswered: (isCorrect: boolean, userAnswer: string) => void // userAnswer is the built sentence
+  onAnswered: (isCorrect: boolean, userAnswer: string) => void
 }
 
 export const SentenceConstructionExerciseCard: React.FC<
@@ -41,7 +35,6 @@ export const SentenceConstructionExerciseCard: React.FC<
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
 
   useEffect(() => {
-    // Shuffle words when the exercise changes or on initial load
     setScrambledWords([...originalWords].sort(() => Math.random() - 0.5))
     setUserAnswerWords([])
     setIsSubmitted(false)
@@ -61,7 +54,7 @@ export const SentenceConstructionExerciseCard: React.FC<
     const newUserAnswer = [...userAnswerWords]
     newUserAnswer.splice(index, 1)
     setUserAnswerWords(newUserAnswer)
-    setScrambledWords([...scrambledWords, word].sort(() => Math.random() - 0.5)) // Add back and re-scramble remaining
+    setScrambledWords([...scrambledWords, word].sort(() => Math.random() - 0.5))
   }
 
   const handleSubmit = () => {
@@ -69,13 +62,11 @@ export const SentenceConstructionExerciseCard: React.FC<
     const correct = userAnswerWords.join(' ') === exercise.target_sentence_fi
     setIsCorrect(correct)
     setIsSubmitted(true)
-    // onAnswered will be called on "Next"
   }
 
   const handleNext = () => {
     if (isCorrect === null) return
     onAnswered(isCorrect, userAnswerWords.join(' '))
-    // State reset is handled by useEffect when `exercise` prop changes for a new exercise
   }
 
   const handleReset = () => {
@@ -195,7 +186,6 @@ export const SentenceConstructionExerciseCard: React.FC<
   )
 }
 
-// Styles for SentenceConstructionExerciseCard (can be adjusted)
 const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.light.cardBackground,
@@ -207,8 +197,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 3,
     elevation: 2,
-    minHeight: 350, // Give it some space
-    justifyContent: 'space-between' // Push actions to bottom
+    minHeight: 350,
+    justifyContent: 'space-between'
   },
   instruction: {
     fontSize: 17,
@@ -240,8 +230,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    alignItems: 'center', // Vertically center placeholder
-    justifyContent: 'center' // Horizontally center placeholder or items
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   placeholderText: {
     color: Colors.light.textTertiary,
@@ -251,7 +241,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: 8, // For spacing between chips
+    gap: 8,
     marginBottom: 20,
     paddingVertical: 10,
     borderTopWidth: 1,
@@ -263,7 +253,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 15,
-    margin: 4 // Add margin for spacing if gap not supported well
+    margin: 4
   },
   wordChipBank: {
     backgroundColor: Colors.light.backgroundSecondary,
@@ -322,8 +312,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.primary
   },
   nextButton: {
-    backgroundColor: Colors.light.accent,
-    flex: 1 // Make "Next" take full width if it's the only one
+    backgroundColor: Colors.light.accentGreen,
+    flex: 1
   },
   buttonDisabled: {
     backgroundColor: Colors.light.border,

@@ -1,4 +1,3 @@
-// src/features/lessons/lessonsSlice.ts
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit'
 import { apiClient } from '@lib/api'
 import type { AppDispatch, RootState } from '@store/store'
@@ -8,26 +7,53 @@ import type {
   KieloSuggestedLessonsApiResponse
 } from './types'
 import { ApiError } from '@lib/ApiError'
+import type { ApiStatusType } from '@lib/api.d'
 
-// Response type from Kielo Backend for GET /api/v1/me/lessons/targeted
-interface SuggestedLessonsApiResponse {
-  user_id: string
-  suggested_lessons: LessonData[]
+const POLLING_INTERVAL_MS = 3000
+const MAX_POLLING_ATTEMPTS = 30
+
+async function pollForReadyResponse<T>(
+  endpoint: string,
+  dispatch: AppDispatch
+): Promise<T> {
+  let attempts = 0
+  while (attempts < MAX_POLLING_ATTEMPTS) {
+    const { response, body } = await apiClient.getWithResponse<T>(
+      endpoint,
+      dispatch
+    )
+
+    if (response.status === 200) {
+      return body
+    }
+
+    if (response.status === 202) {
+      console.log(
+        `[Polling] Received 202 for ${endpoint}. Waiting ${POLLING_INTERVAL_MS}ms. Attempt ${
+          attempts + 1
+        }/${MAX_POLLING_ATTEMPTS}`
+      )
+      await new Promise(resolve => setTimeout(resolve, POLLING_INTERVAL_MS))
+      attempts++
+    } else {
+      throw new ApiError(
+        `Unexpected status code ${response.status} during polling.`,
+        response.status,
+        body
+      )
+    }
+  }
+  throw new Error('Lesson generation timed out. Please try again in a moment.')
 }
-// Response type from Kielo Backend for GET /api/v1/lessons/{lesson_id}
-// This should match the LessonData structure expected by LessonPlayerScreen
-// type LessonDetailsApiResponse = LessonData;
 
 const initialState: LessonsState = {
   suggestedLessons: [],
   suggestedLessonsStatus: 'idle',
   suggestedLessonsError: null
-  // No currentLessonData fields needed in Redux state
 }
 
-// --- Thunks ---
 export const fetchSuggestedLessonsThunk = createAsyncThunk<
-  LessonData[], // This is correct, as we want to store LessonData[] in the slice
+  LessonData[],
   { max_suggestions?: number } | void,
   { dispatch: AppDispatch; rejectValue: string }
 >('lessons/fetchSuggested', async (args, { dispatch, rejectWithValue }) => {
@@ -35,12 +61,13 @@ export const fetchSuggestedLessonsThunk = createAsyncThunk<
     const queryParams = args?.max_suggestions
       ? `?max_suggestions=${args.max_suggestions}`
       : ''
-    // The Kielo Backend endpoint /api/v1/me/lessons/targeted returns KieloSuggestedLessonsApiResponse
-    const response = await apiClient.get<KieloSuggestedLessonsApiResponse>( // Use the correct API response type
-      `/me/lessons/targeted${queryParams}`,
-      dispatch
-    )
-    return response.suggested_lessons // Extract the array of LessonData
+    const endpoint = `/me/lessons/targeted${queryParams}`
+    const response =
+      await pollForReadyResponse<KieloSuggestedLessonsApiResponse>(
+        endpoint,
+        dispatch
+      )
+    return response.suggested_lessons
   } catch (error: any) {
     const message =
       error instanceof ApiError
@@ -50,7 +77,6 @@ export const fetchSuggestedLessonsThunk = createAsyncThunk<
   }
 })
 
-// --- Slice ---
 const lessonsSlice = createSlice({
   name: 'lessons',
   initialState,
@@ -68,7 +94,6 @@ const lessonsSlice = createSlice({
   },
   extraReducers: builder => {
     builder
-      // Fetch Suggested Lessons
       .addCase(fetchSuggestedLessonsThunk.pending, state => {
         state.suggestedLessonsStatus = 'loading'
         state.suggestedLessonsError = null
@@ -91,7 +116,6 @@ export const { clearCurrentLesson, clearSuggestedLessons } =
   lessonsSlice.actions
 export default lessonsSlice.reducer
 
-// --- Selectors ---
 export const selectSuggestedLessons = (state: RootState): LessonData[] =>
   state.lessons.suggestedLessons
 export const selectSuggestedLessonsStatus = (state: RootState): ApiStatusType =>

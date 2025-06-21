@@ -1,16 +1,12 @@
-// src/components/exercises/IdentifyTheConceptExerciseCard.tsx
 import React, { useState } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 import { Colors } from '@constants/Colors'
-import {
-  KLearnIdentifyTheConceptExercise,
-  KLearnExerciseOption
-} from '@features/lessons/types'
+import { KLearnIdentifyTheConceptExercise } from '@features/lessons/types'
 import { Check, X } from 'lucide-react-native'
 
 interface IdentifyTheConceptCardProps {
   exercise: KLearnIdentifyTheConceptExercise
-  onAnswered: (isCorrect: boolean, userAnswer: string) => void // userAnswer is the ID of selected concept
+  onAnswered: (isCorrect: boolean, userAnswer: string) => void
 }
 
 export const IdentifyTheConceptExerciseCard: React.FC<
@@ -200,7 +196,7 @@ const styles = StyleSheet.create({
   actions: { marginTop: 10 },
   button: { paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
   submitButton: { backgroundColor: Colors.light.primary },
-  nextButton: { backgroundColor: Colors.light.accent },
+  nextButton: { backgroundColor: Colors.light.accentGreen },
   buttonDisabled: { backgroundColor: Colors.light.border },
   buttonText: { color: Colors.common.white, fontWeight: 'bold', fontSize: 16 }
 })

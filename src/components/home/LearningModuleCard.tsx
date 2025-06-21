@@ -43,33 +43,39 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     width: '48%',
     marginBottom: 16,
-    minHeight: 160
+    minHeight: 150
   },
   moduleIconContainer: {
-    width: 48,
-    height: 48,
+    width: '100%',
+    height: 55,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    marginTop: 4,
+    marginBottom: 8,
     overflow: 'hidden'
   },
   moduleIconImage: {
     width: '90%',
     height: '90%',
-    resizeMode: 'contain'
+    resizeMode: 'contain',
+    textAlign: 'center'
   },
   moduleTitle: {
     fontFamily: 'Inter-Bold',
     color: Colors.light.text,
     fontSize: 16,
-    marginBottom: 4
+    marginBottom: 4,
+    width: '100%',
+    textAlign: 'center'
   },
   moduleDescription: {
     fontFamily: 'Inter-Regular',
     color: Colors.light.text,
     opacity: 0.8,
     fontSize: 12,
-    lineHeight: 16
+    lineHeight: 16,
+    width: '100%',
+    textAlign: 'center'
   }
 })

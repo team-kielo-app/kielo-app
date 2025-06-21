@@ -1,3 +1,4 @@
+// src/lib/api.ts
 import { store, AppDispatch } from '@store/store' // store is needed for isInitialized check
 import * as authActions from '@features/auth/authActions'
 // No longer importing authSelectors here for tokens
@@ -66,13 +67,13 @@ const _processRequestQueue = async () => {
       console.log('Processing queued request for:', queuedRequest.url)
       try {
         // Re-call the internal _executeRequest function for queued items
-        const result = await _executeRequest(
+        const result = await _executeRequestAndReturnResponse(
           queuedRequest.url,
           queuedRequest.options,
           queuedRequest.dispatch,
           false // A queued request is not an initial retry for 401
         )
-        queuedRequest.resolve(result)
+        queuedRequest.resolve(result.body) // Resolve with the body
       } catch (error) {
         queuedRequest.reject(error)
       }
@@ -231,21 +232,18 @@ const handleRefreshToken = async (
   }
 }
 
-const _executeRequest = async <T>(
+// --- NEW ---
+// Renamed from _executeRequest to reflect it returns the raw response and parsed body
+const _executeRequestAndReturnResponse = async <T>(
   url: string,
   options: RequestInit = {},
   dispatch: AppDispatch,
   isRetry: boolean = false
-): Promise<T> => {
+): Promise<{ response: Response; body: T }> => {
   if (!API_URL) throw new Error('API base URL not configured.')
-  // Use the getter. Assumes initializeDeviceToken was called at app startup.
   const currentDeviceToken = getDeviceToken()
   if (!currentDeviceToken) {
-    console.warn(
-      'Device token not yet initialized when making API request. This might lead to issues if X-Device-Token is strictly required by backend for all requests OR if called too early in app lifecycle.'
-    )
-    // Depending on backend requirements, you might throw an error here or proceed.
-    // For now, let's proceed but log a warning. The backend might allow some initial calls without it.
+    console.warn('Device token not yet initialized when making API request.')
   }
 
   const storedTokenData = await tokenStorage.getStoredTokens()
@@ -257,14 +255,10 @@ const _executeRequest = async <T>(
     console.log(
       `Token for ${url} expired or nearing expiry, attempting refresh...`
     )
-    token = await handleRefreshToken(token, dispatch) // handleRefreshToken uses tokenStorage for refresh token
+    token = await handleRefreshToken(token, dispatch)
     if (!token && !url.includes('/auth/')) {
-      // Only throw if not an auth URL itself
-      // If refresh failed, handleRefreshToken would have dispatched logout or set failedRefresh state
-      // No need to throw "Authentication required" here if logout is already happening.
-      // The original request will fail due to lack of token if it's a protected route.
       console.warn(
-        `Authentication token refresh failed or token is null for ${url}. Request might fail if token is required.`
+        `Authentication token refresh failed or token is null for ${url}.`
       )
     }
   }
@@ -293,18 +287,19 @@ const _executeRequest = async <T>(
           console.log(
             `Refresh successful after 401 for ${url}, retrying original request...`
           )
-          // Pass original options, not modified headers
-          return _executeRequest<T>(url, options, dispatch, true)
+          return _executeRequestAndReturnResponse<T>(
+            url,
+            options,
+            dispatch,
+            true
+          )
         } else {
-          // Refresh failed or no new token, error will be thrown below or logout handled
           console.warn(
             `Token refresh failed after 401 for ${url}. Original request will likely fail.`
           )
-          // Don't throw here, let the original error handling proceed.
-          // If logout happened, subsequent calls will fail until re-auth.
         }
       }
-      // Standard error processing
+
       let errorData
       try {
         errorData = await response.json()
@@ -320,13 +315,25 @@ const _executeRequest = async <T>(
       throw new ApiError(errorMessage, response.status, errorData)
     }
 
-    if (response.status === 204) return null as T
-    const contentType = response.headers.get('content-type')
-    if (contentType?.includes('application/json'))
-      return response.json() as Promise<T>
-    return response.text() as any as Promise<T>
+    // --- MODIFIED ---
+    // Handle body parsing here and return both response and body
+    let body: T
+    if (response.status === 204) {
+      body = null as T
+    } else {
+      const contentType = response.headers.get('content-type')
+      if (contentType?.includes('application/json')) {
+        body = (await response.json()) as T
+      } else {
+        body = (await response.text()) as any as T
+      }
+    }
+    return { response, body }
   } catch (error: any) {
-    console.error(`Error during _executeRequest to ${url}:`, error.message)
+    console.error(
+      `Error during _executeRequestAndReturnResponse to ${url}:`,
+      error.message
+    )
     if (!(error instanceof ApiError)) {
       throw new ApiError(
         error.message || 'A network or execution error occurred.',
@@ -339,13 +346,13 @@ const _executeRequest = async <T>(
   }
 }
 
-const request = async <T>(
+// --- MODIFIED ---
+// Request function now returns the full object from the executor
+const requestWithResponse = async <T>(
   url: string,
   options: RequestInit = {},
   dispatch: AppDispatch
-): Promise<T> => {
-  // Check Redux state directly here for initialization status
-  // This creates a dependency on the store instance.
+): Promise<{ response: Response; body: T }> => {
   const authState = store.getState().auth
   const initialCheckDone = authState.initialAuthChecked
   const isCurrentlyLoadingAuth = authState.status === 'loading'
@@ -357,18 +364,46 @@ const request = async <T>(
     console.log(
       `Auth not yet initialized or loading. Queuing request for: ${url}`
     )
+    // Queueing needs to be adapted to return the response object as well
     return new Promise((resolve, reject) => {
-      _requestQueue.push({ resolve, reject, url, options, dispatch })
+      // The queueing logic would need adjustment if a queued request
+      // itself needs to return the raw response. For now, assuming
+      // polling thunks won't be called before auth is initialized.
+      // Or we adapt the queue processing. Let's simplify and assume this for now.
+      _requestQueue.push({
+        resolve: (val: { body: T }) =>
+          resolve({ response: new Response(), body: val.body }), // Mock response for queue
+        reject,
+        url,
+        options,
+        dispatch
+      })
     })
   }
-  // If auth is initialized (even if session is invalid), proceed directly.
-  // _executeRequest will handle token presence and refresh if needed.
-  return _executeRequest(url, options, dispatch)
+
+  return _executeRequestAndReturnResponse(url, options, dispatch)
+}
+
+// --- MODIFIED ---
+// Original request function now wraps the new one to maintain backward compatibility
+const request = async <T>(
+  url: string,
+  options: RequestInit = {},
+  dispatch: AppDispatch
+): Promise<T> => {
+  const { body } = await requestWithResponse<T>(url, options, dispatch)
+  return body
 }
 
 export const apiClient = {
   get: <T>(url: string, dispatch: AppDispatch): Promise<T> =>
     request<T>(url, { method: 'GET' }, dispatch),
+  // --- NEW METHOD ---
+  getWithResponse: <T>(
+    url: string,
+    dispatch: AppDispatch
+  ): Promise<{ response: Response; body: T }> =>
+    requestWithResponse<T>(url, { method: 'GET' }, dispatch),
   post: <T>(url: string, data: any, dispatch: AppDispatch): Promise<T> =>
     request<T>(url, { method: 'POST', body: JSON.stringify(data) }, dispatch),
   put: <T>(url: string, data: any, dispatch: AppDispatch): Promise<T> =>

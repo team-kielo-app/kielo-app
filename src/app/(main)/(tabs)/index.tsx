@@ -150,11 +150,14 @@ export default function HomeScreen(): React.ReactElement {
           <StreakCard progressSummary={progressSummary} />
           <DailyGoalCard progressSummary={progressSummary} />
 
-          <FeaturedArticles
-            articles={featuredArticles}
-            pagination={featuredArticlesPagination}
-            onLoadMore={handleLoadMoreFeaturedArticles} // Pass load more handler
-          />
+          <View style={styles.featuredArticlesContainer}>
+            <FeaturedArticles
+              articles={featuredArticles}
+              pagination={featuredArticlesPagination}
+              marginHorizontal={24}
+              onLoadMore={handleLoadMoreFeaturedArticles} // Pass load more handler
+            />
+          </View>
 
           <Text style={styles.sectionTitle}>Continue Learning</Text>
           <View style={styles.modulesGrid}>
@@ -201,5 +204,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between'
-  }
+  },
+  featuredArticlesContainer: { marginHorizontal: -24 }
 })

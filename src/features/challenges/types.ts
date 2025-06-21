@@ -10,8 +10,11 @@ export interface ChallengeSectionBase {
 
 export interface ChallengeNSRSection extends ChallengeSectionBase {
   type: 'spaced_repetition_review'
-  review_items_preview: ReviewItem[]
-  target_review_count?: number
+  items: Array<{
+    item_id: string
+    item_type: 'word' | 'grammar' | string
+    display_text: string
+  }>
 }
 
 export interface ChallengeLessonSection extends ChallengeSectionBase {
@@ -30,12 +33,12 @@ export type ChallengeSection =
   | ChallengeLessonSection
   | ChallengeContextualPracticeSection
 
-export interface DailyChallenge {
+export interface DailyChallengeApiResponse {
   user_id: string
   challenge_date: string
   challenge_id: string
   title: string
-  sections: ChallengeSection[]
+  sections_json: ChallengeSection[]
   status:
     | 'generated'
     | 'started'
@@ -46,6 +49,11 @@ export interface DailyChallenge {
   message?: string
   estimated_total_time_minutes?: number
   total_reward_points?: number
+}
+
+export interface DailyChallenge
+  extends Omit<DailyChallengeApiResponse, 'sections_json'> {
+  sections: ChallengeSection[]
 }
 
 export interface ChallengesState {

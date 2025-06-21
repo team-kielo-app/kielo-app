@@ -50,6 +50,11 @@ import { useEntity } from '@/hooks/useEntity'
 import { ARTICLE_SCHEMA_SINGLE } from '@entities/schemas'
 import { fetchEntityByIdIfNeededThunk } from '@/features/entities/entityActions'
 import { ArrowLeft } from 'lucide-react-native'
+import { FeaturedArticles } from '@/components/home/FeaturedArticles'
+import { fetchArticles } from '@/features/articles/articlesActions'
+import { selectPaginatedData } from '@/pagination/selectors'
+
+const ARTICLE_SCREEN_FEATURED_ARTICLES_KEY = 'article-screen-featured'
 
 export default function ArticleScreen(): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -125,18 +130,68 @@ export default function ArticleScreen(): React.ReactElement {
     articleEntityError
   ])
 
-  const handleRefreshAction = useCallback(() => {
-    if (!id) return Promise.resolve()
-    setHasAttemptedFullFetch(true)
-    return dispatch(
-      fetchEntityByIdIfNeededThunk({
-        entityType: 'articles',
-        id,
-        endpoint: `/news/articles/${id}`,
-        schema: ARTICLE_SCHEMA_SINGLE,
-        forceRefresh: true
-      })
+  const { data: allFeaturedArticles, pagination: featuredArticlesPagination } =
+    useSelector((state: RootState) =>
+      selectPaginatedData(
+        'articles',
+        'articlePagination',
+        ARTICLE_SCREEN_FEATURED_ARTICLES_KEY,
+        false
+      )(state)
     )
+
+  const featuredArticles = useMemo(
+    () => allFeaturedArticles.filter(a => a.id !== id),
+    [allFeaturedArticles, id]
+  )
+
+  const handleLoadMoreFeaturedArticles = useCallback(() => {
+    if (
+      !featuredArticlesPagination.isLoading &&
+      featuredArticlesPagination.hasMore
+    ) {
+      dispatch(
+        fetchArticles(ARTICLE_SCREEN_FEATURED_ARTICLES_KEY, { fetchNext: true })
+      )
+    }
+  }, [dispatch, featuredArticlesPagination])
+
+  useEffect(() => {
+    if (
+      !featuredArticlesPagination.isLoading &&
+      !featuredArticlesPagination.hasFetched
+    ) {
+      dispatch(
+        fetchArticles(ARTICLE_SCREEN_FEATURED_ARTICLES_KEY, { reset: true })
+      )
+    }
+  }, [dispatch, featuredArticlesPagination])
+
+  const handleRefreshAction = useCallback(() => {
+    const promises: Promise<any>[] = []
+    if (id) {
+      setHasAttemptedFullFetch(true)
+      promises.push(
+        dispatch(
+          fetchEntityByIdIfNeededThunk({
+            entityType: 'articles',
+            id,
+            endpoint: `/news/articles/${id}`,
+            schema: ARTICLE_SCHEMA_SINGLE,
+            forceRefresh: true
+          })
+        )
+      )
+    }
+    promises.push(
+      dispatch(
+        fetchArticles(ARTICLE_SCREEN_FEATURED_ARTICLES_KEY, {
+          reset: true,
+          forceRefresh: true
+        })
+      )
+    )
+    return Promise.all(promises)
   }, [dispatch, id])
 
   const [isPullRefreshing, handlePullRefresh] = useRefresh(handleRefreshAction)
@@ -244,13 +299,7 @@ export default function ArticleScreen(): React.ReactElement {
           `Showing popup for ${mode} occurrence ${occurrenceId} at position:`,
           layout
         )
-        // Attempt to subtract Android status bar height from pageY
-        // This assumes measureInWindow on Android includes the status bar
         const statusBarHeight = StatusBar.currentHeight || 0
-
-        // It's also possible iOS includes safeArea.top in its pageY and Android doesn't,
-        // or vice-versa. This requires more experimentation.
-        // For now, let's focus on the Android status bar.
 
         setPopupPositionInternal({
           screenX: layout.pageX,
@@ -527,6 +576,14 @@ export default function ArticleScreen(): React.ReactElement {
               isDesktop={isDesktop}
             />
           )}
+
+          <FeaturedArticles
+            articles={featuredArticles}
+            pagination={featuredArticlesPagination}
+            onLoadMore={handleLoadMoreFeaturedArticles}
+            marginHorizontal={20}
+            title="You Might Also Like"
+          />
         </ScrollView>
 
         {popupVisible && popupPositionInternal && (
@@ -639,10 +696,9 @@ const styles = StyleSheet.create({
     alignSelf: 'center'
   },
   sourceContainer: {
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 2,
     borderTopColor: Colors.light.border,
-    paddingTop: 16,
-    marginTop: 24
+    paddingVertical: 16
   },
   sourceText: {
     fontFamily: 'Inter-Regular',

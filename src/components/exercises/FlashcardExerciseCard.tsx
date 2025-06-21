@@ -1,4 +1,3 @@
-// src/components/exercises/FlashcardExerciseCard.tsx
 import React, { useState, useEffect } from 'react'
 import {
   View,
@@ -11,13 +10,10 @@ import { useDispatch } from 'react-redux'
 import { Colors } from '@constants/Colors'
 import { KLearnFlashcardExercise } from '@features/lessons/types'
 import { AppDispatch } from '@/store/store'
-// Assuming you might need to fetch details if answer_text is missing
-// import { AppDispatch } from '@store/store';
-// import { fetchBaseWordDetailsThunk } from '@features/entities/baseWordActions'; // Example
 
 interface FlashcardExerciseCardProps {
   exercise: KLearnFlashcardExercise
-  onAnswered: (isCorrect: boolean, userAnswer: string) => void // userAnswer for self-assessment
+  onAnswered: (isCorrect: boolean, userAnswer: string) => void
 }
 
 export const FlashcardExerciseCard: React.FC<FlashcardExerciseCardProps> = ({
@@ -30,7 +26,7 @@ export const FlashcardExerciseCard: React.FC<FlashcardExerciseCardProps> = ({
   const dispatch = useDispatch<AppDispatch>()
 
   useEffect(() => {
-    setIsFlipped(false) // Reset flip on new exercise
+    setIsFlipped(false)
     setFetchedAnswer(null)
     setIsLoadingAnswer(false)
 
@@ -40,13 +36,11 @@ export const FlashcardExerciseCard: React.FC<FlashcardExerciseCardProps> = ({
       exercise.item_type_fk === 'word'
     ) {
       setIsLoadingAnswer(true)
-      // Placeholder: In a real app, dispatch an action to fetch word details
       console.log(
         `Flashcard: Would fetch details for word ID: ${exercise.item_id_fk}`
       )
+
       setTimeout(() => {
-        // Simulate API call
-        // This data would come from your Redux store or the API response
         const mockDetails = {
           primary_translation_en: `Translation for ${
             exercise.prompt.split(' ')[0]
@@ -55,12 +49,6 @@ export const FlashcardExerciseCard: React.FC<FlashcardExerciseCardProps> = ({
         setFetchedAnswer(mockDetails.primary_translation_en)
         setIsLoadingAnswer(false)
       }, 1000)
-      // Example of actual dispatch:
-      // dispatch(fetchWordDetailsForFlashcard(exercise.item_id_fk))
-      //   .unwrap()
-      //   .then(details => setFetchedAnswer(details.primary_translation_en))
-      //   .catch(err => { console.error("Failed to fetch flashcard answer", err); setFetchedAnswer("Error loading answer."); })
-      //   .finally(() => setIsLoadingAnswer(false));
     }
   }, [exercise, dispatch])
 
@@ -72,7 +60,7 @@ export const FlashcardExerciseCard: React.FC<FlashcardExerciseCardProps> = ({
       knewIt,
       knewIt ? 'self_assessed_correct' : 'self_assessed_incorrect'
     )
-    setIsFlipped(false) // Reset for next card
+    setIsFlipped(false)
   }
 
   return (
@@ -83,7 +71,6 @@ export const FlashcardExerciseCard: React.FC<FlashcardExerciseCardProps> = ({
         activeOpacity={0.7}
       >
         {!isFlipped ? (
-          // ... Front of card ...
           <View style={styles.front}>
             <Text style={styles.promptTextContent}>{exercise.prompt}</Text>
             <Text style={styles.tapToRevealText}>(Tap to reveal)</Text>
@@ -99,7 +86,7 @@ export const FlashcardExerciseCard: React.FC<FlashcardExerciseCardProps> = ({
         )}
       </TouchableOpacity>
 
-      {isFlipped && ( // Show assessment buttons only when flipped
+      {isFlipped && (
         <View style={styles.actions}>
           <TouchableOpacity
             style={[styles.button, styles.buttonBad]}
@@ -136,7 +123,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingBottom: 20 // Space before potential buttons
+    paddingBottom: 20
   },
   front: { alignItems: 'center', padding: 10 },
   back: { alignItems: 'center', padding: 10 },
